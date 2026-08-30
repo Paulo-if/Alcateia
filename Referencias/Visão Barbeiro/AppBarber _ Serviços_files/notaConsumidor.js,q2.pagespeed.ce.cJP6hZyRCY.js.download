@@ -1,0 +1,905 @@
+var numItemEmissaoConsumidor = 0;
+var listaItensNota = [];
+var listaItensNotaEmit = [];
+var valorNotaConsumidor = 0;
+var dadosEmpresaConsumidor = '';
+var dadosCleinteConsumidor = '';
+var erroNota = 0;
+var itemComandaConsumidor = [];
+var naturezalista = "";
+var currentType = 0;
+var singleEmit = 0;
+var fromPacote = 0;
+var parEnderecoNotaCon = 0;
+var tpapagamento = '';
+var tbapagamento = '';
+var arrPagamento = [];
+var infoProcon = '';
+$("#btnNotaConsumidor").click(function () {
+	criaNotaConsumidor($('#idComanda').html(), $("#codCliente").val())
+})
+
+function buscaparnotaconsu() {
+        $.ajax({
+          dataType: "json",
+          url: "/pages/cadastros/buscaParametroPessoa_v2.php",
+          async: false,
+          data: {
+            tipo: 4,
+          },
+          success: function (data) {
+            if (data.data.length > 0) {
+              console.log(data);
+              for (var i = 0; i < data.data.length; i++) {
+                if (data.data[i].Par_Codigo == 103) {
+                  if (data.data[i].PVa_Vlr_Principal == "1") {
+                    parEnderecoNotaCon = 1;
+                  } else {
+                    parEnderecoNotaCon = 0;
+                  }
+                } 
+              }
+            } else {
+             parEnderecoNotaCon = 0;
+              
+            }
+          },
+        });
+      };
+
+buscaparnotaconsu();
+function criaNotaConsumidor(comcodigo, cliente, forceEmit = undefined, isPacote = undefined) {
+	showLoader(true);
+	$("#numComandaNota").html(comcodigo)
+	var cidcodigo = '';
+	infoProcon = '';
+	$.ajax({
+		type: "POST",
+		url: "/pages/cadastros/buscaPessoa.php",
+		async: false,
+		data: {
+			tipo: 1
+		},
+		dataType: "json",
+		success: function (result) {
+		
+			dadosEmpresaConsumidor = result.buscaPessoa[0];
+			$("#empresaCNAE").val(result.buscaPessoa[0].CNAE);
+			$("#empresaCodigoNF").val(result.buscaPessoa[0].CodigoNF);
+			$("#empresaCodigoNFProd").val(result.buscaPessoa[0].CodigoNF);
+			$("#empresaCST").val(result.buscaPessoa[0].CST);
+			//$("#CodigoNFEmpresa").val(result.buscaPessoa[0].CodigoNF);
+
+			var codigoempresahtml = `<option value="${result.buscaPessoa[0].CodigoNF}">${result.buscaPessoa[0].CNPJ}</option>`
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/buscaPessoaEnotas.php",
+				dataType: "json",
+				async: false,
+				success: function (result) {
+					if (result.data.length > 0) {
+						for (var i = 0; i < result.data.length; i++) {
+							codigoempresahtml += `<option value="${result.data[0].PEn_Codigo_GW}">${result.data[0].PEn_CNPJ}</option>`
+						}
+					}
+				},
+				error: function (result) {}
+			});
+
+
+			$("#CodigoNFEmpresa").html(codigoempresahtml);
+			cidcodigo = result.buscaPessoa[0].Cid_Codigo
+		},
+		error: function (result) {
+			toastr.error("Falha na conexão.");
+		}
+	});
+
+	if(cidcodigo != ''){
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaCidadeProcon.php",
+			async: false,
+			data: {
+				cidcodigo: cidcodigo
+			},
+			dataType: "json",
+			success: function (result) {
+
+				if(result.data.length > 0){
+					infoProcon = `TELEFONE DO PROCON: ${result.data[0].CPo_Telefone} \n ENDERECO DO PROCON: ${result.data[0].CPo_Endereco}`
+
+				}
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+			}
+		});
+	}
+
+
+
+	if (cliente != '' && cliente != 0) {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaPessoav2.php",
+			async: false,
+			data: {
+				tipo: 1,
+				pescodigo: cliente
+			},
+			dataType: "json",
+			success: function (result) {
+				if(result.data.length > 0){
+					
+					dadosCleinteConsumidor = result.data[0];
+					$("#cliNomeNota").val(result.data[0].Pes_Nome);
+					$("#cliEmailNota").val(result.data[0].PAF_Email);
+					$("#cliCPFNota").val(result.data[0].PAF_CPF);
+					$("#cliCEPNota").val(result.data[0].PAF_CEP);
+					$("#cliUFNota").val(result.data[0].Est_Sigla);
+					$("#cliCidadeNota").val(result.data[0].Cid_Nome);
+					$("#cliBairroNota").val(result.data[0].PAF_Bairro);
+					$("#cliLogradouroNota").val(result.data[0].PAF_Endereco);
+					$("#cliEndNumeroNota").val(result.data[0].PAF_Numero);
+					$("#cliComplementoNota").val(result.data[0].PAF_Complemento);
+					$("#cliTelefoneNota").val(result.data[0].PAF_Celular);
+				}
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+			}
+		});
+	}else{
+		dadosCleinteConsumidor
+		$("#cliNomeNota").val('');
+		$("#cliEmailNota").val('');
+		$("#cliCPFNota").val('');
+		$("#cliCEPNota").val('');
+		$("#cliUFNota").val('');
+		$("#cliCidadeNota").val('');
+		$("#cliBairroNota").val('');
+		$("#cliLogradouroNota").val('');
+		$("#cliEndNumeroNota").val('');
+		$("#cliComplementoNota").val('');
+		$("#cliTelefoneNota").val('');
+	}
+
+	/*$.ajax({
+		dataType: "json",
+		url: '/pages/cadastros/buscaEstadosCombo.php',
+		method: "POST",
+		async: false,
+		success: function (data) {
+			if (data.result.length > 0) {*/
+			if ($_CONFIG.LISTA_ESTADO.length > 0) {
+				var html = "<option value=''>Estado</option>";
+				for (var i = 0; i < $_CONFIG.LISTA_ESTADO.length; i++) {
+					html += "<option value='" + $_CONFIG.LISTA_ESTADO[i].Est_Sigla + "'> " + $_CONFIG.LISTA_ESTADO[i].Est_Sigla + "</option>";
+				}
+				$("#cliUFNota").html(html);
+			}else{
+				$.ajax({
+					dataType: "json",
+					url: '/pages/cadastros/buscaEstadosCombo.php',
+					method: "POST",
+					success: function (data) {
+						if (data.result.length > 0) {
+							var html = "<option value=''>Estado</option>";
+							for (var i = 0; i < data.result.length; i++) {
+								html += "<option value='" + data.result[i].Est_Sigla + "'> " + data.result[i].Est_Sigla + "</option>";
+							}
+							$("#cliUFNota").html(html);
+						}
+
+					}
+				});
+			}
+			/*}*/
+	/*	}
+	});*/
+
+	var tipoBuscaItens = 2;
+	if(isPacote != undefined){
+		tipoBuscaItens = 3;
+		fromPacote = 1;
+	}
+
+	$.ajax({
+		dataType: "json",
+		method: "POST",
+		url: "/pages/cadastros/buscaComandaNF.php",
+		async: false,
+		data: {
+			comcodigo: comcodigo,
+			tipo: tipoBuscaItens
+		},
+		success: function (data) {
+			itemComandaConsumidor = data;
+		},
+		error: function (data) {
+			console.log('')
+		}
+	});
+
+	$.ajax({
+		type: "POST",
+		url: "/pages/cadastros/buscaPessoaNatureza.php",
+		async: false,
+		data: {
+			tipo: '1'
+		},
+		dataType: "json",
+		success: function (result) {
+			for (var i = 0; i < result.data.length; i++) {
+				naturezalista += `<option value='${result.data[i].Nat_Codigo_Externo}' data-itemlista='${result.data[i].PNa_Codigo_Municipal_Servico}' data-aliquota='${result.data[i].PNa_Aliquota}'>${result.data[i].Nat_Descricao}</option>`;
+			};
+		},
+		error: function (result) {
+			toastr.error("Falha na conexão.");
+		}
+	});
+
+	if(fromPacote == 0){
+		$.ajax({
+			dataType: "json",
+			url: localStorage.getItem("host"),
+			data: {
+				metodo: 'buscaComanda',
+				id: $_CONFIG.ID,
+				comcodigo: comcodigo,
+				tipo: 6
+			},
+			success: function(data){
+				if(data.result[0].TPa_Descricao != ""){
+					tpapagamento = data.result[0].TPa_Descricao;
+					if(data.result[0].TBa_Descricao != ""){
+						tbapagamento = data.result[0].TBa_Descricao;
+					}
+				}
+			},
+			error: function() {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+	}else{
+		$.ajax({
+			dataType: "json",
+			method: "POST",
+			url: "/pages/cadastros/buscaPessoaPacoteDetalhesv2.php",
+			async: false,
+			data: {
+				ppacodigo: comcodigo,
+				tipo: 2
+			},
+			success: function (data) {
+				if(data.data[0].TPa_Descricao != ""){
+					tpapagamento = data.data[0].TPa_Descricao;
+					if(data.data[0].TBa_Descricao != ""){
+						tbapagamento = data.data[0].TBa_Descricao;
+					}
+				}
+			},
+			error: function (data) {
+				console.log('')
+			}
+		});
+	}
+
+	if (forceEmit != undefined) {
+		createNotaConsumidor(comcodigo, forceEmit);
+		singleEmit = 1;
+	} else {
+		createNotaConsumidor(comcodigo, 0);
+		singleEmit = 0;
+	}
+}
+
+$("#usaEnderecoNota").change(function () {
+	var cep = '';
+	var uf = '';
+	var cidade = '';
+	var bairro = '';
+	var logradouro = '';
+	var numero = '';
+	var complemento = '';
+
+	if ($("#usaEnderecoNota").val() == 0) {
+		if(dadosCleinteConsumidor != ''){
+			cep = dadosCleinteConsumidor.Paf_CEP;
+			uf = dadosCleinteConsumidor.Est_Sigla;
+			cidade = dadosCleinteConsumidor.Cid_Nome;
+			bairro = dadosCleinteConsumidor.Paf_Bairro;
+			logradouro = dadosCleinteConsumidor.Paf_Endereco;
+			numero = dadosCleinteConsumidor.Paf_Numero;
+			complemento = dadosCleinteConsumidor.Paf_Complemento;
+		}else{
+			cep = '';
+			uf = '';
+			cidade = '';
+			bairro = '';
+			logradouro = '';
+			numero = '';
+			complemento = '';
+		}
+	} else {
+		cep = dadosEmpresaConsumidor.CEP;
+		uf = dadosEmpresaConsumidor.Estado;
+		cidade = dadosEmpresaConsumidor.Cidade;
+		bairro = dadosEmpresaConsumidor.Bairro;
+		logradouro = dadosEmpresaConsumidor.Endereco;
+		numero = dadosEmpresaConsumidor.Numero;
+		complemento = dadosEmpresaConsumidor.Complemento;
+	}
+
+	$("#cliCEPNota").val(cep);
+	$("#cliUFNota").val(uf);
+	$("#cliCidadeNota").val(cidade);
+	$("#cliBairroNota").val(bairro);
+	$("#cliLogradouroNota").val(logradouro);
+	$("#cliEndNumeroNota").val(numero);
+	$("#cliComplementoNota").val(complemento);
+
+})
+
+
+
+function createNotaConsumidor(comanda, tipoItem) {
+	currentType = tipoItem;
+	numItemEmissaoConsumidor = 0;
+	valorNotaConsumidor = 0;
+	var htmltablenota = '';
+	listaItensNota = [];
+	var htmltablenota = '';
+	var impostoItem = '';
+	var codigoItem = '';
+	var ncmItem = '';
+	var cfopItem = '';
+	var alertItem = '';
+	var itemhtmltablenota = '';
+	createChangeCfopConsumidor = [];
+
+	var thisItem = 0;
+	if (parEnderecoNotaCon == 1) {
+		$("#usaEnderecoNota").val(1).change();
+	}else{
+		$("#usaEnderecoNota").val(0).change();
+	}
+	
+	$("#headerTabelaItens").html("");
+	for (var i = 0; i < itemComandaConsumidor.data.length; i++) {
+		alertItem = '';
+		if (itemComandaConsumidor.data[i].Venda == 1 && (itemComandaConsumidor.data[i].Pro_Gorjeta == 0 || itemComandaConsumidor.data[i].Pro_Gorjeta == "")) {
+			var comboNatureza = '';
+			if (itemComandaConsumidor.data[i].Pro_Codigo != '') {
+				if (itemComandaConsumidor.data[i].Pro_Cfop == '' || itemComandaConsumidor.data[i].Pro_ICMS == '' || itemComandaConsumidor.data[i].Pro_Ncm == '') {
+					alertItem = '<i data-toggle="popover" tabindex="0" data-trigger="focus" data-placement="right" class="fa fa-exclamation-triangle iconalert" style="color:red" data-content="A configuração para emissão desse item não está completa."></i>'
+					erroNota = 1;
+				}else{
+					$("#headerTabelaItens").html("CFOP");
+					comboNatureza = `<select id="proCfopListaConsumidor${itemComandaConsumidor.data[i].Pro_Codigo}${itemComandaConsumidor.data[i].CIt_Codigo}" class="form-control input-sm" >
+						<option value="${itemComandaConsumidor.data[i].Pro_Cfop}" data-produto="${itemComandaConsumidor.data[i].Pro_Codigo}">${itemComandaConsumidor.data[i].Pro_Cfop}</option>
+						<option value="${itemComandaConsumidor.data[i].Pro_Cfop_Secundario}" data-produto="${itemComandaConsumidor.data[i].Pro_Codigo}">${itemComandaConsumidor.data[i].Pro_Cfop_Secundario}</option>
+					</select>`
+				}
+			} else {
+				$("#headerTabelaItens").html("Natureza");
+				comboNatureza = `<select id="selectNatureza${i}" class="form-control input-sm" >${naturezalista}</select>`
+			}
+			if(tipoItem == '0'){
+				$("#headerTabelaItens").html("Natureza");
+			}else{
+				$("#headerTabelaItens").html("CFOP");
+			}
+
+			createChangeCfopConsumidor.push(`proCfopListaConsumidor${itemComandaConsumidor.data[i].Pro_Codigo}${i}`);
+			itemhtmltablenota = `<tr>
+								<td>
+									${alertItem}
+								</td>
+								<td>
+									${itemComandaConsumidor.data[i].Descricao}
+								</td>
+								<td>
+									${itemComandaConsumidor.data[i].Quantidade}
+								</td>
+								<td>
+									${$_CONFIG.MOEDA} ${parseFloat(itemComandaConsumidor.data[i].ValorUnitario).toFixed(2).replace('.',',')}
+								</td>
+								<td>
+									${comboNatureza}
+								</td>
+							</tr>`;
+
+
+			if (itemComandaConsumidor.data[i].Ser_Codigo != '') {
+				ncmItem = '00';
+				cfopItem = '5933';
+				alertItem = ''
+				codigoItem = itemComandaConsumidor.data[i].Ser_Codigo;
+				var pis = itemComandaConsumidor.data[i].Ser_Pis;
+				if (pis == '') {
+					pis = '0';
+				}
+				var cofins = itemComandaConsumidor.data[i].Ser_Cofins;
+				if (cofins == '') {
+					cofins = '0';
+				}
+				impostoItem = {
+					issqn: {
+						itemListaServicoLC116: '',
+						aliquotaIss: 0,
+						issRetidoFonte: false
+					},
+					icms: {
+						situacaoTributaria: "00",
+						origem: 0
+					},
+					ibsCbs: {
+                              classificacaoTributaria: "000001",
+                            },
+					percentualAproximadoTributos: null
+				}
+				if (tipoItem == 0) {
+					numItemEmissaoConsumidor++;
+				}
+				thisItem = 0;
+			} else {
+				ncmItem = itemComandaConsumidor.data[i].Pro_Ncm;
+				cfopItem = itemComandaConsumidor.data[i].Pro_Cfop
+				codigoItem = itemComandaConsumidor.data[i].Pro_Codigo;
+				var pis = itemComandaConsumidor.data[i].Pro_Pis;
+				if (pis == '') {
+					pis = '0';
+				}
+				var cofins = itemComandaConsumidor.data[i].Pro_Cofins;
+				if (cofins == '') {
+					cofins = '0';
+				}
+				impostoItem = {
+					icms: {
+						situacaoTributaria: itemComandaConsumidor.data[i].Pro_ICMS,
+						origem: 0
+					},
+					pis: {
+						situacaoTributaria: itemComandaConsumidor.data[i].Pro_Pis
+					},
+					cofins: {
+						situacaoTributaria: itemComandaConsumidor.data[i].Pro_Cofins
+					},
+					ibsCbs: {
+						classificacaoTributaria: "000001",
+					},
+				}
+				if (tipoItem == 1) {
+					numItemEmissaoConsumidor++;
+				}
+				thisItem = 1;
+			}
+
+			if(itemComandaConsumidor.data[i].Pro_CEST == ""){
+				
+				if(thisItem == 0){
+					itemNota = {
+						cfop: cfopItem,
+						codigo: codigoItem,
+						descricao: itemComandaConsumidor.data[i].Descricao,
+						ncm: ncmItem,
+						quantidade: parseInt(itemComandaConsumidor.data[i].Quantidade),
+						unidadeMedida: 'UN',
+						valorUnitario: parseFloat(itemComandaConsumidor.data[i].ValorUnitario),
+						descontos:0,
+						outrasDespesas:0,
+						impostos: impostoItem
+					};
+				}else{
+					itemNota = {
+						cfop: cfopItem,
+						codigo: codigoItem,
+						descricao: itemComandaConsumidor.data[i].Descricao,
+						ncm: ncmItem,
+						quantidade: parseInt(itemComandaConsumidor.data[i].Quantidade),
+						unidadeMedida: 'UN',
+						ean: itemComandaConsumidor.data[i].Pro_Codigo_Barras,
+						eanTributavel: itemComandaConsumidor.data[i].Pro_Codigo_Barras,
+						valorUnitario: parseFloat(itemComandaConsumidor.data[i].ValorUnitario),
+						impostos: impostoItem
+					};
+				}
+
+			}else{
+				if(thisItem == 0){
+					itemNota = {
+						cfop: cfopItem,
+						codigo: codigoItem,
+						descricao: itemComandaConsumidor.data[i].Descricao,
+						ncm: ncmItem,
+						quantidade: parseInt(itemComandaConsumidor.data[i].Quantidade),
+						unidadeMedida: 'UN',
+						cest: itemComandaConsumidor.data[i].Pro_CEST,
+						valorUnitario: parseFloat(itemComandaConsumidor.data[i].ValorUnitario),
+						descontos:0,
+						outrasDespesas:0,
+						impostos: impostoItem
+					};
+				}else{
+					itemNota = {
+						cfop: cfopItem,
+						codigo: codigoItem,
+						descricao: itemComandaConsumidor.data[i].Descricao,
+						ncm: ncmItem,
+						quantidade: parseInt(itemComandaConsumidor.data[i].Quantidade),
+						unidadeMedida: 'UN',
+						cest: itemComandaConsumidor.data[i].Pro_CEST,
+						ean: itemComandaConsumidor.data[i].Pro_Codigo_Barras,
+						eanTributavel: itemComandaConsumidor.data[i].Pro_Codigo_Barras,
+						valorUnitario: parseFloat(itemComandaConsumidor.data[i].ValorUnitario),
+						impostos: impostoItem
+					};
+				};
+			}
+
+
+			if (tipoItem == 0 && thisItem == 0) {
+				$("#textEmit").html("Serviços");
+				listaItensNota.push(itemNota);
+				valorNotaConsumidor = valorNotaConsumidor + parseFloat(itemComandaConsumidor.data[i].Valor);
+				htmltablenota = htmltablenota + itemhtmltablenota;
+			} else if (tipoItem == 1 && thisItem == 1) {
+				$("#textEmit").html("Produtos - Consumidor");
+				listaItensNota.push(itemNota);
+				valorNotaConsumidor = valorNotaConsumidor + parseFloat(itemComandaConsumidor.data[i].Valor);
+				htmltablenota = htmltablenota + itemhtmltablenota;
+			}
+
+		}
+
+	}
+
+	$("#notaValorEmissao").html(valorNotaConsumidor);
+	$("#notaValorDiplay").val($_CONFIG.MOEDA + (valorNotaConsumidor.toFixed(2)).replace('.', ','));
+	$("#tableNotaItem").html(htmltablenota);
+
+	if (tipoItem == 0) {
+		erroNota = 0
+	}
+	if (numItemEmissaoConsumidor == 0) {
+		if (tipoItem == 0) {
+			createNotaConsumidor(comanda, 1)
+		}
+	} else {
+		$("#generateCupomConsumidor-modal").modal();
+	}
+	showLoader(false);
+}
+
+function emiteNotaConsumidor() {
+	showLoader(true);
+
+	if (numItemEmissaoConsumidor == 0) {
+		if (currentType != 0) {
+			createNotaConsumidor($("#numComandaNota").html(), 1)
+		}
+	} else {
+		if (erroNota == 0) {
+
+			listaItensNotaEmit = listaItensNota.slice(0);
+			var remainingItem = numItemEmissaoConsumidor;
+
+			for (var j = 0; j < numItemEmissaoConsumidor; j++) {
+				if ($("#selectNatureza" + j).html() != undefined) {
+					listaItensNotaEmit[j]["impostos"]["issqn"]["itemListaServicoLC116"] = $("#selectNatureza" + j).val();
+					listaItensNotaEmit[j]["impostos"]["issqn"]["aliquotaIss"] = parseFloat($("#selectNatureza" + j + " option:selected").get(0).dataset["aliquotaIss"]);
+				}
+			}
+
+			for (var k = 0; k < itemComandaConsumidor.data.length; k++) {
+				for (var l = 0; l < numItemEmissaoConsumidor; l++) {
+					if (listaItensNotaEmit[l]["codigo"] == `${itemComandaConsumidor.data[k].Codigo}_${itemComandaConsumidor.data[k].Pro_Codigo}`) {
+						listaItensNotaEmit[l]["cfop"] = $(`#proCfopListaConsumidor${itemComandaConsumidor.data[k].Pro_Codigo}${itemComandaConsumidor.data[k].CIt_Codigo} option:selected`).val()
+					}
+				}
+
+			}
+			if(tpapagamento != ""){
+				arrPagamento = [];
+				var descricaoPagamento = "";
+				var credenciador =  "";
+				var pushPagamento = "";
+				if(tpapagamento == "Dinheiro" || tpapagamento == "dinheiro"){
+					pushPagamento = "Dinheiro";
+				}else if(tpapagamento == "Cartão de Crédito" || tpapagamento == "cartão de crédito"){
+					pushPagamento = "CartaoDeCredito";
+					credenciador = {"tipoIntegracaoPagamento": "NaoIntegradoAoSistemaDeGestao" }
+				}else if(tpapagamento == "Cartão de Débito" || tpapagamento == "cartão de cébito"){
+					pushPagamento = "CartaoDeDebito";
+					credenciador = {"tipoIntegracaoPagamento": "NaoIntegradoAoSistemaDeGestao" }
+				}else if(tpapagamento == "Cheque" || tpapagamento == "cheque"){
+					pushPagamento = "Cheque";
+				}else if(tpapagamento == "Boleto" || tpapagamento == "boleto"){
+					pushPagamento = "BoletoBancario";
+				}else if(tpapagamento == "PIX" || tpapagamento == "pix" || tpapagamento == "Pix"){
+					pushPagamento = "PagamentoInstantaneoPix";
+					credenciador = {"tipoIntegracaoPagamento": "NaoIntegradoAoSistemaDeGestao" }
+				}else if(tpapagamento == "Resgate de Pontos" || tpapagamento == "resgate de pontos" ){
+					pushPagamento = "ProgramaFidelidadeCashbackCarteiraVirtual";
+				}else{
+					descricaoPagamento = tpapagamento;
+					pushPagamento = "Outros";
+				}
+				//"credenciadoraCartao"
+				if(descricaoPagamento != ''){
+					if(credenciador != ''){
+						arrPagamento.push({'tipo':pushPagamento,'valor':valorNotaConsumidor,'descricao':descricaoPagamento,"credenciadoraCartao":credenciador})
+					}else{
+						arrPagamento.push({'tipo':pushPagamento,'valor':valorNotaConsumidor,'descricao':descricaoPagamento})
+					}
+				}else{
+					if(credenciador != ''){
+						arrPagamento.push({'tipo':pushPagamento,'valor':valorNotaConsumidor,"credenciadoraCartao":credenciador})
+					}else{
+						arrPagamento.push({'tipo':pushPagamento,'valor':valorNotaConsumidor})
+					}
+				}
+
+				
+			}else{
+
+				arrPagamento.push({'tipo':"Dinheiro",'valor':valorNotaConsumidor})
+			}
+
+			var timegerado = new Date().getTime();
+			if (singleEmit == 0) {
+				setTimeout(function () {
+					if (currentType != 2) {
+						createNotaConsumidor($("#numComandaNota").html(), 2)
+					}
+				}, 2000)
+			}
+			var url = "/pages/cadastros/insereNotaFiscalConsumidor.php";
+			if (fromPacote == 1) {
+				url = "/pages/cadastros/insereNotaFiscalPacoteConsumidor.php";
+			}
+			if(infoProcon != ''){
+				var infoaddnota =  `${$("#infoAdiNota").val()} \n\n\n${infoProcon}`
+			}else{
+				
+				var infoaddnota =  $("#infoAdiNota").val()
+			}
+			$.ajax({
+				dataType: "json",
+				method: "POST",
+				url: url,
+				data: {
+					idEmpresa: $("#CodigoNFEmpresa").val(),
+					idExternoNota: $("#numComandaNota").html() + '_' + timegerado,
+					enviarEmail: $("#enviaEmailNota").val(),
+					nomeCliente: $("#cliNomeNota").val(),
+					telefoneCliente: $("#cliTelefoneNota").val(),
+					emailCliente: $("#cliEmailNota").val(),
+					cpfCliente: $("#cliCPFNota").val(),
+					logradouroCliente: $("#cliLogradouroNota").val(),
+					numeroCliente: $("#cliEndNumeroNota").val(),
+					complementoCliente: $("#cliComplementoNota").val(),
+					bairroCliente: $("#cliBairroNota").val(),
+					cepCliente: $("#cliCEPNota").val(),
+					ufCliente: $("#cliUFNota").val(),
+					cidadeCliente: $("#cliCidadeNota").val(),
+					item: JSON.stringify(listaItensNotaEmit),
+					timegerado: timegerado,
+					tipoemissao: currentType,
+					informacaoAdicional: infoaddnota,
+					valortotal: valorNotaConsumidor,
+					comcodigo: $("#numComandaNota").html(),
+					pagamento: JSON.stringify(arrPagamento),
+					natureza: $("#naturezaNota").val(),
+					tipoPessoa: $("#tipoPessoaNotaConsumidor").val()
+				},
+				success: function (result) {
+					showLoader(false);
+					if (result.data[0].erro == 1) {
+						toastr.warning(result.data[0].resultado);
+					} else {
+						$("#generateCupomConsumidor-modal").modal('hide');
+						toastr.warning(result.resultNota.erronf);
+						if (result.resultNota.nfid == '' || result.resultNota.nfid == undefined) {
+							if (fromPacote == 1) {
+								$.ajax({
+									type: "POST",
+									url: "/pages/cadastros/removePacoteNotaFiscal.php",
+									data: {
+										cnfcodigoexterno: $("#numComandaNota").html() + '_' + timegerado
+									},
+									dataType: "json",
+									success: function (data) {
+										if (data.data.erro != undefined) {
+											toastr.error(data.data.resultado);
+										} else {
+											if (data.data[0].erro == '0') {
+												toastr.success(data.data[0].resultado);
+											} else {
+												toastr.error(data.data[0].resultado);
+											}
+										}
+									},
+									error: function (result) {
+										toastr.error("Falha na conexão.");
+									}
+								});
+							} else {
+								$.ajax({
+									type: "POST",
+									url: "/pages/cadastros/removeComandaNotaFiscal.php",
+									data: {
+										cnfcodigoexterno: $("#numComandaNota").html() + '_' + timegerado
+									},
+									dataType: "json",
+									success: function (data) {
+										if (data.data.erro != undefined) {
+											toastr.error(data.data.resultado);
+										} else {
+											if (data.data[0].erro == '0') {
+												toastr.success(data.data[0].resultado);
+											} else {
+												toastr.error(data.data[0].resultado);
+											}
+										}
+									},
+									error: function (result) {
+										toastr.error("Falha na conexão.");
+									}
+								});
+							}
+						}
+					}
+				},
+				error: function (data) {
+
+				}
+			});
+			if (singleEmit == 0) {
+				setTimeout(function () {
+					if (currentType != 1) {
+						createNotaConsumidor($("#numComandaNota").html(), 1)
+					}
+				}, 1000)
+			}
+		} else {
+			toastr.error('Existem produtos com configuração incompleta para a emissão. Para poder emitir essa nota, favor atualize os seus produtos.');
+		}
+	}
+
+}
+
+$("#btnEmiteNotaConsumidor").click(function () {
+	emiteNotaConsumidor()
+})
+
+
+
+$("#clearNotaCliente").click(function () {
+	$(".dadosCli").val('');
+})
+
+
+function thumbClienteName(repo) {
+
+    if (repo.loading) {
+        return repo.text;
+    }
+    if (repo.Paf_Celular == "") {
+        var celular = "";
+    } else {
+        var celular = " - " + repo.Paf_Celular;
+    }
+    return repo.Pes_Nome + celular;
+}
+
+function formatRepoSelection(repo) {
+    return repo.Pes_Nome || repo.text;
+}
+
+$("#clientSwitchList").click(function () {
+
+	$('#clientSwitchListSelect').select2({
+		ajax: {
+			url: localStorage.getItem('host'),
+			dataType: 'json',
+			delay: 250,
+			
+			data: function (params) {
+				return {
+					nome: params.term,
+					metodo: 'buscaClientes_v4',
+					tipo: 5,
+					id: $_CONFIG.ID
+				};
+			},
+			dropdownParent: $('#clientSwitchList-modal'),
+			processResults: function (data, params) {
+				return {
+					results: data.result
+				};
+			},
+			cache: true
+		},
+		placeholder: 'Sem Cadastro',
+		dropdownParent: $("#clientSwitchList-modal"),
+		escapeMarkup: function (markup) {
+			return markup;
+		}, // let our custom formatter work
+		minimumInputLength: 3,
+		templateResult: thumbClienteName,
+		templateSelection: formatRepoSelection
+	});
+
+
+	$("#clientSwitchList-modal").modal()
+})
+
+
+$("#buscaDadadosClienteSwitch").click(function () {
+	if ($("#clientSwitchListSelect").val() != "") {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaPessoav2.php",
+			data: {
+				tipo: 1,
+				pescodigo: $("#clientSwitchListSelect").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data.length > 0) {
+					var dadosClienteNota = result.data[0];
+					$("#cliNomeNota").val(result.data[0].Pes_Nome);
+
+					$("#cliEmailNota").val(result.data[0].PAF_Email);
+
+					if ((result.data[0].PAF_CPF).length <= 14) {
+						$("#tipoPessoaNotaConsumidor").val('F')
+					} else {
+						$("#tipoPessoaNotaConsumidor").val('J')
+					}
+
+					$("#cliCPFNota").val(result.data[0].PAF_CPF);
+					$("#cliCEPNota").val(result.data[0].PAF_CEP);
+					$("#cliUFNota").val(result.data[0].Est_Codigo);
+					$("#cliCidadeNota").val(result.data[0].Cid_Nome);
+					$("#cliBairroNota").val(result.data[0].PAF_Bairro);
+					$("#cliLogradouroNota").val(result.data[0].PAF_Endereco);
+					$("#cliEndNumeroNota").val(result.data[0].PAF_Numero);
+				
+					$("#cliComplementoNota").val(result.data[0].PAF_Complemento);
+					$("#clientSwitchList-modal").modal('hide')
+				}
+				showLoader(false);
+
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+	}
+})
+
+
+function soCpfCnpj(v) {
+    i = v.length;
+    if (i <= 14) {
+        v = v.replace(/\D/g, "")
+        v = v.replace(/(\d{3})(\d)/, "$1.$2");
+        v = v.replace(/(\d{3})(\d)/, "$1.$2");
+        v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+        return v
+    } else {
+        v = v.replace(/\D/g, "");
+        v = v.replace(/^(\d{2})(\d)/, "$1.$2");
+        v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
+        v = v.replace(/\.(\d{3})(\d)/, ".$1/$2");
+        v = v.replace(/(\d{4})(\d)/, "$1-$2");
+        return v
+    }
+}

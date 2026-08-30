@@ -1,0 +1,31 @@
+
+body {
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 400;
+  color: #000;
+}
+/* H1 - H6 font */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6 {
+  font-family: 'Quicksand', sans-serif;
+}
+
+.main-header .logo {
+  font-family: 'Quicksand',sans-serif;
+  font-weight: 300;
+}
+
+.dataTable td {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}

@@ -1,0 +1,4042 @@
+angular.module('appBeleza').controller('servicosCtrl', function ($rootScope, $scope, $http, $compile, $state, $translate) {
+
+	$rootScope.header = sSistema + ' | ' + $_CONFIG.language.servicos.breadcrumb;
+	$('#navProf').hide();
+	$('#formProf').hide();
+
+	changeHeightBody();
+	validaPerfil($state.current.name);
+	$http.get('/php/buscaSessao.php').
+	success(function (data, status, headers, config) {
+		$scope.idCliente = data;
+
+
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 5,
+				origem: 1
+			},
+			success: function (data) {
+				if (data.result[0] != '') {
+					parTempo = data.result[0].PVa_Vlr_Principal;
+					var tempo = parseInt(parTempo);
+					for (var i = tempo; i <= 360; i = i + tempo) {
+						$('#serIntervalo').append('<option value="' + i + '">' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+						$('#serIntervaloEdt').append('<option value="' + i + '">' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+					};
+					$('.timepicker').timepicker({
+						'timeFormat': 'H:i',
+						'forceRoundTime': true,
+						'step': tempo
+					});
+				} else {
+					$('.timepicker').timepicker({
+						'timeFormat': 'H:i',
+						'forceRoundTime': true,
+						'step': 10
+					});
+				}
+			}
+		});
+
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 55,
+				origem: 1
+			},
+			success: function (data) {
+				if (data.result[0] != '') {
+					if (data.result[0].PVa_Vlr_Principal == '1') {
+						$("#tabAuxiliar").show();
+					} else {
+						$("#tabAuxiliar").hide();
+					}
+				} else {
+					$("#tabAuxiliar").hide();
+				}
+			}
+		});
+
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 59,
+				origem: 1
+			},
+			success: function (data) {
+				if (data.result[0] != '') {
+					if (data.result[0].PVa_Vlr_Principal == '1') {
+						$("#tabExclusAssinatura").show();
+					} else {
+						$("#tabExclusAssinatura").hide();
+					}
+				} else {
+					$("#tabExclusAssinatura").hide();
+				}
+			}
+		});
+
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 80,
+				origem: 1
+			},
+			success: function (data) {
+				if (data.result[0] != '') {
+					if (data.result[0].PVa_Vlr_Principal == '1') {
+						$(".campoCustoServico").show();
+						$("#tabProduto").hide();
+					} else {
+						$(".campoCustoServico").hide();
+						$("#tabProduto").show();
+					}
+				} else {
+					$(".campoCustoServico").hide();
+					$("#tabProduto").show();
+				}
+			}
+		});
+
+
+	});
+
+	$('.valorFormat').on('keyup', function (e) {
+		formataValorDinheiro(this);
+	});
+
+	$('.hora').mask('00:00');
+
+	$('.input-group.date').datepicker({
+		language: $_CONFIG.language.mascaras.lang,
+		orientation: 'top auto',
+		autoclose: true,
+		format: $_CONFIG.language.mascaras.data
+	});
+
+
+	var datafim = moment().locale("pt-br").format("L");
+	$('.date.divDataAlteracao').datepicker('update', datafim);
+
+
+
+
+	$('#serComissao').on('keyup', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serComissao').val('0,00');
+		}
+	});
+
+	$('#serComissao').on('keydown', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serComissao').val('0,00');
+		}
+	});
+
+	$('#serComissaoEdt').on('keyup', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serComissaoEdt').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serComissaoEdt').val('0,00');
+		}
+	});
+
+	$('#serComissaoEdt').on('keydown', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serComissaoEdt').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serComissaoEdt').val('0,00');
+		}
+	});
+
+
+	$('#serDescValor').on('keyup', function () {
+		var valorServico = parseFloat($('#serValorAssociacao').val().replace(',', '.'));
+		var desconto = $('#serDescValor').maskMoney('unmasked')[0];
+		if (desconto > valorServico) {
+			desconto = valorServico;
+			$('#serDescValor').maskMoney('mask', valorServico);
+		}
+		var porcentagem = 100 - ((desconto / valorServico) * 100);
+		$('#serDescPerc').val(porcentagem.toFixed(2));
+	});
+
+	$('#serDescValorEdt').on('keyup', function () {
+		var valorServico = parseFloat($('#serValorFixo').val().replace(',', '.'));
+		var desconto = $('#serDescValorEdt').maskMoney('unmasked')[0];
+		if (desconto > valorServico) {
+			desconto = valorServico;
+			$('#serDescValorEdt').maskMoney('mask', valorServico);
+		}
+		var porcentagem = 100 - ((desconto / valorServico) * 100);
+		$('#serDescPercEdt').val(porcentagem.toFixed(2));
+	});
+
+	$('#serProfComissaoInsAlt').on('keyup', function () {
+		if ($(this).val().length > 5) {
+			$('#serProfComissaoInsAlt').val('100,00');
+		} else if ($(this).val() < 0) {
+			$('#serProfComissaoInsAlt').val('0,00');
+		}
+	});
+
+	$("#serSimultaneosEdt").keyup(function () {
+		if ($("#serSimultaneosEdt").val() < 0) {
+			$("#serSimultaneosEdt").val(0);
+		}
+	})
+
+	$("#serSimultaneos").keyup(function () {
+		if ($("#serSimultaneos").val() < 0) {
+			$("#serSimultaneos").val(0);
+		}
+	})
+
+	$('#serProfComissaoEdt').on('keyup', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serProfComissaoEdt').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serProfComissaoEdt').val('0,00');
+		}
+	});
+
+	$('#serProfComissaoEdt').on('change', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serProfComissaoEdt').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serProfComissaoEdt').val('0,00');
+		}
+	});
+
+
+	$('#serProfComissaoEdt').on('keydown', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#serProfComissaoEdt').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#serProfComissaoEdt').val('0,00');
+		}
+	});
+
+
+
+
+	$('[data-toggle="popover"]').popover({
+		container: 'body'
+	});
+
+	$('#serFigura').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ['png', 'jpg', 'jpeg'],
+		showUpload: false
+	});
+
+	$('#cortaImagemAll-modal').on('hidden.bs.modal', function (e) {
+		/*if (mBlob != undefined && mBlob != "") {
+			if (location.hash == '#/servicos') {
+				if ($("#formid").val() != "#formCadastro") {
+					$('#serImagemEdit').attr('src', mImage);
+					$scope.saveImage();
+				}
+			}
+		} else {
+			if (location.hash == '#/servicos') {
+				if ($("#formid").val() != "#formCadastro") {
+					$scope.saveImage();
+				}
+			}
+		}
+		$("#imagemCutAll").resize();
+		$("#imagemCutAll").cropper("reset");
+		$(this).data('modal', null);*/
+
+		if (!($("#cadastrar-modal").data('bs.modal') || {}).isShown && !($("#cadastrarComboSer-modal").data('bs.modal') || {}).isShown && ($("#editar-modal").data('bs.modal') || {}).isShown) {
+			if (mBlob != undefined && mBlob != "") {
+				if (location.hash == '#/servicos') {
+					$('#serImagemEdit').attr('src', mImage);
+					$scope.saveImage();
+				}
+			} else {
+				if (location.hash == '#/servicos') {
+					$scope.saveImage();
+				}
+
+			}
+			$("#imagemCutAll").resize();
+			$("#imagemCutAll").cropper("reset");
+		}
+		/*--------------------------------------------------------*/
+		if (!($("#cadastrar-modal").data('bs.modal') || {}).isShown && !($("#cadastrarComboSer-modal").data('bs.modal') || {}).isShown && !($("#editar-modal").data('bs.modal') || {}).isShown) {
+			if (mBlob != undefined && mBlob != "") {
+				if (location.hash == '#/servicos') {
+					$('#cboImagemEditSer').attr('src', mImage);
+					$scope.saveImageCombo();
+				}
+			} else {
+				if (location.hash == '#/servicos') {
+					$scope.saveImageCombo();
+				}
+
+			}
+			$("#imagemCutAll").resize();
+			$("#imagemCutAll").cropper("reset");
+		}
+		/*--------------------------------------------------------*/
+	})
+
+	$scope.saveImage = function () {
+		showLoader(true)
+		if (mBlob != undefined) {
+			dataaltera = new FormData();
+			dataaltera.append('figura', mBlob);
+			dataaltera.append('servico', $('#serCodigoEdt').val())
+			$.ajax({
+				dataType: 'json',
+				method: 'POST',
+				url: '/pages/cadastros/alteraServicoImagem.php',
+				data: dataaltera,
+				processData: false,
+				contentType: false,
+				success: function (data) {
+					if (data.data[0].erro == 0) {
+						$('#serImagemEdit').attr('src', data.data[0].urlimagem);
+						toastr.success(data.data[0].resultado);
+						$("#otpimagenservico").val("").change();
+						mBlob = "";
+						$("#serFiguraEdit").fileinput('clear');
+					} else {
+						toastr.error(data.data[0].resultado);
+					}
+					showLoader(false)
+				},
+				error: function (result) {
+					toastr.error('Falha de conexão');
+					showLoader(false)
+				}
+			});
+		} else {
+			toastr.warning("Ops! Parece que você não concluiu a seleção da nova imagem, nenhuma alteração será feita");
+			$("#serFiguraEdit").fileinput('clear');
+			showLoader(false)
+		}
+	}
+
+	$scope.editarimagem = function () {
+		$("#serFiguraEdit").click()
+	}
+	$scope.removerImagem = function () {
+		$("#visualizarimagem-modal").modal('hide')
+		swal({
+				title: 'Deseja realmente remover essa imagem',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: $_CONFIG.language.sim,
+				cancelButtonText: $_CONFIG.language.nao,
+				closeOnConfirm: true
+			},
+			function () {
+				showLoader(true)
+				dataaltera = new FormData();
+				dataaltera.append('figura', '');
+				dataaltera.append('servico', $('#serCodigoEdt').val())
+				dataaltera.append('serFiguraEdit', '')
+				$.ajax({
+					dataType: 'json',
+					method: 'POST',
+					url: '/pages/cadastros/alteraServicoImagem.php',
+					data: dataaltera,
+					processData: false,
+					contentType: false,
+					success: function (data) {
+						if (data.data[0].erro == 0) {
+							$('#serImagemEdit').attr('src', '../../img/ser_sem_imagem.png');
+							toastr.success(data.data[0].resultado);
+						} else {
+							toastr.error(data.data[0].resultado);
+						}
+						showLoader(false)
+					},
+					error: function (result) {
+						toastr.error('Falha de conexão');
+						showLoader(false)
+					}
+				});
+			});
+	}
+
+	$('#selDiaSemana').multiselect({
+		checkboxName: 'selDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#selDiaSemana').on('click', function () {
+		$('#selDiaSemana').multiselect('updateButtonText', true);
+	});
+
+	$('#selDiaSemanaEdt').multiselect({
+		checkboxName: 'selDiaSemanaEdt[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#selDiaSemanaEdt').on('click', function () {
+		$('#selDiaSemanaEdt').multiselect('updateButtonText', true);
+	});
+
+	$('#selDiaTodo').change(function () {
+		if (this.value == 0) {
+			$('#serDescHoraIni').prop('disabled', false);
+			$('#serDescHoraFim').prop('disabled', false);
+		} else {
+			$('#serDescHoraIni').prop('disabled', true);
+			$('#serDescHoraFim').prop('disabled', true);
+		}
+	});
+
+	$('#selDiaTodoEdt').change(function () {
+		if (this.value == 0) {
+			$('#serDescHoraIniEdt').prop('disabled', false);
+			$('#serDescHoraFimEdt').prop('disabled', false);
+		} else {
+			$('#serDescHoraIniEdt').prop('disabled', true);
+			$('#serDescHoraFimEdt').prop('disabled', true);
+		}
+	});
+
+	$('#selDiaTodo').change(function () {
+		if (this.value == 0) {
+			$('#serDescHoraIni').prop('disabled', false);
+			$('#serDescHoraFim').prop('disabled', false);
+		} else {
+			$('#serDescHoraIni').prop('disabled', true);
+			$('#serDescHoraFim').prop('disabled', true);
+		}
+	});
+
+	function carregaDados() {
+		tabelabuscaser = $('#tbBuscaSer').DataTable({
+			'ajax': '/pages/cadastros/buscaServicosv2.php',
+
+			'initComplete': function () {
+				$compile($('#tbBuscaSer'))($scope);
+				$('#tbBuscaSer_paginate').click(function () {
+					$compile($('#tbBuscaSer'))($scope);
+				});
+				$('#tbBuscaSer_filter').change(function () {
+					$compile($('#tbBuscaSer'))($scope);
+				});
+				$('#tbBuscaSer_length').change(function () {
+					$compile($('#tbBuscaSer'))($scope);
+				});
+				$('#tbBuscaSer_filter input').keyup(function () {
+					tabelabuscaser
+						.fnFilter(
+							jQuery.fn.DataTable.ext.type.search.string(this.value)
+						)
+				});
+				resizeContent();
+			},
+			dom: 'Blfrtip',
+			scrollX: isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			buttons: [{
+					extend: 'excelHtml5',
+					text: 'Excel',
+					exportOptions: {
+						columns: ':visible'
+					},
+					footer: 'true'
+				}, {
+					extend: 'pdfHtml5',
+					title: sSistema + ' - ' + $_CONFIG.language.servicos.breadcrumb,
+					orientation: 'landscape',
+					pageSize: 'LEGAL',
+					exportOptions: {
+						columns: ':visible'
+					}
+				},
+				{
+					extend: 'print',
+					text: 'Imprimir',
+					exportOptions: {
+						columns: ':visible'
+					},
+					footer: true
+				}
+			],
+			'language': {
+				'url': $_CONFIG.language.datatables
+			},
+			'columns': [{
+					'data': 'Ser_Descricao',
+					'title': 'Descrição',
+					'class': 'mobileServico'
+				},
+				{
+					'data': 'Ser_Valor',
+					'title': 'Valor',
+					'class': 'mobileServico'
+				},
+
+				{
+					'data': 'Ser_Intervalo_Padrao',
+					'title': 'Tempo',
+					'class': 'mobileServico'
+				},
+				{
+					'data': 'Ser_Comissao',
+					'title': 'Comissão',
+					'class': 'mobileServico'
+				},
+
+				{
+					'data': 'TCa_Descricao',
+					'title': 'Categoria',
+					'class': 'mobileServico'
+				},
+				{
+					'data': 'Ser_Usa_App',
+					'title': 'Disponível',
+					'class': 'mobileServico',
+					'render': (data) => {
+						return disponivel(data)
+					},
+				},
+
+				{
+					'title': '',
+					'class': 'editarServico',
+					'orderable': false,
+					'data': null,
+					'defaultContent': '<button class="btn btn-xs btn-success" >Editar <i class="fa fa-pencil"></i></button>'
+
+				}, {
+					'title': '',
+					'class': 'excluirServico',
+					'orderable': false,
+					'data': null,
+					'defaultContent': '<button class="btn btn-xs btn-danger" >Excluir <i class="fa fa-trash"></i></button>'
+
+				}
+			]
+		});
+
+
+		$('#tbBuscaSer tbody').on('click', 'td.editarServico', function () {
+			var row = tabelabuscaser.row($(this));
+			$scope.editarServico(row.data());
+			$("#editar-modal").modal()
+		});
+
+		$('#tbBuscaSer tbody').on('click', 'td.excluirServico', function () {
+			var row = tabelabuscaser.row($(this));
+			$scope.excluir(row.data().Ser_Codigo, row.data().Ser_Descricao);
+		});
+
+
+		if (isMobile) {
+			$('#tbBuscaSer tbody').on('click', 'td.mobileServico', function () {
+				var row = tabelabuscaser.row($(this));
+				$scope.editarServico(row.data());
+				$('#editar-modal').modal();
+			});
+
+		}
+
+		var profissional = '';
+		var profissional2= '';
+		$.ajax({
+			dataType: 'json',
+			url: 'pages/cadastros/buscaProfissionalSelect.php',
+			data: {},
+			success: function (data) {
+
+				profissional2 += '<option  value="">Selecione o Profissional</option>';
+				for (var i = 0; i < data.profissionais.length; i++) {
+					var codigo = data.profissionais[i].Pes_Codigo;
+					var nome = data.profissionais[i].Pes_Nome;
+					profissional += '<option  value="' + codigo + '">' + nome + '</option>';
+				}
+				profissional2 += profissional;
+				$('#serCodigoProfissional').html(profissional);
+				$('#profissionalPadrao').html(profissional2);
+				$('#serCodigoProfissional').multiselect({
+					checkboxName: 'serCodigoProfissional[]',
+					enableFiltering: true,
+					includeSelectAllOption: true,
+					buttonWidth: '100%',
+					selectAllText: 'Selecionar Todos',
+					allSelectedText: 'Todos os Profissionais Selecionados',
+					filterPlaceholder: 'Buscar Profissional',
+					maxHeight: 300,
+					numberDisplayed: 2,
+					nSelectedText: ' - Selecionados',
+					nonSelectedText: 'Profissionais'
+
+				});
+				$('#serCodigoProfissionalEdt').html(profissional);
+				$('#serCodigoProfissionalEdt').multiselect({
+					checkboxName: 'serCodigoProfissionalEdt[]',
+					enableFiltering: true,
+					includeSelectAllOption: true,
+					buttonWidth: '100%',
+					selectAllText: 'Selecionar Todos',
+					allSelectedText: 'Todos os Profissionais Selecionados',
+					filterPlaceholder: 'Buscar Profissional',
+					maxHeight: 300,
+					numberDisplayed: 2,
+					nSelectedText: ' - Selecionados',
+					nonSelectedText: 'Profissionais'
+
+				});
+
+			}
+		});
+
+	}
+
+	function disponivel(data) {
+		var html = "";
+		if (data == 1) {
+			html = "<i class='ion ion-iphone' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='App'></i><i class='ion ion-ios-monitor-outline' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='Web'></i>";
+		} else {
+			html = "<i class='ion ion-ios-monitor-outline' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='Web'></i>";
+		}
+		return html;
+
+	}
+
+	function atualizaDados() {
+		showLoader(true);
+		tabelabuscaser.ajax.reload(function () {
+			showLoader(false);
+			$compile($('#tbBuscaSer'))($scope);
+			$('#tbBuscaSer_paginate').click(function () {
+				$compile($('#tbBuscaSer'))($scope);
+			});
+		});
+	}
+
+	$('#formCadastro').submit(function (event) {
+		event.preventDefault();
+		formCadastro = $(this);
+
+		dataInsere = new FormData(this);
+		dataInsere.append('valor', parseFloat($('#serValor').val()));
+		dataInsere.append('blob', mBlob);
+		if (dataInsere.delete != undefined) {
+			dataInsere.delete('serFigura');
+		}
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicosv2.php',
+			data: dataInsere,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.insereServico[0].erro == '0') {
+					toastr.success(result.insereServico[0].resultado);
+					$('#serCodigoAssociacao').val(result.insereServico[0].sercodigo);
+					$('#serValorAssociacao').val($('#serValor').maskMoney('unmasked')[0]);
+
+					swal({
+							title: "Hora de associar aos profissionais!",
+							text: "Deseja escolher e associar <b>manualmente</b> ou deseja que o sistema associe o serviço a <b>TODOS</b> os profissionais <b>automaticamente</b>?",
+							type: "warning",
+							showCancelButton: true,
+							confirmButtonColor: "#7ddd54",
+							cancelButtonColor: "#679bef",
+							confirmButtonText: "Automático",
+							cancelButtonText: "Manual",
+							closeOnConfirm: false,
+							closeOnCancel: true,
+							html: true
+						},
+						function (isConfirm) {
+							if (isConfirm) {
+
+								var obj = $('#serCodigoProfissional').get(0).options;
+								var vet = [];
+								showLoader(true);
+								for (var i = 0; i < obj.length; i++) {
+									vet.push(obj[i].value);
+								}
+								$.ajax({
+									type: 'POST',
+									url: '/pages/cadastros/insereProfissionalServico.php',
+									data: {
+										spServico: $('#serCodigoAssociacao').val(),
+										spProfissional: vet
+									},
+									dataType: 'json',
+									success: function (result) {
+										if (result.sucesso > 0) {
+											var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+										} else {
+											var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+										}
+
+										swal({
+											title: "<small>Resultado</small>",
+											text: texto,
+											html: true
+										});
+										atualizaDados();
+										$scope.buscatabelaAssociar();
+										formCadastro.each(function () {
+											this.reset();
+										});
+										$scope.avancaTab();
+										$scope.avancaTab();
+										showLoader(false);
+										mBlob = '';
+									},
+									error: function (result) {
+										toastr.error($_CONFIG.language.errors.falha_conexao);
+										showLoader(false);
+									}
+								});
+
+							} else {
+								$scope.avancaTab();
+								atualizaDados();
+								$scope.buscatabelaAssociar();
+								formCadastro.each(function () {
+									this.reset();
+								});
+								$('#serMenPersonalizadaEdt').val('')
+								$('#serMensagemPer').val('');
+							}
+						});
+
+				} else {
+					toastr.error(result.insereServico[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formEditar').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		dataInsere = new FormData(this);
+		dataInsere.append('valor', parseFloat($('#serValorEdt').val()));
+		dataInsere.append('blob', mBlob);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraServicosv2.php',
+			data: dataInsere,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.alteraServico[0].erro == '0') {
+					toastr.success(result.alteraServico[0].resultado);
+					atualizaDados();
+					$('#serMenPersonalizadaEdt').val('');
+					$('#serMensagemPerEdt').val('');
+					$('#editar-modal').modal('hide');
+				} else {
+					toastr.error(result.alteraServico[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#serPFId').on('change', function () {
+		var serPFid = $('#serPFId').val();
+		if (serPFid == 1) {
+			$('#serPontoPF').attr('disabled', false);
+		} else {
+			$('#serPontoPF').attr('disabled', true);
+		}
+	});
+
+	$('#serPFIdEdt').on('change', function () {
+		var serPFid = $('#serPFIdEdt').val();
+		if (serPFid == 1) {
+			$('#serPontoPFEdt').attr('disabled', false);
+		} else {
+			$('#serPontoPFEdt').attr('disabled', true);
+		}
+	});
+
+	$scope.editarServico = function (serdata) {
+
+		$scope.firstTab();
+		$('#serDescricaoEdt').val(serdata.Ser_Descricao);
+		$('#serValorEdt').val(parseFloat(serdata.Ser_Valor.replace(",", ".")).toFixed(2));
+		$('#serValorOriginal').val(parseFloat(serdata.Ser_Valor.replace(",", ".")).toFixed(2));
+		$('#serValorFixo').val(serdata.Ser_Valor);
+		$('#valorServicoPadrao').val(serdata.Ser_Valor);
+		$('#serPontoEdt').val(serdata.Ser_Ponto);
+		$('#serIntervaloEdt').val(serdata.Ser_Intervalo_Padrao);
+		$('#serCodigoEdt').val(serdata.Ser_Codigo);
+		$('#sercodigoAuxiliar').val(serdata.Ser_Codigo);
+		$('#sercodigoAssinatura').val(serdata.Ser_Codigo);
+		$('#serCodigoAssociacaoEdt').val(serdata.Ser_Codigo);
+		$('#serUsaAppEdt').val(serdata.Ser_Usa_App);
+		$('#serTempoRetornoEdt').val(serdata.Ser_Tem_Retorno);
+		$('#serComissaoEdt').val(serdata.Ser_Comissao.replace('%', '').replace('.', ','));
+		if (serdata.Ser_Figura != undefined && serdata.Ser_Figura != "") {
+			$('#serImagemEdit').attr('src', serdata.Ser_Figura);
+		} else {
+			$('#serImagemEdit').attr('src', '../../img/ser_sem_imagem.png');
+		}
+		$('#serTipoPrecoEdt').val(serdata.Ser_Tip_Preco);
+		$('#serObservacaoEdt').val(serdata.Ser_Observacao);
+		$('#serMensagemPerEdt').val(serdata.Ser_Msg_Retorno);
+		$('#serMenPersonalizadaEdt').val(serdata.Ser_Msg_Retorno)
+		$('#serSimultaneosEdt').val(serdata.Ser_Simultaneo);
+		$('#serCategoriaEdt').val(serdata.TCa_Codigo);
+		$('#serCustoEdt').val(serdata.Ser_Custo);
+		$scope.buscaServicoProgramacao(serdata.Ser_Codigo)
+		$scope.iniciaCrossSelling(serdata.Ser_Codigo);
+
+		if (serdata.Ser_Exclusivo_Assinatura != "") {
+			$('#exclusivoAssinatura').val(serdata.Ser_Exclusivo_Assinatura);
+		} else {
+			$('#exclusivoAssinatura').val(0);
+		}
+
+		if (serdata.Ser_Duplo == $_CONFIG.language.sim) {
+			$('#serDuploEdt').val(1);
+		} else {
+			$('#serDuploEdt').val(0);
+		}
+
+		$("#usaAuxiliarEdt").val(serdata.Ser_Tem_Auxiliar).change();
+		if (serdata.Ser_Valor_Auxiliar != "") {
+			$("#valAuxiliarEdt").val(serdata.Ser_Valor_Auxiliar);
+		} else {
+			$("#valAuxiliarEdt").val(1);
+		}
+
+		var fidelidade = "Não";
+		if (serdata.Ser_Usa_Ponto == 1) {
+			fidelidade = "Sim";
+
+		} else {
+			fidelidade = "Não";
+		}
+
+		if (fidelidade == $_CONFIG.language.sim) {
+			$('#serPFIdEdt').val(1);
+			$('#serPontoPFEdt').attr('disabled', false);
+			$('#serPontoPFEdt').val(serdata.PIt_Ponto);
+		} else {
+			$('#serPFIdEdt').val(0);
+			$('#serPontoPFEdt').attr('disabled', true);
+			$('#serPontoPFEdt').val('');
+		}
+
+		// if (serdata.Ser_Dis_Apresentacao == '0') {
+		// 	$('#dispApresentacaoedt').prop('checked', false);
+		// } else {
+		// 	$('#dispApresentacaoedt').prop('checked', true);
+		// }
+
+		if (serdata.Ser_Dis_Vlr_Apresentacao == '0') {
+			$('#dispValorApresentacaoedt').prop('checked', false);
+		} else {
+			$('#dispValorApresentacaoedt').prop('checked', true);
+		}
+
+		if(serdata.SauCodigoSerPadrao != ''){
+			$('#auxiliarPadraoGeralComissao').val(serdata.AuxPadraoServico);
+			$('#sauCodigoPadrao').val(serdata.SauCodigoSerPadrao);
+		}else{
+			
+			$('#sauCodigoPadrao').val('');
+			$('#auxiliarPadraoGeralComissao').val('');
+		}
+		if (serdata.SAu_Codigo != '') {
+			$("#hasStandartProf").val(1).change()
+			$("#profissionalPadrao").val(serdata.AuxPadrao)
+			$("#auxiliarPadraoComissao").val(serdata.ComissaoAux)
+			$("#sauCodigo").val(serdata.SAu_Codigo);
+			$("#divRemoveProfissionalPadrao").show()
+		} else {
+			$("#hasStandartProf").val(0).change()
+			$("#profissionalPadrao").val('')
+			$("#auxiliarPadraoComissao").val('')
+			$("#sauCodigo").val('')
+			$("#divRemoveProfissionalPadrao").hide()
+		}
+
+		if (typeof (tabelaserprof) !== 'undefined') {
+			tabelaserprof.destroy();
+		}
+		tabelaserprof = $('#tbBuscaSerProf').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoProfissional_v2.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sercodigo = $('#serCodigoAssociacaoEdt').val();
+				}
+			},
+			'columnDefs': [{
+				'targets': [0],
+				'visible': false,
+				'searchable': false
+			}],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			'initComplete': function () {
+				$compile($('#tbBuscaSerProf'))($scope);
+				$('#tbBuscaSer_paginate').click(function () {
+					$compile($('#tbBuscaSerProf'))($scope);
+				});
+				$('#tbBuscaSer_filter').change(function () {
+					$compile($('#tbBuscaSerProf'))($scope);
+				});
+				$('#tbBuscaSer_length').change(function () {
+					$compile($('#tbBuscaSerProf'))($scope);
+				});
+				resizeContent();
+			},
+			'columns': [{
+					'data': 'PSe_Codigo',
+					'class': 'profedtmobile'
+				},
+				{
+					'data': 'Ser_Descricao',
+					'class': 'profedtmobile'
+				},
+				{
+					'data': 'Pes_Nome_Principal',
+					'class': 'profedtmobile'
+				},
+				{
+					'data': 'PSe_Comissao_Principal',
+					'class': 'profedtmobile'
+				},
+				{
+					'data': 'PSe_Tem_Servico',
+					'class': 'profedtmobile'
+				},
+				{
+					'data': 'PSe_Vlr_Principal',
+					'class': 'profedtmobile'
+				},
+				{
+					'class': 'altera',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<i class='fa fa-pencil' style='cursor:pointer;color:blue';></i>"
+				},
+				{
+					'class': 'remove',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<i class='fa fa-trash' style='cursor:pointer;color:blue';></i>"
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbBuscaSerProf tbody').on('click', 'td.altera', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaserprof.row(tr);
+			var data = row.data();
+			var tempo2 = data.PSe_Tem_Servico;
+			$.ajax({
+				dataType: 'json',
+				url: localStorage.getItem('host'),
+				data: {
+					metodo: 'buscaParametro',
+					id: $scope.idCliente,
+					parcodigo: 5,
+					origem: 1
+				},
+				success: function (data) {
+					if (data.result[0] != '') {
+						parTempo = data.result[0].PVa_Vlr_Principal;
+						var tempo = parseInt(parTempo);
+						for (var i = tempo; i <= 360; i = i + tempo) {
+							$('#serIntervaloProf').append('<option value="' + i + '" >' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+						};
+						$('#serIntervaloProf').val(tempo2);
+						$('.timepicker').timepicker({
+							'timeFormat': 'H:i',
+							'forceRoundTime': true,
+							'step': tempo
+						});
+					} else {
+						$('.timepicker').timepicker({
+							'timeFormat': 'H:i',
+							'forceRoundTime': true,
+							'step': 10
+						});
+					}
+				}
+			});
+			$('#serCodigoServicoProfissionalEdt').val(data.PSe_Codigo);
+			$('#serProfComissaoEdt').val(data.PSe_Comissao_Principal);
+			$('#spValorser').val(data.PSe_Vlr_Principal);
+			$('#spValorser').change();
+			$('#editarServicoProfissional-modal').modal();
+		});
+
+		if (isMobile) {
+			$('#tbBuscaSerProf tbody').on('click', 'td.profedtmobile', function () {
+				var tr = $(this).closest('tr');
+				var row = tabelaserprof.row(tr);
+				var data = row.data();
+				var tempo2 = data.PSe_Tem_Servico;
+				$.ajax({
+					dataType: 'json',
+					url: localStorage.getItem('host'),
+					data: {
+						metodo: 'buscaParametro',
+						id: $scope.idCliente,
+						parcodigo: 5,
+						origem: 1
+					},
+					success: function (data) {
+						if (data.result[0] != '') {
+							parTempo = data.result[0].PVa_Vlr_Principal;
+							var tempo = parseInt(parTempo);
+							for (var i = tempo; i <= 360; i = i + tempo) {
+								$('#serIntervaloProf').append('<option value="' + i + '" >' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+							};
+							$('#serIntervaloProf').val(tempo2);
+							$('.timepicker').timepicker({
+								'timeFormat': 'H:i',
+								'forceRoundTime': true,
+								'step': tempo
+							});
+						} else {
+							$('.timepicker').timepicker({
+								'timeFormat': 'H:i',
+								'forceRoundTime': true,
+								'step': 10
+							});
+						}
+					}
+				});
+				$('#serCodigoServicoProfissionalEdt').val(data.PSe_Codigo);
+				$('#serProfComissaoEdt').val(data.PSe_Comissao_Principal);
+				$('#spValorser').val(data.PSe_Vlr_Principal);
+				$('#spValorser').change();
+				$('#editarServicoProfissional-modal').modal();
+			});
+
+		}
+
+		$('#tbBuscaSerProf tbody').on('click', 'td.remove', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaserprof.row(tr);
+			var data = row.data();
+			swal({
+					title: $_CONFIG.language.mensagens.desfazer_associacao,
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao,
+					closeOnConfirm: true
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'html',
+						method: 'GET',
+						url: '/pages/cadastros/removeServicoProfissional.php',
+						data: {
+							psecodigo: data.PSe_Codigo
+						},
+						success: function (data) {
+
+							if (data == '0') {
+								toastr['success']($_CONFIG.language.mensagens.associacao_removida);
+								atualizaDados();
+								$('#tbBuscaSerProf').dataTable().api().ajax.reload(function () {
+									$compile($('#tbBuscaSerProf'))($scope);
+									$('#tbBuscaSerProf_paginate').click(function () {
+										$compile($('#tbBuscaSerProf'))($scope);
+									});
+								});
+							} else {
+								toastr['error'](data);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+		});
+
+		$('#spValorser').change(function () {
+			mascara(this, soValorReal)
+		});
+		if (typeof (tabelaserdesc) !== 'undefined') {
+			tabelaserdesc.destroy();
+		}
+		tabelaserdesc = $('#tbSerDesconto').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoDesconto.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sercodigo = $('#serCodigoAssociacaoEdt').val();
+				}
+			},
+			'columnDefs': [{
+				'targets': [0],
+				'visible': false,
+				'searchable': false
+			}],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			'initComplete': function () {
+				$compile($('#tbBuscaSerProf'))($scope);
+				$('#tbSerDesconto_paginate').click(function () {
+					$compile($('#tbSerDesconto'))($scope);
+				});
+				$('#tbSerDesconto_filter').change(function () {
+					$compile($('#tbSerDesconto'))($scope);
+				});
+				$('#tbSerDesconto_length').change(function () {
+					$compile($('#tbSerDesconto'))($scope);
+				});
+				resizeContent();
+			},
+			'columns': [{
+					'data': 'CodDia'
+				},
+				{
+					'data': 'Dia'
+				},
+				{
+					'data': 'TodoDia'
+				},
+				{
+					'data': 'Início'
+				},
+				{
+					'data': 'Fim'
+				},
+				{
+					'data': 'Valor'
+				},
+				{
+					'data': 'Perc'
+				},
+				{
+					'class': 'personalizar',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<i class='fa fa-cog' style='cursor:pointer;'></i>"
+				},
+				{
+					'class': 'remove',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<i class='fa fa-trash' style='cursor:pointer;color:#EF5350';></i>"
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbSerDesconto tbody').on('click', 'td.remove', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaserdesc.row(tr);
+			var data = row.data();
+			swal({
+					title: $_CONFIG.language.mensagens.remover_desconto,
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao,
+					closeOnConfirm: true
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'json',
+						method: 'POST',
+						url: '/pages/cadastros/removeServicoDesconto.php',
+						data: {
+							sercodigo: $('#serCodigoAssociacaoEdt').val(),
+							dia: data.CodDia
+						},
+						success: function (data) {
+							if (data.result[0].erro == '0') {
+								toastr['success'](data.result[0].resultado);
+								atualizaDados();
+								$('#tbSerDesconto').dataTable().api().ajax.reload(function () {
+									$compile($('#tbSerDesconto'))($scope);
+									$('#tbSerDesconto_paginate').click(function () {
+										$compile($('#tbSerDesconto'))($scope);
+									});
+								});
+							} else {
+								toastr['error'](data.result[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+		});
+
+		$('#tbSerDesconto tbody').on('click', 'td.personalizar', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaserdesc.row(tr);
+			var data = row.data();
+			$("#SdeCodigo").val(data.SdeCodigo);
+			$("#personalizaDescontoServico-modal").modal()
+			$scope.buscaProfissionalServicoDesconto();
+			$scope.buscaListaProfissionalServicoDesconto(data.SdeCodigo);
+			$("#valorProfissionalDesconto").val('')
+			$("#descontoProfissionalDesconto").val('')
+		});
+
+		$scope.buscaProdutoCombo();
+		if (typeof (tabelaprodutoServico) !== 'undefined') {
+			tabelaprodutoServico.destroy();
+		}
+		tabelaprodutoServico = $('#tbBuscaProdSer').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoProduto.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sercodigo = $('#serCodigoAssociacaoEdt').val();
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			'initComplete': function () {
+				$compile($('#tbBuscaSerProf'))($scope);
+				$('#tbBuscaProdSer_paginate').click(function () {
+					$compile($('#tbBuscaProdSer'))($scope);
+				});
+				$('#ttbBuscaProdSer_filter').change(function () {
+					$compile($('#tbBuscaProdSer'))($scope);
+				});
+				$('#tbBuscaProdSer_length').change(function () {
+					$compile($('#tbBuscaProdSer'))($scope);
+				});
+				resizeContent();
+			},
+			'columns': [{
+					'data': 'Pro_Descricao'
+				},
+				{
+					'data': 'SPr_Quantidade'
+				},
+				{
+					'class': 'remove',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<i class='fa fa-trash' style='cursor:pointer;color:#EF5350';></i>"
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbBuscaProdSer tbody').on('click', 'td.remove', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaprodutoServico.row(tr);
+			var data = row.data();
+			swal({
+					title: "Deseja realmente desfazer essa associação",
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao,
+					closeOnConfirm: true
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'json',
+						method: 'POST',
+						url: '/pages/cadastros/removeServicoProduto.php',
+						data: {
+							sprcodigo: data.SPr_Codigo,
+						},
+						success: function (data) {
+							if (data.data[0].erro == '0') {
+								toastr['success'](data.data[0].resultado);
+								atualizaDados();
+								$('#tbBuscaProdSer').dataTable().api().ajax.reload(function () {
+									$compile($('#tbBuscaProdSer'))($scope);
+									$('#tbBuscaProdSer_paginate').click(function () {
+										$compile($('#tbBuscaProdSer'))($scope);
+									});
+								});
+							} else {
+								toastr['error'](data.data[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+		});
+
+	}
+
+	$("#qtdProdutoServico").keyup(function () {
+		if ($("#qtdProdutoServico").val() < 1) {
+			$("#qtdProdutoServico").val(1);
+		}
+	})
+
+
+	$('#serValorEdt').change(function () {
+		if ($('#serValorEdt').val() != $('#serValorOriginal').val()) {
+			$("#divAlteraValor").show()
+		} else {
+			$("#divAlteraValor").hide()
+		}
+	})
+	$scope.buscaProdutoCombo = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaProdutosSelect.php',
+			data: {},
+			success: function (result) {
+				var combo = "";
+				combo += '<option value="-1" selected="true">Selecione um Produto</option>';
+				for (var i = 0; i < result.buscaProdutos.length; i++) {
+					combo += '<option value =' + result.buscaProdutos[i].Pro_Codigo + ' data-valor="' + result.buscaProdutos[i].Pro_Valor + '" data-comissao="' + result.buscaProdutos[i].Pro_Comissao + '" data-qtdminima="' + result.buscaProdutos[i].StatusQtdMinima + '">' + result.buscaProdutos[i].Pro_Descricao + '</option>';
+				}
+				$("#produtoServico").html(combo);
+			}
+		});
+	}
+
+	$scope.excluir = function (sercodigo, sernome) {
+		//var registroTabela = tabelabuscaser.fnGetData(idx);
+
+		swal({
+			title: $_CONFIG.language.mensagens.excluir_titulo,
+			text: $_CONFIG.language.mensagens.excluir_servico.replace('_NOME_', sernome),
+			type: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#DD6B55',
+			confirmButtonText: $_CONFIG.language.sim,
+			cancelButtonText: $_CONFIG.language.nao,
+			closeOnConfirm: true
+		}, function () {
+			showLoader(true);
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/removeServicos.php',
+				data: {
+					sercodigo: sercodigo
+				},
+				success: function (data) {
+					if (data == '0') {
+						toastr.success($_CONFIG.language.mensagens.servico_excluido);
+						atualizaDados();
+					} else {
+						toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+					}
+					showLoader(false);
+				},
+				error: function (result) {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		});
+		$('#serCodigo').html(sercodigo);
+	}
+
+	$('#cadastrar-modal').on('hidden.bs.modal', function () {
+		$scope.firstTab();
+	});
+
+	$scope.avancaTab = function () {
+		var $active = $('.servico .nav-tabs li.active');
+
+		$active.next().removeClass('disabled');
+		$scope.nextTab($active);
+		$('a[data-target="#tab2"]').parent().removeClass('disabledTab');
+		$('a[data-target="#tab3"]').parent().removeClass('disabled');
+		$('a[data-target="#tab3"]').parent().removeClass('disabledTab');
+	}
+
+	$scope.retornaTab = function () {
+		var $active = $('.servico .nav-tabs li.active');
+		$active.prev().removeClass('disabled');
+		$scope.prevTab($active);
+	}
+
+	$scope.nextTab = function (elem) {
+		$(elem).next().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.prevTab = function (elem) {
+		$(elem).prev().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.firstTab = function () {
+		//$('#cadastrar-modal a[data-toggle="tab"]:first').click();
+		//$('#editar-modal a[data-toggle="tab"]:first').click();
+	}
+
+	$('#formAssociaServicoProfissional').submit(function (event) {
+		event.preventDefault();
+		formAssociacao = $(this);
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionalServico.php',
+			data: {
+				spServico: $('#serCodigoAssociacao').val(),
+				spProfissional: $('#serCodigoProfissional').val(),
+				spComissao: $('#serProfComissao').val()
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.sucesso > 0) {
+					var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+				} else {
+					var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+				}
+
+				swal({
+					title: "<small>Resultado</small>",
+					text: texto,
+					html: true
+				});
+				atualizaDados();
+				$scope.buscatabelaAssociar();
+				formAssociacao.each(function () {
+					this.reset();
+				});
+				$('#serCodigoProfissional').multiselect('deselectAll', false);
+				$('#serCodigoProfissional').multiselect('updateButtonText', true);
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formEditaServicoProfissional').submit(function (event) {
+		event.preventDefault();
+		formEdtAssociacao = $(this);
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraServicoProfissionalv2.php',
+			data: {
+				psecodigo: $('#serCodigoServicoProfissionalEdt').val(),
+				comissao: $('#serProfComissaoEdt').val(),
+				temposervico: $('#serIntervaloProf').val(),
+				valor: $('#spValorser').val()
+			},
+			dataType: 'json',
+			success: function (result) {
+				if (result.result[0].erro == '0') {
+					atualizaDados();
+					toastr.success($_CONFIG.language.mensagens.alterado_com_sucesso);
+					$('#editarServicoProfissional-modal').modal('hide');
+					formEdtAssociacao.each(function () {
+						this.reset();
+					});
+					$('#tbBuscaSerProf').dataTable().api().ajax.reload(function () {
+						$compile($('#tbBuscaSerProf'))($scope);
+						$('#tbBuscaSerProf_paginate').click(function () {
+							$compile($('#tbBuscaSerProf'))($scope);
+						});
+					});
+				} else if (result.result[0].erro == '2') {
+					atualizaDados();
+					toastr.warning(result.result[0].resultado);
+					$('#editarServicoProfissional-modal').modal('hide');
+					formEdtAssociacao.each(function () {
+						this.reset();
+					});
+					$('#tbBuscaSerProf').dataTable().api().ajax.reload(function () {
+						$compile($('#tbBuscaSerProf'))($scope);
+						$('#tbBuscaSerProf_paginate').click(function () {
+							$compile($('#tbBuscaSerProf'))($scope);
+						});
+					});
+				} else {
+					toastr.error(result.result[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formDescontoServicoEdt').submit(function (event) {
+		event.preventDefault();
+		formEdtDesconto = $(this);
+		showLoader(true);
+		// $.ajax({
+		// 	type: 'POST',
+		// 	url: '/pages/cadastros/insereServicoDesconto.php',
+		// 	data: {
+		// 		promoDiaSemana: $('#selDiaSemanaEdt').val(),
+		// 		promoDiaTodo: $('#selDiaTodoEdt').val(),
+		// 		serCodigo: $('#serCodigoAssociacaoEdt').val(),
+		// 		promoHoraIni1: $('#serDescHoraIniEdt').val(),
+		// 		promoHoraFim1: $('#serDescHoraFimEdt').val(),
+		// 		promoDesconto: $('#serDescPercEdt').val().replace(',', '.'),
+		// 		valor: $('#serDescValorEdt').maskMoney('unmasked')[0]
+		// 	},
+		// 	dataType: 'json',
+		// 	success: function (data) {
+		// 		if (data.result[0].erro == '0') {
+		// 			atualizaDados();
+		// 			toastr.success(data.result[0].resultado);
+
+		// 			formEdtDesconto.each(function () {
+		// 				this.reset();
+		// 			});
+		// 			$('#tbSerDesconto').dataTable().api().ajax.reload(function () {
+		// 				$compile($('#tbSerDesconto'))($scope);
+		// 				$('#tbSerDesconto_paginate').click(function () {
+		// 					$compile($('#tbSerDesconto'))($scope);
+		// 				});
+		// 			});
+		// 		} else {
+		// 			toastr.error(data.result[0].resultado);
+		// 		}
+		// 		showLoader(false);
+		// 	},
+		// 	error: function (result) {
+		// 		toastr.error($_CONFIG.language.errors.falha_conexao);
+		// 		showLoader(false);
+		// 	}
+		// });
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoDescontov2.php',
+			data: {
+				dia: $('#selDiaSemanaEdt').val().toString(),
+				diainteiro: $('#selDiaTodoEdt').val(),
+				sercodigo: $('#serCodigoAssociacaoEdt').val(),
+				ini1: $('#serDescHoraIniEdt').val(),
+				fim1: $('#serDescHoraFimEdt').val(),
+				desconto1: $('#serDescPercEdt').val().replace(',', '.'),
+				valor1: $('#serDescValorEdt').maskMoney('unmasked')[0],
+				aplicacombo: $('#selAplComboEdt').val()
+			},
+			dataType: 'json',
+			success: function (data) {
+				if (data.data[0].erro == '0') {
+					atualizaDados();
+					toastr.success(data.data[0].resultado);
+
+					formEdtDesconto.each(function () {
+						this.reset();
+					});
+					$('#tbSerDesconto').dataTable().api().ajax.reload(function () {
+						$compile($('#tbSerDesconto'))($scope);
+						$('#tbSerDesconto_paginate').click(function () {
+							$compile($('#tbSerDesconto'))($scope);
+						});
+					});
+				} else {
+					toastr.error(data.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formDescontoServico').submit(function (event) {
+		event.preventDefault();
+		formSerDesconto = $(this);
+		showLoader(true);
+		// $.ajax({
+		// 	type: 'POST',
+		// 	url: '/pages/cadastros/insereServicoDesconto.php',
+		// 	data: {
+		// 		promoDiaSemana: $('#selDiaSemana').val(),
+		// 		promoDiaTodo: $('#selDiaTodo').val(),
+		// 		serCodigo: $('#serCodigoAssociacao').val(),
+		// 		promoHoraIni1: $('#serDescHoraIni').val(),
+		// 		promoHoraFim1: $('#serDescHoraFim').val(),
+		// 		promoDesconto: $('#serDescPerc').val().replace(',', '.'),
+		// 		valor: $('#serDescValor').maskMoney('unmasked')[0]
+		// 	},
+		// 	dataType: 'json',
+		// 	success: function (data) {
+		// 		if (data.result[0].erro == '0') {
+		// 			atualizaDados();
+		// 			toastr.success(data.result[0].resultado);
+		// 			$('#selDiaSemanaEdt').multiselect('deselectAll', false);
+		// 			$('#selDiaSemanaEdt').multiselect('updateButtonText', true);
+		// 			$('#serDescHoraIniEdt').prop('disabled', false);
+		// 			$('#serDescHoraFimEdt').prop('disabled', false);
+
+		// 			formSerDesconto.each(function () {
+		// 				this.reset();
+		// 			});
+		// 			$('#cadastrar-modal').modal('hide');
+		// 		} else {
+		// 			toastr.error(data.result[0].resultado);
+		// 		}
+		// 		showLoader(false);
+		// 	},
+		// 	error: function (result) {
+		// 		toastr.error($_CONFIG.language.errors.falha_conexao);
+		// 		showLoader(false);
+		// 	}
+		// });
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoDescontov2.php',
+			data: {
+				dia: $('#selDiaSemana').val().toString(),
+				diainteiro: $('#selDiaTodo').val(),
+				sercodigo: $('#serCodigoAssociacao').val(),
+				ini1: $('#serDescHoraIni').val(),
+				fim1: $('#serDescHoraFim').val(),
+				desconto1: $('#serDescPerc').val().replace(',', '.'),
+				valor1: $('#serDescValor').maskMoney('unmasked')[0],
+				aplicacombo: $("#selAplCombo").val()
+			},
+			dataType: 'json',
+			success: function (data) {
+				if (data.data[0].erro == '0') {
+					atualizaDados();
+					toastr.success(data.data[0].resultado);
+					$('#selDiaSemanaEdt').multiselect('deselectAll', false);
+					$('#selDiaSemanaEdt').multiselect('updateButtonText', true);
+					$('#serDescHoraIniEdt').prop('disabled', false);
+					$('#serDescHoraFimEdt').prop('disabled', false);
+
+					formSerDesconto.each(function () {
+						this.reset();
+					});
+					$('#cadastrar-modal').modal('hide');
+				} else {
+					toastr.error(data.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formInsereAssociacaoAltera').submit(function (event) {
+		event.preventDefault();
+		formAssociacao = $(this);
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionalServico.php',
+			data: {
+				spServico: $('#serCodigoAssociacaoEdt').val(),
+				spProfissional: $('#serCodigoProfissionalEdt').val(),
+				spComissao: $('#serProfComissaoInsAlt').val()
+			},
+			dataType: 'json',
+			success: function (result) {
+				if (result.sucesso) {
+					var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+				} else {
+					var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+
+				}
+
+				swal({
+					title: "<small>Resultado</small>",
+					text: texto,
+					html: true
+				});
+				atualizaDados();
+				$('#tbBuscaSerProf').dataTable().api().ajax.reload(function () {
+					$compile($('#tbBuscaSerProf'))($scope);
+					$('#tbBuscaSerProf_paginate').click(function () {
+						$compile($('#tbBuscaSerProf'))($scope);
+					});
+				});
+				formAssociacao.each(function () {
+					this.reset();
+				});
+				$('#serCodigoProfissionalEdt').multiselect('deselectAll', false);
+				$('#serCodigoProfissionalEdt').multiselect('updateButtonText', true);
+
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formInsereProdutoServico').submit(function (event) {
+		event.preventDefault();
+		formAssociacaoProduto = $(this);
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoProduto.php',
+			data: {
+				sercodigo: $('#serCodigoAssociacaoEdt').val(),
+				procodigo: $('#produtoServico').val(),
+				qtd: $('#qtdProdutoServico').val()
+			},
+			dataType: 'json',
+			success: function (result) {
+				if (result.data[0].erro == '0') {
+					atualizaDados();
+					$('#tbBuscaProdSer').dataTable().api().ajax.reload(function () {
+						$compile($('#tbBuscaProdSer'))($scope);
+						$('#tbBuscaProdSer_paginate').click(function () {
+							$compile($('#tbBuscaProdSer'))($scope);
+						});
+					});
+					toastr.success(result.data[0].resultado);
+					formAssociacaoProduto.each(function () {
+						this.reset();
+					});
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#cadastrar-modal').on('hidden.bs.modal', function () {
+		$('a[data-target="#tab2"]').parent().addClass('disabled');
+		$('a[data-target="#tab2"]').parent().addClass('disabledTab');
+		$('a[data-target="#tab3"]').parent().addClass('disabled');
+		$('a[data-target="#tab3"]').parent().addClass('disabledTab');
+		$('#selDiaSemana').multiselect('deselectAll', false);
+		$('#selDiaSemana').multiselect('updateButtonText', true);
+		$('#serDescHoraIni').prop('disabled', false);
+		$('#serDescHoraFim').prop('disabled', false);
+		$scope.firstTab();
+	});
+
+	$('#editar-modal').on('hidden.bs.modal', function () {
+		$('#selDiaSemanaEdt').multiselect('deselectAll', false);
+		$('#selDiaSemanaEdt').multiselect('updateButtonText', true);
+		$('#serDescHoraIniEdt').prop('disabled', false);
+		$('#serDescHoraFimEdt').prop('disabled', false);
+		$scope.firstTab();
+	});
+
+	$scope.refresh = function () {
+		atualizaDados();
+	}
+
+	$scope.modalInsMensagemPer = function () {
+		$('#mensagemPersonalizada-modal').modal();
+	}
+
+	$scope.salvaInsMensagemValor = function () {
+		$('#serMenPersonalizada').val($('#serMensagemPer').val())
+		$('#mensagemPersonalizada-modal').modal('hide');
+	}
+
+	$scope.modalEdtMensagemPer = function () {
+		$('#mensagemPersonalizadaEdt-modal').modal();
+	}
+
+	$scope.salvaEdtMensagemValor = function () {
+		$('#serMenPersonalizadaEdt').val($('#serMensagemPerEdt').val())
+		$('#mensagemPersonalizadaEdt-modal').modal('hide');
+	}
+
+	$scope.checkDisponivel = function () {
+		// $('#dispApresentacao').prop('checked', true);
+		$('#dispValorApresentacao').prop('checked', true);
+		$('#serCategoria').val("");
+	}
+
+	$scope.buscatabelaAssociar = function () {
+
+		if (typeof (tabelaserprofasso) !== 'undefined') {
+			tabelaserprofasso.destroy();
+		}
+		tabelaserprofasso = $('#tabelaserProfAsso').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoProfissional_v2.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sercodigo = $('#serCodigoAssociacao').val();
+				}
+			},
+			'columnDefs': [{
+				'targets': [1],
+				'visible': false,
+				'searchable': false
+			}],
+			"scrollX": isPortrait,
+			'initComplete': function () {
+				$compile($('#tabelaserProfAsso'))($scope);
+				$('#tabelaserProfAsso_paginate').click(function () {
+					$compile($('#tabelaserProfAsso'))($scope);
+				});
+				$('#tabelaserProfAsso_filter').change(function () {
+					$compile($('#tabelaserProfAsso'))($scope);
+				});
+				$('#tabelaserProfAsso_length').change(function () {
+					$compile($('#tabelaserProfAsso'))($scope);
+				});
+				resizeContent();
+			},
+			'columns': [{
+					'data': 'Pes_Nome_Principal'
+				},
+				{
+					'data': 'PSe_Comissao_Principal'
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+	}
+
+	$scope.buscaCategoria = function () {
+		var htmlcategoria = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaCategoria.php",
+			dataType: "json",
+			data: {
+				tipo: 2
+			},
+
+			success: function (result) {
+
+				htmlcategoria += "<option value=''>Nenhuma</option>";
+				for (var i = 0; i < result.data.length; i++) {
+					htmlcategoria += "<option value=" + result.data[i].TCa_Codigo + ">" + result.data[i].TCa_Descricao + "</option>"
+				}
+				htmlcategoria += "<br>";
+
+				$("#serCategoria").html(htmlcategoria);
+				$("#serCategoriaEdt").html(htmlcategoria);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$("#usaAuxiliarEdt").change(function () {
+		if ($(this).val() == "") {
+			$("#valAuxiliarEdt").prop('disabled', true);
+			$("#hasStandartProf").prop('disabled', true);
+			$("#auxiliarPadraoGeralComissao").prop('disabled', true);
+		} else {
+			$("#valAuxiliarEdt").prop('disabled', false);
+			$("#hasStandartProf").prop('disabled', false);
+			$("#auxiliarPadraoGeralComissao").prop('disabled', false);
+		}
+	});
+
+	$scope.buscaCategoria()
+
+	$('#formServicoAuxiliar').submit(function (event) {
+		event.preventDefault();
+		dataAuxiliar = new FormData(this);
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraServicoAuxiliar.php',
+			data: dataAuxiliar,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.data[0].erro == '0') {
+					atualizaDados();
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		
+		if($("#auxiliarPadraoGeralComissao").val() != '' && $("#usaAuxiliarEdt").val() != undefined){
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/insereServicoAuxiliar.php',
+				data: {
+					sercodigo: $("#sercodigoAuxiliar").val(),
+					pescodigo:$_CONFIG.CODESTABELECIMENTO,
+					comissao:($("#auxiliarPadraoGeralComissao").val()).replace(',','.')
+				},
+				dataType: 'json',
+				success: function (result) {
+	
+					if (result.data[0] == undefined) {
+						toastr.error(result.data.resultado);
+					} else {
+						if (result.data[0].erro == '0') {
+							toastr.success(result.data[0].resultado);
+						} else {
+							toastr.error(result.data[0].resultado);
+						}
+					}
+					showLoader(false);
+				},
+				error: function (result) {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		}
+
+		if($("#hasStandartProf").val() == 1 && $("#usaAuxiliarEdt").val() == 1){
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/insereServicoAuxiliar.php',
+				data: {
+					sercodigo: $("#sercodigoAuxiliar").val(),
+					pescodigo:$("#profissionalPadrao").val(),
+					comissao:($("#auxiliarPadraoComissao").val()).replace(',','.')
+				},
+				dataType: 'json',
+				success: function (result) {
+	
+					if (result.data[0] == undefined) {
+						toastr.error(result.data.resultado);
+					} else {
+						if (result.data[0].erro == '0') {
+							toastr.success(result.data[0].resultado);
+							if(result.data[0].saucodigo != ''){
+								$("#sauCodigo").val(result.data[0].saucodigo)
+								$("#divRemoveProfissionalPadrao").show()
+							}
+							atualizaDados();
+						} else {
+							toastr.error(result.data[0].resultado);
+						}
+					}
+					showLoader(false);
+				},
+				error: function (result) {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		}
+
+		return true;
+	});
+
+
+	$scope.buscaProfissionalServicoDesconto = function () {
+		var htmlprofissionais = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaServicoProfissional_v2.php",
+			dataType: "json",
+			data: {
+				sercodigo: $('#serCodigoAssociacaoEdt').val()
+			},
+
+			success: function (result) {
+
+				htmlprofissionais += "<option value=''>Nenhum</option>";
+				for (var i = 0; i < result.data.length; i++) {
+					htmlprofissionais += "<option value=" + result.data[i].PSe_Codigo + " data-valor='" + result.data[i].PSe_Vlr_Principal + "'>" + result.data[i].Pes_Nome_Principal + "</option>"
+				}
+				htmlprofissionais += "<br>";
+
+				$("#profissionalServicoDesconto").html(htmlprofissionais);
+				$("#profissionalServicoDesconto").change();
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$("#profissionalServicoDesconto").change(() => {
+		if ($("#profissionalServicoDesconto").val() == '') {
+			$("#valorProfissionalDesconto").prop('disabled', true);
+			$("#btnInsereDescontoProfissional").prop('disabled', true);
+			$("#divValorOriginalProfissional").hide();
+		} else {
+			$("#valorProfissionalDesconto").prop('disabled', false);
+			$("#btnInsereDescontoProfissional").prop('disabled', false);
+			$("#divValorOriginalProfissional").show();
+			if ($("#profissionalServicoDesconto option:selected").get(0).dataset.valor != '') {
+				$("#valorOriginalProfissional").html($_CONFIG.MOEDA + $("#profissionalServicoDesconto option:selected").get(0).dataset.valor)
+			} else {
+				$("#valorOriginalProfissional").html($_CONFIG.MOEDA + $("#valorServicoPadrao").val());
+			}
+		}
+	});
+
+	$("#valorProfissionalDesconto").keyup(() => {
+
+		var valorori = 0.0;
+		if ($("#profissionalServicoDesconto option:selected").get(0).dataset.valor != '') {
+			valorori = parseFloat($("#profissionalServicoDesconto option:selected").get(0).dataset.valor.replace(',', '.'))
+		} else {
+			valorori = parseFloat($("#valorServicoPadrao").val().replace(',', '.'));
+		}
+
+		var porcent = 0.0;
+		var valordesconto = $("#valorProfissionalDesconto").val()
+
+		if (valordesconto >= valorori) {
+			$("#valorProfissionalDesconto").val(valorori.toFixed(2)).change();
+			porcent = 0.0;
+			$("#descontoProfissionalDesconto").val(porcent.toFixed(2))
+		} else {
+			porcent = 100 - ((valordesconto * 100) / valorori);
+			$("#descontoProfissionalDesconto").val(porcent.toFixed(2));
+		}
+
+	});
+
+	$scope.addProfissionalDesconto = function () {
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoDescontoPessoa.php',
+			data: {
+				sdecodigo: $("#SdeCodigo").val(),
+				psecodigo: $("#profissionalServicoDesconto").val(),
+				desconto: $("#descontoProfissionalDesconto").val(),
+				valor: $("#valorProfissionalDesconto").val()
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						$scope.buscaListaProfissionalServicoDesconto($("#SdeCodigo").val())
+						toastr.success(result.data[0].resultado);
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaListaProfissionalServicoDesconto = function (sdecodigo) {
+		if (typeof (listaprofdesconto) !== 'undefined') {
+			$('#tabelaProfDesconto tbody').unbind('click')
+			listaprofdesconto.destroy();
+			$('#tabelaProfDesconto tbody').unbind('click')
+		}
+		listaprofdesconto = $('#tabelaProfDesconto').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoDescontoPessoa.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sdecodigo = sdecodigo
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			'columns': [{
+					'data': 'Pes_Nome',
+					"title": "Profissional",
+					"width": '55%'
+				},
+				{
+					'data': 'SDP_Valor',
+					"title": "Valor",
+					"width": '20%'
+				},
+				{
+					'data': 'SDP_Desconto',
+					"title": "Desconto (%)",
+					"width": '20%'
+				}, {
+					'class': 'removedescontoprofissional',
+					'orderable': false,
+					'title': 'Remover',
+					'data': null,
+					'defaultContent': "<i class='fa fa-trash' style='cursor:pointer;color:#EF5350';></i>",
+					"width": '5%'
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tabelaProfDesconto tbody').on('click', 'td.removedescontoprofissional', function () {
+			var tr = $(this).closest('tr');
+			var row = listaprofdesconto.row(tr);
+			var data = row.data();
+			var sdecodigobusca = data.SDe_Codigo;
+			swal({
+					title: "Deseja realmente remover esse desconto",
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao,
+					closeOnConfirm: true
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'json',
+						method: 'POST',
+						url: '/pages/cadastros/removeServicoDescontoPessoa.php',
+						data: {
+							sdpcodigo: data.SDP_Codigo,
+						},
+						success: function (data) {
+							if (data.data[0].erro == '0') {
+								toastr['success'](data.data[0].resultado);
+								$scope.buscaListaProfissionalServicoDesconto(sdecodigobusca)
+							} else {
+								toastr['error'](data.data[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+		});
+	}
+
+
+	$scope.saveExclusivoAssinatura = function () {
+
+		$.ajax({
+			dataType: 'json',
+			method: 'POST',
+			url: '/pages/cadastros/insereServicoAssinatura.php',
+			data: {
+				sercodigo: $("#sercodigoAssinatura").val(),
+				tipo: $("#exclusivoAssinatura").val()
+			},
+			success: function (data) {
+				if (data.data[0].erro == '0') {
+					toastr['success'](data.data[0].resultado);
+				} else {
+					toastr['error'](data.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+
+	}
+
+	$('#serComissaoEdt').bind('copy paste', function (e) {
+		e.preventDefault();
+	});
+
+	$('#serProfComissaoEdt').bind('copy paste', function (e) {
+		e.preventDefault();
+	});
+
+	$('#serComissao').bind('copy paste', function (e) {
+		e.preventDefault();
+	});
+
+
+
+
+	$scope.salvaValorAlteracao = function () {
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoValor.php',
+			data: {
+				sercodigo: $("#serCodigoEdt").val(),
+				tipo:1,
+				dataini: $("#DataProgramacao").val(),
+				valor: $("#valorProgramacao").val()
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						$scope.buscaServicoProgramacao($('#serCodigoEdt').val())
+						toastr.success(result.data[0].resultado);
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaServicoProgramacao = function(sercodigo){
+		$("#valorProgramacao").val("");
+		if (typeof (optTbProgServico) !== 'undefined') {
+			$('#tbServicoProgramado tbody').unbind('click')
+			optTbProgServico.destroy();
+			$('#tbServicoProgramado tbody').unbind('click')
+		}
+		optTbProgServico = $('#tbServicoProgramado').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaServicoValor.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.sercodigo = sercodigo;
+					d.tipo = 1;
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			'columns': [{
+					'data': 'SVa_Valor_Format',
+					"title": "Novo Valor",
+					"width": '30%'
+				},
+				{
+					'data': 'SVa_Dat_Inicio',
+					"title": "Data de Atualização",
+					"width": '50%'
+				},
+				{
+					'class': 'aplicaValorAlteracao',
+					'orderable': false,
+					'title': 'Aplicar',
+					'data': null,
+					'defaultContent': `<button class="btn btn-success btn-xs"><i class="fa fa-check" aria-hidden="true"></i></button>`,
+					"width": '5%'
+				},
+				{
+					'class': 'configurarAlteracao',
+					'orderable': false,
+					'title': 'Configurar',
+					'data': null,
+					'defaultContent': `<button class="btn btn-primary btn-xs"><i class="fa fa-cog" aria-hidden="true"></i></button>`,
+					"width": '5%'
+				},
+				{
+					'class': 'editarValorAlteracao',
+					'orderable': false,
+					'title': 'Editar',
+					'data': null,
+					'defaultContent': `<button class="btn btn-warning btn-xs"><i class="fa fa-pencil" aria-hidden="true"></i></button>`,
+					"width": '5%'
+				},
+				{
+					'class': 'removerValorAlteracao',
+					'orderable': false,
+					'title': 'Remover',
+					'data': null,
+					'defaultContent': `<button class="btn btn-danger btn-xs"><i class="fa fa-trash" aria-hidden="true"></i></button>`,
+					"width": '5%'
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			},
+			"fnRowCallback": function (nRow, aData) {
+
+                var aplicar = aData.Aplicar;
+
+                for (var i = 0; i < nRow.children.length; i++) {
+
+                    if ((nRow.children[i].className != "") && (nRow.children[i].className == " aplicaValorAlteracao") && (nRow.children[i].className != "sorting_1")) {
+                        if (aplicar == 0) {
+
+                            nRow.children[i].innerHTML = '<button class="btn btn-success btn-xs" disabled><i class="fa fa-check" aria-hidden="true"></i></button>';
+                            nRow.children[i].className = '';
+                        }
+                    }
+                }
+
+            },
+		});
+
+
+
+		$('#tbServicoProgramado tbody').on('click', 'td.aplicaValorAlteracao', function () {
+			var tr = $(this).closest('tr');
+			var row = optTbProgServico.row(tr);
+			var data = row.data();
+
+		});
+
+		$('#tbServicoProgramado tbody').on('click', 'td.editarValorAlteracao', function () {
+			var tr = $(this).closest('tr');
+			var row = optTbProgServico.row(tr);
+			var data = row.data();
+
+			$("#svaCodigoEditar").val(data.SVa_Codigo)
+			$("#svaValorEDT").val(data.SVa_Valor)
+			$("#DataProgramacaoEDT").val(data.SVa_Dat_Inicio)
+			$("#editarProgramacaoServico-modal").modal()
+
+		});
+
+		$('#tbServicoProgramado tbody').on('click', 'td.configurarAlteracao', function () {
+			var tr = $(this).closest('tr');
+			var row = optTbProgServico.row(tr);
+			var data = row.data();
+
+			$("#svaCodigoConfigurar").val(data.SVa_Codigo);
+			$("#servicoAlteracao").html(data.Ser_Descricao);
+			$("#dataAlteracao").html(data.SVa_Dat_Inicio)
+
+			if (typeof (optTbConfigProgServico) !== 'undefined') {
+				$('#tbConfigServicoProgramado tbody').unbind('click')
+				optTbConfigProgServico.destroy();
+				$('#tbConfigServicoProgramado tbody').unbind('click')
+			}
+			optTbConfigProgServico = $('#tbConfigServicoProgramado').DataTable({
+				'ajax': {
+					'url': '/pages/cadastros/buscaServicoValor.php',
+					'method': 'POST',
+					'data': function (d) {
+						d.sercodigo = sercodigo;
+						d.tipo = 2;
+					}
+				},
+				"scrollX": isPortrait,
+
+				stateSaveCallback: function (settings, data) {
+					data.order = [];
+					localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+				},
+				stateLoadCallback: function (settings) {
+					return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+				},
+				"stateSave": true,
+				'columns': [
+					{
+						'data': 'Pes_Nome',
+						"title": "Profissional",
+						"width": '30%'
+					},
+					{
+						'data': 'PSe_Vlr_Principal',
+						"title": "Valor Atual",
+						"width": '30%'
+					},
+					{
+						'data': 'SVP_Valor_Format',
+						"title": "Novo Valor",
+						"width": '50%',
+						"render": function (data) {
+							return `<b>${data}</b>` ;
+						}
+					},
+
+
+					{
+						'class': 'addValorPessoaAlteracao',
+						'orderable': false,
+						'title': 'Adicionar',
+						'data': null,
+						'defaultContent': `<button class="btn btn-success btn-xs"><i class="fa fa-plus" aria-hidden="true"></i></button>`,
+						"width": '5%'
+					},
+					{
+						'class': 'editarValorPessoaAlteracao',
+						'orderable': false,
+						'title': 'Editar',
+						'data': null,
+						'defaultContent': `<button class="btn btn-warning btn-xs"><i class="fa fa-pencil" aria-hidden="true"></i></button>`,
+						"width": '5%'
+					},
+					{
+						'class': 'removerValorPessoaAlteracao',
+						'orderable': false,
+						'title': 'Remover',
+						'data': null,
+						'defaultContent': `<button class="btn btn-danger btn-xs"><i class="fa fa-trash" aria-hidden="true"></i></button>`,
+						"width": '5%'
+					}
+				],
+				'ordering': false,
+				'searching': false,
+				'lenghtChange': false,
+				'language': {
+					'url': $_CONFIG.language.datatables
+				},
+				"fnRowCallback": function (nRow, aData) {
+
+					var editar = aData.SVP_Codigo;
+
+					for (var i = 0; i < nRow.children.length; i++) {
+
+						if (editar == '') {
+							if ((nRow.children[i].className != "") && (nRow.children[i].className == " editarValorPessoaAlteracao") && (nRow.children[i].className != "sorting_1")) {
+
+								nRow.children[i].innerHTML = '';
+								nRow.children[i].className = '';
+							}
+							
+							if ((nRow.children[i].className != "") && (nRow.children[i].className == " removerValorPessoaAlteracao") && (nRow.children[i].className != "sorting_1")) {
+
+								nRow.children[i].innerHTML = '';
+								nRow.children[i].className = '';
+							}
+						}else{
+							
+							if ((nRow.children[i].className != "") && (nRow.children[i].className == " addValorPessoaAlteracao") && (nRow.children[i].className != "sorting_1")) {
+
+								nRow.children[i].innerHTML = '';
+								nRow.children[i].className = '';
+							}
+						}
+					}
+
+				}
+
+			});
+
+
+			$('#tbConfigServicoProgramado tbody').on('click', 'td.removerValorPessoaAlteracao', function () {
+				var tr = $(this).closest('tr');
+				var row = optTbConfigProgServico.row(tr);
+				var data = row.data();
+				var svpcodigo = data.SVP_Codigo;
+				swal({
+						title: "Deseja realmente remover essa programação",
+						type: 'warning',
+						showCancelButton: true,
+						confirmButtonColor: '#DD6B55',
+						confirmButtonText: $_CONFIG.language.sim,
+						cancelButtonText: $_CONFIG.language.nao,
+						closeOnConfirm: true
+					},
+					function () {
+						showLoader(true);
+						$.ajax({
+							dataType: 'json',
+							method: 'POST',
+							url: '/pages/cadastros/removeServicoValorPessoa.php',
+							data: {
+								svpcodigo: svpcodigo,
+							},
+							success: function (data) {
+								if (data.data[0].erro == '0') {
+									toastr['success'](data.data[0].resultado);
+									optTbConfigProgServico.ajax.reload()
+								} else {
+									toastr['error'](data.data[0].resultado);
+								}
+								showLoader(false);
+							},
+							error: function (result) {
+								toastr.error($_CONFIG.language.errors.falha_conexao);
+								showLoader(false);
+							}
+						});
+					});
+			});
+
+			$('#tbConfigServicoProgramado tbody').on('click', 'td.addValorPessoaAlteracao', function () {
+				var tr = $(this).closest('tr');
+				var row = optTbConfigProgServico.row(tr);
+				var data = row.data();
+
+				$("#pseCodigoInsere").val(data.PSe_Codigo)
+				$("#insereServicoValorPessoa-modal").modal()
+	
+			});
+
+			$('#tbConfigServicoProgramado tbody').on('click', 'td.editarValorPessoaAlteracao', function () {
+				var tr = $(this).closest('tr');
+				var row = optTbConfigProgServico.row(tr);
+				var data = row.data();
+
+				$("#svpCodigoEdita").val(data.SVP_Codigo)
+				$("#svaValorServicoPessoaEDT").val(data.SVP_Valor)
+				$("#editarServicoValorPessoa-modal").modal()
+	
+			});
+
+			$("#configurarProgramacaoServico-modal").modal()
+
+
+		});
+
+		$('#tbServicoProgramado tbody').on('click', 'td.removerValorAlteracao', function () {
+			var tr = $(this).closest('tr');
+			var row = optTbProgServico.row(tr);
+			var data = row.data();
+			var svacodigo = data.SVa_Codigo;
+			swal({
+					title: "Deseja realmente remover essa programação",
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao,
+					closeOnConfirm: true
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'json',
+						method: 'POST',
+						url: '/pages/cadastros/removeServicoValor.php',
+						data: {
+							svacodigo: svacodigo,
+						},
+						success: function (data) {
+							if (data.data[0].erro == '0') {
+								toastr['success'](data.data[0].resultado);
+								$scope.buscaServicoProgramacao($('#serCodigoEdt').val())
+							} else {
+								toastr['error'](data.data[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+		});
+
+		$('#tbServicoProgramado tbody').on('click', 'td.aplicaValorAlteracao', function () {
+			var tr = $(this).closest('tr');
+			var row = optTbProgServico.row(tr);
+			var data = row.data();
+			var svacodigo = data.SVa_Codigo;
+			swal({
+				title: "Aplicando Alteração!",
+				text: "Ao aplicar a alteração, o valor do serviço e das associações configuradas serão ajustados permanentemente e a programação será encerrada. <br><br>Deseja continuar?",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonText: "Sim",
+				cancelButtonText: "Não",
+				closeOnConfirm: true,
+				closeOnCancel: true,
+				html: true
+			},
+			function () {
+				showLoader(true);
+					$.ajax({
+						dataType: 'json',
+						method: 'POST',
+						url: '/pages/cadastros/atualizaServicoValor.php',
+						data: {
+							svacodigo: svacodigo,
+						},
+						success: function (data) {
+							if (data.data[0].erro == '0') {
+								toastr['success'](data.data[0].resultado);
+								$("#editar-modal").modal('hide')
+								atualizaDados();
+							} else {
+								toastr['error'](data.data[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+			});
+		});
+
+	}
+
+	$scope.editaServicoValor = function(){
+
+		showLoader(true);
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraServicoValor.php',
+			data: {
+				svacodigo: $("#svaCodigoEditar").val(),
+				valor:($("#svaValorEDT").val()).replace(',','.'),
+				dataini: ($("#DataProgramacaoEDT").val()).replace(',','.')
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						$scope.buscaServicoProgramacao($('#serCodigoEdt').val())
+						$("#editarProgramacaoServico-modal").modal('hide')
+						toastr.success(result.data[0].resultado);
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+
+	$scope.salvaConfiguracaoServicoPessoa = function(){
+		showLoader(true);
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoValorPessoa.php',
+			data: {
+				psecodigo: $("#pseCodigoInsere").val(),
+				valor:($("#svaValorServicoPessoa").val()).replace(',','.'),
+				svacodigo: $("#svaCodigoConfigurar").val()
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						optTbConfigProgServico.ajax.reload()
+						$("#insereServicoValorPessoa-modal").modal('hide')
+						toastr.success(result.data[0].resultado);
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.salvaEdicaoServicoPessoa = function(){
+
+
+		showLoader(true);
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraServicoValorPessoa.php',
+			data: {
+				svpcodigo: $("#svpCodigoEdita").val(),
+				valor:($("#svaValorServicoPessoaEDT").val()).replace(',','.'),
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						optTbConfigProgServico.ajax.reload()
+						$("#editarServicoValorPessoa-modal").modal('hide')
+						toastr.success(result.data[0].resultado);
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$('#hasStandartProf').change(()=>{
+		if($("#hasStandartProf").val() == 1){
+			$("#divOptProfissional").show()
+		}else{
+			$("#divOptProfissional").hide()
+			$("#profissionalPadrao").val('');
+			$("#auxiliarPadraoComissao").val('');
+		}
+	})
+
+
+	$('#auxiliarPadraoComissao').on('keyup', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#auxiliarPadraoComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#auxiliarPadraoComissao').val('0,00');
+		}
+	});
+
+	$('#auxiliarPadraoComissao').on('keydown', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#auxiliarPadraoComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#auxiliarPadraoComissao').val('0,00');
+		}
+	});
+
+	
+	$('#auxiliarPadraoGeralComissao').on('keyup', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#auxiliarPadraoGeralComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#auxiliarPadraoGeralComissao').val('0,00');
+		}
+	});
+
+	$('#auxiliarPadraoGeralComissao').on('keydown', function () {
+		var valorcomissao = parseFloat($(this).val().replace(',', '.'))
+		if (valorcomissao > 100.00) {
+			$('#auxiliarPadraoGeralComissao').val('100,00');
+		} else if (valorcomissao < 0) {
+			$('#auxiliarPadraoGeralComissao').val('0,00');
+		}
+	});
+
+	carregaDados();
+
+	$scope.removerProfissionalPadrao = function(){
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/removeServicoAuxiliar.php',
+			data: {
+				saucodigo: $("#sauCodigo").val()
+			},
+			dataType: 'json',
+			success: function (result) {
+
+				if (result.data[0] == undefined) {
+					toastr.error(result.data.resultado);
+				} else {
+
+					if (result.data[0].erro == '0') {
+						$("#divRemoveProfissionalPadrao").hide();
+						$("#profissionalPadrao").val('');
+						$("#auxiliarPadraoComissao").val('');
+						$("#sauCodigo").val('')
+						toastr.success(result.data[0].resultado);
+						atualizaDados();
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+
+	$scope.buscaCombo = function () {
+
+		if (typeof (listaComboSer) !== 'undefined') {
+			$('#tbBuscaSerCombo tbody').unbind('click')
+			listaComboSer.destroy();
+			$('#tbBuscaSerCombo tbody').unbind('click')
+		}
+		listaComboSer = $('#tbBuscaSerCombo').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaCombo.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.tipo = 4
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			'columns': [{
+					'data': 'CBo_Descricao',
+					"title": "Descricao",
+					"width": '45%'
+				}, {
+					'data': 'CBo_Valor',
+					"title": "Valor",
+					"width": '10%'
+				},{
+					'data': 'Total_Tempo',
+					"title": "Tempo",
+					"width": '10%'
+				},
+				{
+					'class': 'verItens',
+					'orderable': false,
+					'title': 'Itens',
+					'data': null,
+					'defaultContent': "<button class='btn btn-success btn-xs'><i class='fa fa-tags' style='cursor:pointer';></i> Itens</button>",
+					"width": '5%'
+				}, {
+					'class': 'alteraCombo',
+					'orderable': false,
+					'title': 'Alterar',
+					'data': null,
+					'defaultContent': "<button class='btn btn-warning btn-xs'><i class='fa fa-pencil' style='cursor:pointer';></i> Editar</button>",
+					"width": '5%'
+				},
+				{
+					'class': 'removerCombo',
+					'orderable': false,
+					'title': 'Itens',
+					'data': null,
+					'defaultContent': "<button class='btn btn-danger btn-xs'><i class='fa fa-trash' style='cursor:pointer';></i> Remover</button>",
+					"width": '5%'
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbBuscaSerCombo tbody').on('click', 'td.alteraCombo', function () {
+			var tr = $(this).closest('tr');
+			var row = listaComboSer.row(tr);
+			var data = row.data();
+			$("#CBoCodigoEditarSer").val(data.CBo_Codigo)
+			$("#ComboDescricaoEditSer").val(data.CBo_Descricao)
+			// $("#DispApresentacaoEditSer").val(data.CBo_Disp_Apresentacao)
+			$("#DispAppEditSer").val(data.CBo_Disp_App)
+			if (data.CBo_Imagem != '') {
+				$("#cboImagemEditSer").attr('src', data.CBo_Imagem)
+			} else {
+				$("#cboImagemEditSer").attr('src', '../../img/combo_sem_imagem.png')
+
+			}
+			$("#editarComboSer-modal").modal()
+
+		});
+
+
+		$('#tbBuscaSerCombo tbody').on('click', 'td.removerCombo', function () {
+			var tr = $(this).closest('tr');
+			var row = listaComboSer.row(tr);
+			var data = row.data();
+			swal({
+					title: "Excluir",
+					text: "Deseja realmente excluir este Item?",
+					type: "warning",
+					showCancelButton: true,
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: "Sim",
+					cancelButtonText: "Não"
+				},
+				function (Confirmou) {
+					if (Confirmou) {
+						$scope.removeComboSer(data.CBo_Codigo)
+					}
+				});
+
+		});
+
+		$('#tbBuscaSerCombo tbody').on('click', 'td.verItens', function () {
+
+			var tr = $(this).closest('tr');
+			var row = listaComboSer.row(tr);
+			var data = row.data();
+			$("#CBoCodigoItemNewSer").val(data.CBo_Codigo);
+			//$scope.buscaProdutoComboEstoque()
+			if (typeof (itemListaComboSer) !== 'undefined') {
+				$('#tabelaItensItensComboSer tbody').unbind('click')
+				itemListaComboSer.destroy();
+				$('#tabelaItensItensComboSer tbody').unbind('click')
+			}
+			itemListaComboSer = $('#tabelaItensItensComboSer').DataTable({
+				'ajax': {
+					'url': '/pages/cadastros/buscaCombo.php',
+					'method': 'POST',
+					'data': function (d) {
+						d.tipo = 2;
+						d.cbocodigo = data.CBo_Codigo
+					}
+				},
+				"scrollX": isPortrait,
+
+				stateSaveCallback: function (settings, data) {
+					data.order = [];
+					localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+				},
+				stateLoadCallback: function (settings) {
+					return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+				},
+				"stateSave": true,
+				initComplete: function (d, i) {
+					var vlrTotal = this.fnGetData(0);
+					if (vlrTotal != null) {
+						$(".totalItensComboEdtSer").html(vlrTotal.CBo_Valor);
+					} else {
+						$(".totalItensComboEdtSer").html('');
+					}
+				},
+
+				'columns': [{
+						"data": "Imagem",
+						"render": function (data) {
+							return '<img height="30px" width="30px" src="' + data + '"/>';
+						}
+					},
+					{
+						'data': 'Descricao',
+						"title": "Descricao"
+
+					},
+					{
+						'data': 'CBI_Vlr_Unitario',
+						"title": "Valor"
+					},
+				
+					{
+						'data': 'CBI_Tempo',
+						"title": "Tempo"
+					},
+					{
+						"class": 'excluirItemComboLista',
+						"orderable": false,
+						"data": null,
+						"defaultContent": '<button type="button" class="btn btn-danger btn-xs"><i class="fa fa-trash"></i></button>',
+					}
+				],
+				'ordering': false,
+				'searching': false,
+				'lenghtChange': false,
+				'language': {
+					'url': $_CONFIG.language.datatables
+				}
+			});
+
+			$('#tabelaItensItensComboSer tbody').on('click', 'td.excluirItemComboLista', function () {
+				var tr = $(this).closest('tr');
+				var row = itemListaComboSer.row(tr);
+				var data = row.data();
+				swal({
+						title: "Excluir",
+						text: "Deseja realmente excluir este Item?",
+						type: "warning",
+						showCancelButton: true,
+						confirmButtonColor: "#DD6B55",
+						confirmButtonText: "Sim",
+						cancelButtonText: "Não"
+					},
+					function (Confirmou) {
+						if (Confirmou) {
+							showLoader(true)
+							$scope.removeItemCombo(data.CBI_Codigo, data.CBo_Codigo)
+							setTimeout(function () {
+								$('#tabelaItensItensComboSer').dataTable().api().ajax.reload(function (e) {
+									var vlrTotal = e.data[0];
+									if (vlrTotal == null) {
+										$(".totalItensComboEdtSer").html('');
+									} else {
+										$(".totalItensComboEdtSer").html(vlrTotal.CBo_Valor);
+									}
+								});
+								showLoader(false)
+							}, 1000)
+						}
+					});
+
+			});
+
+			$("#itensComboSer-modal").modal();
+		});
+	}
+	$scope.buscaCombo()
+
+
+	
+	$('#cadastrarComboSer-modal').on('hidden.bs.modal', function () {
+		$scope.firstTab();
+		$("#CBITipoItemSer").val(1).change()
+		$("#DispAppSer").val(0).change()
+		// $("#DispApresentacaoSer").val(0).change()
+		$("#ComboDescricaoSer").val('')
+		$scope.buscaCombo();
+	});
+
+	$scope.avancaTabCombo = function () {
+		var $active = $('.combo .nav-tabs li.active');
+		$active.next().removeClass('disabled');
+		$scope.nextTabCombo($active);
+		$('a[data-target="#tabItemComboSer"]').parent().removeClass('disabledTab');
+
+	}
+
+	$scope.retornaTabCombo = function () {
+		var $active = $('.combo .nav-tabs li.active');
+		$active.prev().removeClass('disabled');
+		$scope.prevTab($active);
+	}
+
+	$scope.nextTabCombo = function (elem) {
+		$(elem).next().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.prevTabCombo = function (elem) {
+		$(elem).prev().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.firstTab = function () {
+		$("#navTabDadosComboSer").removeClass()
+		$("#navTabDadosComboSer").addClass('disabled disabledTab active')
+		$("#tabDadosComboSer").removeClass();
+		$("#tabDadosComboSer").addClass('tab-pane active');
+
+		$("#navTabItensComboSer").removeClass()
+		$("#navTabItensComboSer").addClass('disabled disabledTab')
+		$("#tabItemComboSer").removeClass();
+		$("#tabItemComboSer").addClass('tab-pane');
+
+	}
+
+	$('#formComboSer').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData();
+
+		dados.append('tipo', 2)
+		dados.append('descricao', $("#ComboDescricaoSer").val())
+		dados.append('dispapp', $("#DispAppSer").val())
+		// dados.append('dispapresentacao', $("#DispApresentacaoSer").val())
+		dados.append('blob', mBlob)
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/insereCombo.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					$("#CBoCodigoItemSer").val(result.data[0].cbocodigo)
+					$scope.buscaItensComboListaSer(result.data[0].cbocodigo)
+					$scope.avancaTabCombo();
+					$('#formComboProdSer').each(function () {
+						this.reset();
+					})
+					mBlob = "";
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	})
+
+	$("#CBITipoItemSer").on("change", function () {
+		if ($("#CBITipoItemSer").val() == 1) {
+			$("#CBIDivProdutoSer").show()
+			$("#CBIDivServicoSer").hide()
+		} else {
+			$("#CBIDivServicoSer").show()
+			$("#CBIDivProdutoSer").hide()
+		}
+	})
+	$("#CBITipoItemNewSer").on("change", function () {
+		if ($("#CBITipoItemNewSer").val() == 1) {
+			$("#CBIDivProdutoNewSer").show()
+			$("#CBIDivServicoNewSer").hide()
+		} else {
+			$("#CBIDivServicoNewSer").show()
+			$("#CBIDivProdutoNewSer").hide()
+		}
+	})
+
+	$("#btnNovoComboSer").on('click', function () {
+		$("#CBITipoItemSer").val(1).change()
+		$("#CBIQuantidadeSer").val(1)
+	})
+
+	$("#btnNovoItemSer").on('click', function () {
+		$("#CBITipoItemNewSer").val(2).change()
+		$("#CBIQuantidadeNewSer").val(1)
+		var padrao = parseInt($_CONFIG.TEMPOPADRAO)
+		for (var i = padrao; i <= 360; i = i + padrao) {
+			$('#CBITempoNewSer').append('<option value="' + i + '" >' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+		};
+	})
+
+	$scope.buscaServicoComboLista = function () {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaServicoSelect.php',
+			dataType: 'json',
+			success: function (result) {
+				var html = "";
+				html += '<option value="">Serviço</option>';
+				for (var i = 0; i < result.servicos.length; i++) {
+					html += '<option value="' + result.servicos[i].Ser_Codigo + '" data-valor="'+result.servicos[i].Ser_Valor+'">' + result.servicos[i].Ser_Descricao + '</option>';
+				}
+
+				$("#CBIServicoSer").html(html);
+	 			$("#CBIServicoNewSer").html(html);
+			}
+		});
+	}
+	$scope.buscaServicoComboLista()
+
+	$("#CBIServicoSer").on("change", function(){
+		$("#CBIValorSer").val($("#CBIServicoSer option:selected").get(0).dataset.valor);
+	})
+
+	$("#CBIServicoNewSer").on("change", function(){
+		$("#CBIValorNewSer").val($("#CBIServicoNewSer option:selected").get(0).dataset.valor);
+	})
+
+	$("#CBIServico").on("change", function () {
+		$("#CBIValorSer").val($("#CBIServico option:selected").get(0).dataset.valor)
+		$("#CBIQuantidadeSer").val(1);
+	})
+
+	$("#CBIServicoNew").on("change", function () {
+		$("#CBIValorNewSer").val($("#CBIServicoNew option:selected").get(0).dataset.valor)
+		$("#CBIQuantidadeNewSer").val(1);
+	})
+
+	$scope.buscaItensComboListaSer = function (codigoCombo) {
+		if (typeof (buscaitemListaComboSer) !== 'undefined') {
+			$('#tabelaItensItensComboInsereSer tbody').unbind('click')
+			buscaitemListaComboSer.destroy();
+			$('#tabelaItensItensComboInsereSer tbody').unbind('click')
+		}
+		buscaitemListaComboSer = $('#tabelaItensItensComboInsereSer').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaCombo.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.tipo = 2;
+					d.cbocodigo = codigoCombo
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			initComplete: function (d, i) {
+				var vlrTotal = this.fnGetData(0);
+				if (vlrTotal != null) {
+					$(".totalItensComboSer").html(vlrTotal.CBo_Valor);
+				} else {
+					$(".totalItensComboSer").html('');
+				}
+			},
+
+			'columns': [{
+					"data": "Imagem",
+					"render": function (data) {
+						return '<img height="30px" width="30px" src="' + data + '"/>';
+					}
+				},
+				{
+					'data': 'Descricao',
+					"title": "Descricao"
+				},
+				{
+					'data': 'CBI_Vlr_Unitario',
+					"title": "Valor"
+				},
+				{
+					'data': 'CBI_Tempo',
+					"title": "Tempo"
+				},
+				{
+					"class": 'excluirItemCombo',
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button type="button" class="btn btn-danger btn-xs"><i class="fa fa-trash"></i></button>',
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+		$('#tabelaItensItensComboInsereSer tbody').on('click', 'td.excluirItemCombo', function () {
+			var tr = $(this).closest('tr');
+			var row = buscaitemListaComboSer.row(tr);
+			var data = row.data();
+			swal({
+					title: "Excluir",
+					text: "Deseja realmente excluir este Item?",
+					type: "warning",
+					showCancelButton: true,
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: "Sim",
+					cancelButtonText: "Não"
+				},
+				function (Confirmou) {
+					if (Confirmou) {
+						showLoader(true)
+						$scope.removeItemCombo(data.CBI_Codigo, data.CBo_Codigo)
+						setTimeout(function () {
+							$('#tabelaItensItensComboInsereSer').dataTable().api().ajax.reload();
+							showLoader(false)
+						}, 1000)
+					}
+				});
+
+		});
+	}
+
+	$('#formItensComboSer').submit(function (event) {
+		event.preventDefault();
+		var codigoCombo = $("#CBoCodigoItemSer").val();
+		var formdata = $(this);
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/insereComboItens.php",
+			data: {
+				cbocodigo: $("#CBoCodigoItemSer").val(),
+				valor: $("#CBIValorSer").val().replace(',', '.'),
+				procodigo: '',
+				sercocigo: $("#CBIServicoSer").val(),
+				tempo: $('#CBITempoSer').val(),
+				desconto: '',
+				quantidade: 1
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					formdata.each(function () {
+						this.reset();
+					});
+					$scope.buscaItensComboListaSer(codigoCombo);
+					$("#CBoCodigoItemSer").val(codigoCombo);
+					$("#CBITipoItemSer").val(2).change();
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+		return true;
+	})
+
+
+	$scope.removeItemCombo = function (cbicodigo, codigocombo) {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/removeComboItens.php",
+			data: {
+				cbicodigo: cbicodigo,
+			},
+			async: false,
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+			}
+		});
+
+	}
+
+	$scope.removeCombo = function (codigocombo) {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/removeCombo.php",
+			data: {
+				cbocodigo: codigocombo,
+			},
+			async: false,
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				$scope.buscaCombo();
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	$('#formItensComboNewSer').submit(function (event) {
+		event.preventDefault();
+		var codigoCombo = $("#CBoCodigoItemNewSer").val();
+		var formdata = $(this);
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/insereComboItens.php",
+			data: {
+				cbocodigo: codigoCombo,
+				valor: $("#CBIValorNewSer").val().replace(',', '.'),
+				procodigo: '',
+				sercocigo: $("#CBIServicoNewSer").val(),
+				tempo: $("#CBITempoNewSer").val(),
+				desconto: '',
+				quantidade: 1
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					formdata.each(function () {
+						this.reset();
+					});
+					$("#novoItemSer-modal").modal('hide')
+					$("#CBITipoItemNewSer").val(1).change();
+					$('#tbBuscaSerCombo').dataTable().api().ajax.reload();
+					$('#tabelaItensItensComboSer').dataTable().api().ajax.reload(function (e) {
+						var vlrTotal = e.data[0];
+						if (vlrTotal == null) {
+							$(".totalItensComboEdtSer").html('');
+						} else {
+							$(".totalItensComboEdtSer").html(vlrTotal.CBo_Valor);
+						}
+					});
+					$("#CBoCodigoItemNewSer").val(codigoCombo);
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+		return true;
+	})
+
+	$scope.salvaEdtComboSer = function () {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraCombo.php",
+			data: {
+				cbocodigo: $("#CBoCodigoEditarSer").val(),
+				descricao: $("#ComboDescricaoEditSer").val(),
+				dispapp: $("#DispAppEditSer").val(),
+				// dispapresentacao: $("#DispApresentacaoEditSer").val(),
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+
+					$("#editarComboSer-modal").modal('hide')
+					$('#tbBuscaSerCombo').dataTable().api().ajax.reload();
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	$scope.editaImagemComboSer = function () {
+		$("#cboFotoEdtSer").click();
+	}
+
+	$scope.saveImageCombo = function () {
+		showLoader(true)
+		if (mBlob != undefined) {
+			dataaltera = new FormData();
+			dataaltera.append('blob', mBlob);
+			dataaltera.append('imagem', $('#cboFotoEdtSer')[0].files[0]);
+			dataaltera.append('cbocodigo', $('#CBoCodigoEditarSer').val())
+			$.ajax({
+				dataType: 'json',
+				method: 'POST',
+				url: '/pages/cadastros/alteraComboImagem.php',
+				data: dataaltera,
+				processData: false,
+				contentType: false,
+				success: function (data) {
+
+					if (data.data[0].erro == 0) {
+						$('#cboImagemEditSer').attr('src', data.data[0].urlimagem);
+						toastr.success(data.data[0].resultado);
+						mBlob = "";
+						$('#tbBuscaSerCombo').dataTable().api().ajax.reload();
+
+					} else {
+						toastr.error(data.data[0].resultado);
+					}
+					showLoader(false)
+				},
+				error: function (result) {
+					toastr.error('Falha de conexão');
+					showLoader(false)
+				}
+			});
+		} else {
+			toastr.warning("Ops! Parece que você não concluiu a seleção da nova imagem, nenhuma alteração será feita");
+			showLoader(false)
+		}
+	}
+
+	$scope.removeImagemCombo = function () {
+		swal({
+				title: 'Deseja realmente remover essa imagem',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: $_CONFIG.language.sim,
+				cancelButtonText: $_CONFIG.language.nao,
+				closeOnConfirm: true
+			},
+			function () {
+				showLoader(true)
+				dataaltera = new FormData();
+				dataaltera.append('imagem', '');
+				dataaltera.append('cbocodigo', $('#CBoCodigoEditarSer').val());
+				$.ajax({
+					dataType: 'json',
+					method: 'POST',
+					url: '/pages/cadastros/alteraComboImagem.php',
+					data: dataaltera,
+					processData: false,
+					contentType: false,
+					success: function (data) {
+						if (data.data[0].erro == 0) {
+							$("#cboImagemEditSer").attr('src', '../../img/combo_sem_imagem.png')
+							toastr.success(data.data[0].resultado);
+							$('#tbBuscaSerCombo').dataTable().api().ajax.reload();
+						} else {
+							toastr.error(data.data[0].resultado);
+						}
+						showLoader(false)
+
+					},
+					error: function (result) {
+						toastr.error('Falha de conexão');
+						showLoader(false)
+					}
+				});
+			});
+	}
+
+	$scope.getOptCombo = function(){
+		$("#cadastrarComboSer-modal").modal()
+		var padrao = parseInt($_CONFIG.TEMPOPADRAO)
+		for (var i = padrao; i <= 360; i = i + padrao) {
+			$('#CBITempoSer').append('<option value="' + i + '" >' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+		};
+	}
+
+	$('#cboImagemSer').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: 'Procurar',
+		removeLabel: 'Remover',
+		browseIcon: '',
+		allowedFileExtensions: ['png', 'jpg', 'jpeg'],
+		showUpload: false,
+		language: 'pt-BR'
+	});
+
+
+
+	$scope.removeComboSer = function (codigocombo) {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/removeCombo.php",
+			data: {
+				cbocodigo: codigocombo,
+			},
+			async: false,
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				$scope.buscaCombo();
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	var tabelaCrossSellingItem;
+	var requisicaoItensCrossSelling;
+
+	$scope.atualizaCamposCrossSelling = function (type, editing) {
+		var isProduct = String(type) === '2';
+		var prefix = editing ? 'crossSellingEdit' : 'crossSelling';
+		var $valueColumn = $('#' + prefix + 'Value').closest('.col-md-4, .col-md-6');
+		var $intervalColumn = $('#' + prefix + 'Interval').closest('.col-md-4, .col-md-6');
+		var $commissionColumn = $('#' + prefix + 'Commission').closest('.col-md-4, .col-md-6');
+
+		$intervalColumn.toggle(!isProduct);
+		$('#' + prefix + 'Interval').prop('disabled', isProduct);
+		$valueColumn.removeClass('col-md-4 col-md-6').addClass(isProduct || editing ? 'col-md-6' : 'col-md-4');
+		if (!editing) {
+			$commissionColumn.removeClass('col-md-4 col-md-6').addClass(isProduct ? 'col-md-6' : 'col-md-4');
+		}
+
+		if (isProduct) {
+			$('#' + prefix + 'Interval').val('');
+		}
+	}
+
+	$scope.montaFiltroItensCrossSelling = function (itens) {
+		var item = $('#crossSellingItem');
+		if (item.data('select2')) {
+			item.select2('destroy');
+		}
+		item.html(itens);
+		item.select2({
+			width: '100%'
+		});
+	}
+
+	$scope.carregaItensCrossSelling = function () {
+		var tipoItem = $('#crossSellingType').val();
+		if (requisicaoItensCrossSelling) {
+			requisicaoItensCrossSelling.abort();
+		}
+
+		if (tipoItem == '1') {
+			requisicaoItensCrossSelling = $.ajax({
+				dataType: 'json',
+				url: '/pages/cadastros/buscaServicoSelect.php',
+				data: {},
+				success: function (data) {
+					if ($('#crossSellingType').val() != tipoItem) {
+						return;
+					}
+					var itens = '<option value="" selected>Selecione um Serviço</option>';
+					for (var i = 0; i < data.servicos.length; i++) {
+						itens += '<option value="' + data.servicos[i].Ser_Codigo + '">' + data.servicos[i].Ser_Descricao + '</option>';
+					}
+					$scope.montaFiltroItensCrossSelling(itens);
+				}
+			});
+		} else {
+			requisicaoItensCrossSelling = $.ajax({
+				dataType: 'json',
+				url: '/pages/cadastros/buscaProdutosSelect.php',
+				data: {},
+				success: function (data) {
+					if ($('#crossSellingType').val() != tipoItem) {
+						return;
+					}
+					var itens = '<option value="" selected>Selecione um Produto</option>';
+					for (var i = 0; i < data.buscaProdutos.length; i++) {
+						itens += '<option value="' + data.buscaProdutos[i].Pro_Codigo + '">' + data.buscaProdutos[i].Pro_Descricao + '</option>';
+					}
+					$scope.montaFiltroItensCrossSelling(itens);
+				}
+			});
+		}
+	}
+
+	$scope.limpaCrossSelling = function () {
+		$('#formCrossSellingItem')[0].reset();
+		$('#crossSellingSubmit').html('<i class="fa fa-plus"></i>&nbspAdicionar');
+		$scope.atualizaCamposCrossSelling($('#crossSellingType').val(), false);
+		$scope.carregaItensCrossSelling();
+	}
+
+	$scope.iniciaCrossSelling = function (service_code) {
+		$('#crossSellingInterval').html($('#serIntervaloEdt').html());
+		$('#crossSellingEditInterval').html($('#serIntervaloEdt').html());
+		$scope.limpaCrossSelling();
+		$scope.buscaCrossSellingItens(service_code);
+	}
+
+	$scope.buscaCrossSellingItens = function (service_code) {
+		if (typeof (tabelaCrossSellingItem) !== 'undefined') {
+			$('#tbCrossSellingItem tbody').unbind('click');
+			tabelaCrossSellingItem.destroy();
+		}
+
+		tabelaCrossSellingItem = $('#tbCrossSellingItem').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/CROSS_SELLING_ITEM_Busca.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.service_code = service_code;
+				}
+			},
+			'scrollX': isPortrait,
+			'autoWidth': false,
+			'columns': [
+				{
+					'data': 'cross_selling_item_name',
+					'width': '56%',
+					'title': 'Item'
+				},
+				{
+					'data': 'cross_selling_item_value',
+					'width': '15%',
+					'title': 'Valor'
+				},
+				{
+					'data': 'cross_selling_item_commission',
+					'width': '15%',
+					'title': 'Comissão'
+				},
+				{
+					'class': 'updateCrossSellingItem',
+					'orderable': false,
+					'data': null,
+					'width': '7%',
+					'defaultContent': '<button class="btn btn-success btn-xs"><i class="fa fa-pencil"></i></button>'
+				},
+				{
+					'class': 'removeCrossSellingItem',
+					'orderable': false,
+					'data': null,
+					'width': '7%',
+					'defaultContent': '<button class="btn btn-danger btn-xs"><i class="fa fa-trash"></i></button>'
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lengthChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbCrossSellingItem tbody').on('click', 'td.updateCrossSellingItem', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCrossSellingItem.row(tr);
+			var item = row.data();
+
+			$('#crossSellingEditItemCode').val(item.cross_selling_item_code);
+			$('#crossSellingEditInterval').val(item.cross_selling_item_interval);
+			$('#crossSellingEditReturningTime').val(item.cross_selling_item_returning_time);
+			$('#crossSellingEditValue').val(item.cross_selling_item_value);
+			$('#crossSellingEditCommission').val(item.cross_selling_item_commission);
+			$('#crossSellingEditItemName').val(item.cross_selling_item_name);
+			$('#crossSellingEditItemType').val(item.cross_selling_item_type || '');
+			$scope.atualizaCamposCrossSelling(item.cross_selling_item_type, true);
+			$('#editarCrossSellingItem-modal').modal();
+		});
+
+		$('#tbCrossSellingItem tbody').on('click', 'td.removeCrossSellingItem', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCrossSellingItem.row(tr);
+			var item = row.data();
+
+			swal({
+				title: 'Excluir',
+				text: 'Deseja realmente excluir este serviço extra?',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não'
+			}, function (confirmou) {
+				if (confirmou) {
+					showLoader(true);
+					$.ajax({
+						type: 'POST',
+						url: '/pages/cadastros/CROSS_SELLING_ITEM_Remove.php',
+						data: {
+							cross_selling_item_code: item.cross_selling_item_code
+						},
+						dataType: 'json',
+						success: function (data) {
+							if (data.data && data.data.error === false && data.data.cross_selling_item[0].error == 0) {
+								toastr.success(data.data.cross_selling_item[0].result);
+								$scope.limpaCrossSelling();
+								$scope.buscaCrossSellingItens(service_code);
+							} else {
+								toastr.error(data.data && data.data.cross_selling_item ? data.data.cross_selling_item[0].result : $_CONFIG.language.errors.falha_conexao);
+							}
+							showLoader(false);
+						},
+						error: function () {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				}
+			});
+		});
+	}
+
+	$('#crossSellingType').change(function () {
+		$scope.atualizaCamposCrossSelling($(this).val(), false);
+		$scope.carregaItensCrossSelling();
+	});
+
+	$('#formCrossSellingItem').submit(function (event) {
+		event.preventDefault();
+
+		var serviceCode = $('#serCodigoEdt').val();
+		var value = $('#crossSellingValue').val().replace(',', '.');
+		var commission = $('#crossSellingCommission').val().replace(',', '.');
+		var isProduct = $('#crossSellingType').val() == '2';
+		var data = {
+			type: $('#crossSellingType').val(),
+			item: $('#crossSellingItem').val(),
+			value: value,
+			interval: isProduct ? '' : $('#crossSellingInterval').val(),
+			returning_time: '',
+			service_code: serviceCode,
+			product_code: '',
+			package_code: '',
+			commission: commission,
+			combo_code: ''
+		};
+
+		if (serviceCode == '') {
+			toastr.warning('Selecione um serviço para gerenciar os serviços extras.');
+			return false;
+		}
+
+		if (data.item == '') {
+			toastr.warning('Informe o Item.');
+			return false;
+		}
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/CROSS_SELLING_ITEM_Insere.php',
+			data: data,
+			dataType: 'json',
+			success: function (result) {
+				var response = result.data;
+				if (response && response.error === false && response.cross_selling_item && response.cross_selling_item[0].error == 0) {
+					toastr.success(response.cross_selling_item[0].result);
+					$scope.limpaCrossSelling();
+					$scope.buscaCrossSellingItens(serviceCode);
+				} else {
+					var mensagemErro = $_CONFIG.language.errors.falha_conexao;
+					if (response && response.message) {
+						mensagemErro = response.message;
+					} else if (response && response.cross_selling_item && response.cross_selling_item[0]) {
+						mensagemErro = response.cross_selling_item[0].result;
+					}
+					toastr.error(mensagemErro);
+				}
+				showLoader(false);
+			},
+			error: function () {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return false;
+	});
+
+	$('#formCrossSellingItemEdit').submit(function (event) {
+		event.preventDefault();
+
+		var serviceCode = $('#serCodigoEdt').val();
+		var isProduct = $('#crossSellingEditItemType').val() == '2';
+		var data = {
+			cross_selling_item_code: $('#crossSellingEditItemCode').val(),
+			value: $('#crossSellingEditValue').val().replace(',', '.'),
+			interval: isProduct ? '' : $('#crossSellingEditInterval').val(),
+			returning_time: isProduct ? '' : $('#crossSellingEditReturningTime').val(),
+			commission: $('#crossSellingEditCommission').val().replace(',', '.')
+		};
+
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/CROSS_SELLING_ITEM_Altera.php',
+			data: data,
+			dataType: 'json',
+			success: function (result) {
+				var response = result.data;
+				if (response && response.error === false && response.cross_selling_item && response.cross_selling_item[0].error == 0) {
+					toastr.success(response.cross_selling_item[0].result);
+					$('#editarCrossSellingItem-modal').modal('hide');
+					$scope.buscaCrossSellingItens(serviceCode);
+				} else {
+					var mensagemErro = $_CONFIG.language.errors.falha_conexao;
+					if (response && response.message) {
+						mensagemErro = response.message;
+					} else if (response && response.cross_selling_item && response.cross_selling_item[0]) {
+						mensagemErro = response.cross_selling_item[0].result;
+					}
+					toastr.error(mensagemErro);
+				}
+				showLoader(false);
+			},
+			error: function () {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return false;
+	});
+
+	
+		
+});

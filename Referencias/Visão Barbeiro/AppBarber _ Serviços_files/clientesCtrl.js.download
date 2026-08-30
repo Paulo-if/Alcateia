@@ -1,0 +1,2302 @@
+angular.module('appBeleza').controller("clientesCtrl", function ($rootScope, $compile, $scope, $state, $translate) {
+
+	$rootScope.header = sSistema + " | " + $_CONFIG.language.clientes.breadcrumb;
+
+	changeHeightBody();
+
+	$("#navProf").hide();
+	$("#formProf").hide();
+
+	validaPerfil($state.current.name);
+
+	$scope.idCliente = $_CONFIG.ID;
+
+	$scope.dateFormat = $_CONFIG.language.mascaras.data;
+	$scope.lang = $_CONFIG.language.mascaras.lang;
+
+	$(".input-group.date").datepicker({
+		language: $scope.lang,
+		orientation: "bottom",
+		autoclose: true,
+		format: $scope.dateFormat
+	});
+
+	$('[data-inputmask]').inputmask();
+
+	var datafim = moment().locale($scope.lang).format("L");
+	var dataini = moment().add(-30, "days").locale($scope.lang).format("L");
+
+	$scope.submitCadastro = true;
+	$scope.submitEditar = true;
+	$scope.submitAlteraSenha = true;
+	$scope.submitAddPontos = true;
+	$scope.submitRemovePontos = true;
+	$scope.hasPrime = false;
+
+	$scope.thisrow = '';
+	$('.date.divDataIniAge').datepicker('update', dataini);
+	$('.date.divDataFimAge').datepicker('update', datafim);
+	$('.date.divDataIniCom').datepicker('update', dataini);
+	$('.date.divDataFimCom').datepicker('update', datafim);
+	$('.date.divDataIniPac').datepicker('update', datafim);
+	$('.date.divDataFimPac').datepicker('update', datafim);
+
+	if ($_CONFIG.TEMPOPADRAO != undefined && $_CONFIG.TEMPOPADRAO != '') {
+		var tempo = parseInt($_CONFIG.TEMPOPADRAO);
+		for (var i = tempo; i <= 360; i = i + tempo) {
+			$('#clienteServicoTempo').append('<option value="' + i + '">' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+			$('#clienteServicoTempoEdt').append('<option value="' + i + '">' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+
+		};
+		$('.timepicker').timepicker({
+			'timeFormat': 'H:i',
+			'forceRoundTime': true,
+			'step': tempo
+		});
+	} 
+
+	$scope.buscaProfissionalCombo = function () {
+		var profissional = "";
+		$.ajax({
+			dataType: "json",
+			async: false,
+			url: 'pages/cadastros/buscaProfissionalSelect.php',
+			data: {},
+			success: function (data) {
+				profissional += '<option  value="">Selecione um Profissional</option>';
+				for (var i = 0; i < data.profissionais.length; i++) {
+					var codigo = data.profissionais[i].Pes_Codigo;
+					var nome = data.profissionais[i].Pes_Nome;
+					profissional += '<option  value="' + codigo + '">' + nome + '</option>';
+				}
+				$("#cliProfAdi").html(profissional);
+				$("#cliProfAdiEdt").html(profissional);
+				$("#cliProfCom").prop("disabled", true);
+				$("#cliProfCom").val("");
+				$("#cliProfComEdt").prop("disabled", true);
+				$("#cliProfComEdt").val("");
+			}
+		});
+	}
+
+
+	$scope.buscaPessoaModulo = function () {
+		$.ajax({
+			dataType: "json",
+			async: false,
+			url: 'pages/cadastros/buscaPessoaModulo.php',
+			data: {},
+			success: function (data) {
+				if (data.data.length > 0) {
+					for (var i = 0; i < data.data.length; i++) {
+						if((data.data[i].TipoRel == 3)){
+							$scope.hasPrime = true;
+						}
+					}
+				}
+			}
+		});
+	}
+
+	$scope.buscaPessoaModulo();
+
+	$scope.buscaServicoCombo = function () {
+		var servico = "";
+		$.ajax({
+			dataType: "json",
+			async: false,
+			url: 'pages/cadastros/buscaServicoSelect.php',
+			data: {},
+			success: function (data) {
+				servico += '<option  value="">Selecione um Servico</option>';
+				for (var i = 0; i < data.servicos.length; i++) {
+					var codigo = data.servicos[i].Ser_Codigo;
+					var nome = data.servicos[i].Ser_Descricao;
+					servico += '<option  value="' + codigo + '">' + nome + '</option>';
+				}
+				$("#clienteServico").html(servico);
+
+			}
+		});
+
+	}
+
+	$("#cliProfAdi").change(function () {
+		if ($("#cliProfAdi option:selected").val() == "") {
+			$("#cliProfCom").val("");
+			$("#cliProfCom").prop("disabled", true);
+		} else {
+			$("#cliProfCom").prop("disabled", false);
+		}
+	});
+
+	$("#cliProfAdiEdt").change(function () {
+		if ($("#cliProfAdiEdt option:selected").val() == "") {
+			$("#cliProfComEdt").val("");
+			$("#cliProfComEdt").prop("disabled", true);
+		} else {
+			$("#cliProfComEdt").prop("disabled", false);
+		}
+	});
+
+	$('#cliFoto').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		language: "pt-BR",
+		browseIcon: '',
+		allowedFileExtensions: ["jpg", "png", 'jpeg'],
+		showUpload: false
+	});
+
+	$('#cliFotoEdt').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		language: "pt-BR",
+		browseIcon: '',
+		allowedFileExtensions: ["jpg", "png", 'jpeg'],
+		showUpload: false
+	});
+
+	$("#cliCep").keyup(function (i) {
+		buscaCEPCliente(this.value);
+	});
+
+	$("#cliCepEdt").keyup(function (i) {
+		buscaCEPClienteEdt(this.value);
+	});
+
+	var timerbusca;
+	function carregaDados() {
+		$scope.geraComboPaisTelefone("cliCelular", "cliDialCode")
+		$App.formatDateSort();
+		var urlCliente = "/pages/cadastros/buscaClientes.php";
+		var processing = false;
+		var serverSide = false;
+
+		if (hasManyClients) {
+			urlCliente = "/pages/cadastros/buscaClientes_v4.php";
+			processing = true;
+			serverSide = true;
+
+		}
+
+		tabelaCli = $('#tbBuscaCli').DataTable({
+			'ajax': urlCliente,
+			'columnDefs': [{
+				'targets': [1, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
+				'visible': false
+			}],
+			"scrollX": isPortrait,
+			dom: 'Blfrtip',
+			processing: processing,
+			serverSide: serverSide,
+			buttons: [{
+				extend: "colvis",
+				collectionLayout: 'fixed three-column',
+				text: "Colunas",
+				columns: [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 18, 19, 20, 21, 24, 25, 26, 27, 28, 29],
+			}, {
+				text: 'Excel',
+				action: function (e, dt, node, config) {
+					window.open('/pages/cadastros/buscaClientes_export.php', '_blank');
+				}
+			}, {
+				extend: 'pdfHtml5',
+				title: sSistema + ' - ' + $_CONFIG.language.clientes.breadcrumb,
+				orientation: 'landscape',
+				pageSize: 'LEGAL',
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}],
+			"language": {
+				"url": $_CONFIG.language.datatables
+			},
+			"rowCallback": function (nRow, aData, index) {
+				if(index == 0 && hasManyClients){
+					$(".overlay.tbrefresh").hide();
+				}
+				// $("#tbBuscaCli_length").change(function () {
+				// 	$scope.compileButtons();
+				// });
+			},
+			"lengthMenu": [
+				[10, 25, 50, 100, 1000],
+				[10, 25, 50, 100, 1000]
+			],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			initComplete: function () {
+				$compile($('#tbBuscaCli'))($scope);
+				$("#tbBuscaCli_paginate").click(function () {
+					if (hasManyClients){
+						$(".overlay.tbrefresh").show();
+					}
+					$scope.compileButtons();
+				});
+				$(".sorting").click(function () {
+					$scope.compileButtons();
+				});
+				$(".sorting_asc").click(function () {
+					$scope.compileButtons();
+				});
+				$(".sorting_desc").click(function () {
+					$scope.compileButtons();
+				});
+				$("#tbBuscaCli_filter").change(function () {
+					$compile($('#tbBuscaCli'))($scope);
+				});
+				$("#tbBuscaCli_length").change(function () {
+					$scope.compileButtons();
+				});
+				
+				$("#tbBuscaCli_filter input")
+				.unbind()
+				.bind("input", function(e) {
+				
+					
+					if (hasManyClients) {
+
+						
+						if(this.value.length >= 4 ) {
+							clearTimeout(timerbusca);
+							timerbusca = setTimeout(()=>{
+								var str = jQuery.fn.DataTable.ext.type.search.string(this.value).replace(this.value + " ", "");
+								tabelaCli.search(str).draw();
+							},1000);
+						}
+						
+						if(this.value == "") {
+							tabelaCli.search("").draw();
+						}
+					} else {
+						tabelaCli.search(this.value).draw();
+					}
+					return;
+				});
+
+				if (hasManyClients) {
+					$("#tbBuscaCli_filter input").attr("placeholder", "Mínimo 4 caracteres");
+				}
+
+				resizeContent();
+			},
+			"columns": [{
+					"data": "Nome"
+				}, //0
+				{
+					"data": "CPF"
+				}, //1
+				{
+					"data": "Email"
+				}, //2
+				{
+					"data": "Celular"
+				}, //3
+				{
+					"data": "Telefone"
+				}, //4
+				{
+					"data": "Login"
+				}, //5
+				{
+					"data": "Pontos"
+				}, //6
+				{
+					"data": "Senha"
+				}, //7
+				{
+					"data": "Sexo"
+				}, //8
+				{
+					"data": "Nascimento",
+					"type": "moment-DD/MM/YYYY"
+				}, //9
+				{
+					"data": "Endereco"
+				}, //10
+				{
+					"data": "Bairro"
+				}, //11
+				{
+					"data": "Cidade"
+				}, //12
+				{
+					"data": "Estado"
+				}, //13
+				{
+					"data": "Cep"
+				}, //14
+				{
+					"data": "Codigo"
+				}, //15
+				{
+					"data": "CidCodigo"
+				}, //16
+				{
+					"data": "EstCodigo"
+				}, //17
+				{
+					"data": "Complemento"
+				}, //18
+				{
+					"data": "Obs"
+				}, //19
+				{
+					"data": "Numero"
+				}, //20
+				{
+					"data": "RG"
+				}, //21
+				{
+					"data": "UsuCodigo"
+				}, //22
+				{
+					"data": "Imagem"
+				}, //23
+				{
+					"data": "Cadastro",
+					"type": "moment-DD/MM/YYYY hh:mm"
+				}, //24
+				{
+					"data": "DiasSemVir",
+					"type": "num"
+				}, //25
+				{
+					"data": "UltimaVisita",
+					"type": "moment-DD/MM/YYYY hh:mm"
+				}, //26
+				{
+					"data": "ComoSoube"
+				}, //27
+				{
+					"data": "DataEnvLGPD",
+					"type": "moment-DD/MM/YYYY hh:mm"
+				}, //28
+				{
+					"data": "DataAceiteLGPD",
+					"type": "moment-DD/MM/YYYY hh:mm"
+				}, //29
+
+				{
+					"class": 'sendWatsCliente',
+					"orderable": false,
+					"data": null,
+					"searchable": false,
+					"defaultContent": '<button class="btn btn-success btn-xs"><i class="fa fa-whatsapp"></i></button>',
+				}, //29
+				{
+					"class": 'btnInfo',
+					"orderable": false,
+					"data": null,
+					"searchable": false,
+					"defaultContent": "<a class='btn btn-block btn-info btn-xs' data-toggle='modal' data-target='#infoCliente-modal'>&nbsp;<strong>Info &nbsp;</strong><i class='fa fa-info-circle'></i>&nbsp;</a>",
+				}, // 30
+				{
+					"class": 'btnEditar',
+					"orderable": false,
+					"data": null,
+					"searchable": false,
+					"defaultContent": "<a class='btn btn-block btn-success btn-xs' data-toggle='modal' data-target='#editar-modal'>&nbsp;<strong>Editar</strong> &nbsp;<i class='fa fa-pencil'></i>&nbsp;</a>",
+				}, //31
+				{
+					"class": 'btnExcluir',
+					"orderable": false,
+					"data": null,
+					"searchable": false,
+					"defaultContent": "<button class='btn btn-block btn-danger btn-xs'>&nbsp;<strong>Excluir</strong> &nbsp;<i class='fa fa-trash'></i>&nbsp;</button>",
+				}, //32
+
+
+			]
+		});
+		$('#tbBuscaCli tbody').on('click', 'td.sendWatsCliente', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCli.row(tr);
+			var data = row.data();
+
+			var celular = `${data.DDI}${data.Celular}`; 
+			var protocol = localStorage.getItem('wppDefaultProtocol');
+
+			if(protocol != undefined && protocol != ''){
+				window.open(protocol+"send?phone=" + celular, "_blank");
+			}else{
+				if (isMobile) {
+					window.open("https://wa.me/" + celular + "?l=pt_br", "_blank");
+				} else {
+					window.open("https://web.whatsapp.com/send?phone=" + celular , "_blank");
+				}
+			}
+
+		});
+		$('#tbBuscaCli tbody').on('click', 'td.btnInfo', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCli.row(tr);
+			var data = row.data();
+
+			$scope.infoCliente(data.Codigo)
+		});
+		$('#tbBuscaCli tbody').on('click', 'td.btnEditar', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCli.row(tr);
+			var data = row.data();
+
+			$scope.editarCliente(data)
+		});
+		$('#tbBuscaCli tbody').on('click', 'td.btnExcluir', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaCli.row(tr);
+			var data = row.data();
+			$scope.excluir(data, row)
+		});
+
+
+
+		/*----------------------------------------------------------------------------------------*/
+
+		tabelaClienteExcluido = $('#tbBuscaCliRemovido').DataTable({
+			ajax: {
+				url: '/pages/cadastros/buscaClientesRemovidos.php',
+				data:{
+					tipo:1
+				}
+			},
+			
+			language: {
+				url: $_CONFIG.language.datatables
+			},
+			scrollX: isPortrait,
+			dom: 'Blfrtip',
+			buttons: [, {
+				extend: "excelHtml5",
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: 'Profissionais',
+				orientation: 'landscape',
+				pageSize: 'LEGAL',
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}],
+			initComplete: () => {
+				$(".sorting_asc").click(() => {
+					$compile($('#tbBuscaCliRemovido'))($scope);
+				});
+			},
+			order: [
+				[0, 'asc']
+			],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			columns: [{
+				'title': 'Nome Completo',
+				'data': 'Pes_Nome',
+				'width': '30%'
+			}, {
+				'title': 'E-mail',
+				'data': 'Paf_Email',
+				'width': '30%'
+			}, {
+				'title': 'Celular',
+				'data': 'Paf_Celular',
+				'width': '20%'
+			},{
+				'title': 'CPF',
+				'data': 'Paf_Cpf',
+				'width': '12%'
+			}, {
+				'title': '',
+				'class': 'info text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-info btn-block" ><i class="fa fa-info-circle"></i> Info</button>',
+				'width': '2%'
+			},{
+				'title': '',
+				'class': 'reativar text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-warning btn-block" ><i class="fa fa-user-plus"></i> Reativar</button>',
+				'width': '6%'
+			}]
+		});
+
+
+		$('#tbBuscaCliRemovido tbody').on('click', 'td.info', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaClienteExcluido.row(tr);
+			var data = row.data();
+			 $scope.infoCliente(data.Pes_Codigo)
+		});
+
+		$('#tbBuscaCliRemovido tbody').on('click', 'td.reativar', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaClienteExcluido.row(tr);
+			var data = row.data();
+
+
+			var codigoCliente = data.Pes_Codigo;
+
+			/*--------------------------*/
+
+			swal({
+				title: "Tem certeza que deseja reativar esse cliente?",
+				text: "Ao reativar o cliente, caso o mesmo tenha usuário, ele voltará a ter acesso ao aplicativo para agendamento!",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#569c54",
+				cancelButtonColor: "#d62d2d",
+				confirmButtonText: "Reativar",
+				cancelButtonText: "Cancelar",
+				closeOnConfirm: true,
+				closeOnCancel: true,
+				html: true
+			}, function (isConfirm) {
+				if (isConfirm) {
+					$scope.reativaPessoaCliente(codigoCliente)
+
+				} 
+			});
+			/*--------------------------*/
+			
+		});
+
+
+		/*----------------------------------------------------------------------------------------*/
+	}
+
+	$scope.refresh = function () {
+		atualizaDados();
+	}
+
+	var emit = $rootScope.$on('AtualizaListaCliente', function () {
+		$scope.refresh();
+	});
+
+	$scope.compileButtons = function () {
+		// if (hasManyClients) {
+		// 	setTimeout(function () {
+		// 		$compile($('#tbBuscaCli'))($scope)
+		// 	}, 1000);
+		// } else {
+		// 	$compile($('#tbBuscaCli'))($scope);
+		// }
+	}
+
+	function atualizaDados() {
+		$(".overlay.tbrefresh").show();
+		tabelaCli.ajax.reload(function () {
+			if(!hasManyClients){
+				totalClients = tabelaCli.settings().rows().count();
+				if (totalClients >= 1500) {
+					hasManyClients = true;
+				} else {
+					hasManyClients = false;
+				}
+
+			}
+			$compile($('#tbBuscaCli'))($scope);
+			$("#tbBuscaCli_paginate").click(function () {
+
+				$compile($('#tbBuscaCli'))($scope);
+				if (hasManyClients){
+					$(".overlay.tbrefresh").show();
+				}
+
+			});
+			
+			$(".overlay.tbrefresh").hide();
+		}, false);
+
+		tabelaClienteExcluido.ajax.reload();
+	}
+
+	function buscaCEPCliente(cep) {
+		mCep = cep;
+		if (cep && cep.length >= parseInt($_CONFIG.language.mascaras.max_cep)) {
+			cep = cep.replace("-", "");
+			showLoader(true);
+			var pais = $_CONFIG.language.mascaras.lang;
+			$.ajax({
+				dataType: "json",
+				method: 'POST',
+				url: '/pages/cadastros/buscaPostalCode.php',
+				data: {
+					code: cep,
+					pais: pais
+				},
+				success: function (data) {
+					var estado = "";
+					if (pais == "pt") {
+						estado = $("#" + data.estado.replace(" ", "").toLowerCase() + "").val();
+					} else {
+						estado = $("#" + data.estado + "").val();
+					}
+					$("#cliEstado").val(estado);
+					$("#cliCidade").empty();
+
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/buscaCidadesWizard.php',
+						method: "POST",
+						data: {
+							estCodigo: estado,
+							cidNome: data.cidade
+						},
+						success: function (result) {
+							$("#cliCidade").append(result.cidades);
+							$("#cliCidade").attr("disabled", false);
+							setTimeout(function () {
+								$("#cliCidade").val(result.cidcodigo);
+							}, 10);
+							showLoader(false);
+							$("#cliBairro").val(data.bairro);
+							$("#cliEndereco").val(data.endereco);
+						}
+					});
+					showLoader(false);
+				},
+				error: function () {
+					showLoader(false);
+					toastr.error($_CONFIG.language.mensagens.falha_cep, $_CONFIG.language.mensagens.falha_consulta);
+				}
+			});
+		}
+	}
+
+	function buscaCEPClienteEdt(cep) {
+		mCep = cep;
+
+		if (cep && cep.length >= parseInt($_CONFIG.language.mascaras.max_cep)) {
+			cep = cep.replace("-", "");
+			showLoader(true);
+			var pais = $_CONFIG.language.mascaras.lang;
+			$.ajax({
+				dataType: "json",
+				method: 'POST',
+				url: '/pages/cadastros/buscaPostalCode.php',
+				data: {
+					code: cep,
+					pais: pais
+				},
+				success: function (data) {
+					var estado = "";
+					if (pais == "pt") {
+						estado = $("#" + data.estado.replace(" ", "").toLowerCase() + "").val();
+					} else {
+						estado = $("#" + data.estado + "").val();
+					}
+					$("#cliEstadoEdt").val(estado);
+					$("#cliCidadeEdt").empty();
+
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/buscaCidadesWizard.php',
+						method: "POST",
+						data: {
+							estCodigo: estado,
+							cidNome: data.cidade
+						},
+						success: function (result) {
+							$("#cliCidadeEdt").append(result.cidades);
+							$("#cliCidadeEdt").attr("disabled", false);
+							setTimeout(function () {
+								$("#cliCidadeEdt").val(result.cidcodigo);
+							}, 10);
+							showLoader(false);
+							$("#cliBairroEdt").val(data.bairro);
+							$("#cliEnderecoEdt").val(data.endereco);
+						}
+					});
+					showLoader(false);
+				},
+				error: function () {
+					showLoader(false);
+					toastr.error($_CONFIG.language.mensagens.falha_cep, $_CONFIG.language.mensagens.falha_consulta);
+				}
+			});
+		}
+	}
+
+	if ($_CONFIG.LISTA_PAIS.length > 0 ) {
+		var html = "<option value=''></option>";
+		for (var i = 0; i < $_CONFIG.LISTA_PAIS.length; i++) {
+			
+			html += "<option id='" +$_CONFIG.LISTA_PAIS[i].Pai_Sigla + "' value='" + $_CONFIG.LISTA_PAIS[i].Pai_Codigo + "'> " + $_CONFIG.LISTA_PAIS[i].Pai_Nome + "</option>";
+			
+		}
+
+		$("#cliPais").html(html);
+		$("#cliPais").val($_CONFIG.PAIS).change();
+		$("#cliPaisEdt").html(html);
+	}else{
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaPais.php',
+			method: "POST",
+			success: function (data) {
+				var html = "";
+				var sigla = ($_CONFIG.language.mascaras.lang).toUpperCase()
+				for (var i = 0; i < data.result.length; i++) {
+					if(sigla == data.result[i].Pai_Sigla ){
+						html += '<option selected value="' + data.result[i].Pai_Codigo + '" data-sigla="'+data.result[i].Pai_Sigla+'">' + data.result[i].Pai_Nome + '</option>';
+					}else{
+						html += '<option value="' + data.result[i].Pai_Codigo + '" data-sigla="'+data.result[i].Pai_Sigla+'">' + data.result[i].Pai_Nome + '</option>';
+					}
+				}
+				$("#cliPais").html(html);
+				$("#cliPaisEdt").html(html);
+
+			}
+		});
+	}
+
+	$("#cliPais").change(function(){
+		buscaEstados(this.value)
+	})
+
+	$("#cliPaisEdt").change(function(){
+		
+		buscaEstados(this.value)
+	})
+
+	function buscaEstados(pais) {
+		
+		/*if ($_CONFIG.LISTA_ESTADO.length > 0 && pais == $_CONFIG.PAIS) {
+			var html = "<option value=''></option>";
+			for (var i = 0; i < $_CONFIG.LISTA_ESTADO.length; i++) {
+				if (pais != "2") {
+					html += "<option id='" + $_CONFIG.LISTA_ESTADO[i].Est_Sigla + "' value='" + $_CONFIG.LISTA_ESTADO[i].Est_Codigo + "'> " + $_CONFIG.LISTA_ESTADO[i].Est_Nome + "</option>";
+				} else {
+					html += "<option id='" + $_CONFIG.LISTA_ESTADO[i].Est_Nome.replace(" ", "").toLowerCase() + "' value='" + $_CONFIG.LISTA_ESTADO[i].Est_Codigo + "'> " + $_CONFIG.LISTA_ESTADO[i].Est_Nome + "</option>";
+				}
+			}
+			$("#cliEstado").html(html);
+			$("#cliEstadoEdt").html(html);
+		}else{*/
+			$.ajax({
+				dataType: "json",
+				url: '/pages/cadastros/buscaEstadoPais.php',
+				method: "POST",
+				data:{
+					paicodigo:pais
+				},
+				success: function (data) {
+					if (data.result.length > 0) {
+						var html = "<option value=''></option>";
+						for (var i = 0; i < data.result.length; i++) {
+							if (pais != "2") {
+								html += "<option id='" + data.result[i].Est_Sigla + "' value='" + data.result[i].Est_Codigo + "'> " + data.result[i].Est_Nome + "</option>";
+							} else {
+								html += "<option id='" + data.result[i].Est_Nome.replace(" ", "").toLowerCase() + "' value='" + data.result[i].Est_Codigo + "'> " + data.result[i].Est_Nome + "</option>";
+							}
+						}
+					}
+					$("#cliEstado").html(html);
+					$("#cliEstadoEdt").html(html);
+				}
+			});
+		/*}*/
+	}
+
+	$('#formCadastro').submit(function (event) {
+		if ($scope.submitCadastro) {
+			if (($("#cliLoginId").val() != "") && ($("#cliEmail").val() == "")) {
+				toastr.error($_CONFIG.language.errors.insira_email, $_CONFIG.language.errors.insira_email_valido);
+				return true;
+			} else if ($("#cliEmail").val() != "" && !validarEmail($("#cliEmail").val())) {
+				toastr.error($_CONFIG.language.errors.insira_email_valido);
+				return true;
+			} else {
+				event.preventDefault();
+
+				$scope.submitCadastro = false;
+
+				formCadastro = $(this);
+				showLoader(true);
+				dataInsere = new FormData(this);
+				dataInsere.append("apelido", $("#cliApelido").html());
+				dataInsere.append('imagemcli', mBlob);
+
+				if (dataInsere.delete != undefined) {
+					dataInsere.delete('cliFoto');
+				}
+
+				$.ajax({
+					type: "POST",
+					url: "/pages/cadastros/insereClientes.php",
+					data: dataInsere,
+					dataType: "json",
+					processData: false,
+					contentType: false,
+					success: function (result) {
+						$scope.submitCadastro = true;
+						if (result.insereCliente[0].erro == "0") {
+							if (tabelaCli.row().length < 2000) {
+								atualizaDados();
+							}
+							$scope.cliLogin = "";
+							toastr.success(result.insereCliente[0].resultado);
+							$('#cadastrar-modal').modal("hide");
+							formCadastro.each(function () {
+								this.reset();
+							});
+							mBlob = '';
+							$('.date.dataNascimento').datepicker('update', '');
+						} else {
+							toastr.error(result.insereCliente[0].resultado);
+						}
+						showLoader(false);
+					},
+					error: function (result) {
+						$scope.submitCadastro = true;
+						toastr.error($_CONFIG.language.errors.falha_conexao);
+						showLoader(false);
+					}
+				});
+				return true;
+			}
+		}
+	});
+
+	$('#formEditar').submit(function (event) {
+		if ($scope.submitEditar) {
+
+			event.preventDefault();
+			$scope.submitEditar = false;
+			showLoader(true);
+			dataAltera = new FormData(this)
+			dataAltera.append('blob', mBlob);
+			$.ajax({
+				type: "POST",
+				//url: "/pages/cadastros/alteraClientesv2.php",
+				url: "/pages/cadastros/alteraClientesv3.php",
+				data: dataAltera,
+				dataType: "json",
+				processData: false,
+				contentType: false,
+				success: function (result) {
+
+					$scope.submitEditar = true;
+					if (result.data[0].erro == "0") {
+						toastr.success(result.data[0].resultado);
+						if (tabelaCli.rows().length < 2000) {
+							atualizaDados();
+						}
+
+					} else {
+						toastr.error(result.data[0].resultado);
+					}
+					showLoader(false);
+				},
+				error: function () {
+					$scope.submitEditar = true;
+
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+			return true;
+		}
+
+	});
+
+	$('#formAlteraSenha').submit(function (event) {
+		if ($scope.submitAlteraSenha) {
+
+			var proceed = 0;
+			if (($('#usuarioAltLbl').html() == "") && ($("#cliEmailEdt").val() == "")) {
+				toastr.error($_CONFIG.language.errors.insira_email_valido, $_CONFIG.language.errors.insira_email);
+				return true;
+			} else {
+				event.preventDefault();
+				$scope.submitAlteraSenha = false;
+				formAlteraSenha = $(this);
+				var dados = new FormData(this);
+				dados.append("tipo", "2");
+				showLoader(true);
+
+				$.ajax({
+					type: "POST",
+					url: "/pages/cadastros/alteraClientesv2.php",
+					data: {
+						cliCodigoEdt: $("#pesCodigoAlt").val(),
+						cliNomeEdt: $("#pesnomealterasenha").val(),
+						cliEmailEdt: $("#usuarioAlt").val(),
+						cliCelularEdt: $("#pescelularalterasenha").val(),
+						cliRGEdt: "",
+						cliCpfEdt: "",
+						cliSexoEdt: "",
+						cliDataNascimentoEdt: "",
+						cliTelefoneEdt: "",
+						cliEnderecoEdt: "",
+						cliNumeroEdt: "",
+						cliComplementoEdt: "",
+						cliCepEdt: "",
+						cliBairroEdt: "",
+						cliObservacaoEdt: "",
+						cliCidadeEdt: "",
+						cliApelidoEdt: ""
+					},
+					dataType: "json",
+
+					async: "false",
+
+					success: function (result) {
+						if (result.data[0].erro == "0") {
+
+							$.ajax({
+								type: "POST",
+								url: "/pages/cadastros/alteraSenha.php",
+								data: dados,
+								dataType: "json",
+								processData: false,
+								contentType: false,
+								success: function (result) {
+									$scope.submitAlteraSenha = true;
+									if (result.result[0].erro == "0") {
+										toastr.success(result.result[0].resultado);
+										atualizaDados();
+										$('#editar-modal').modal("hide");
+										$("#senhaAlt").val("");
+										$("#usuarioAlt").val("");
+										$("#usuarioAltLbl").html("");
+									} else {
+										toastr.error(result.result[0].resultado);
+									}
+									showLoader(false);
+								},
+								error: function (result) {
+									$scope.submitAlteraSenha = true;
+									toastr.error($_CONFIG.language.errors.falha_conexao);
+									showLoader(false);
+								}
+							});
+							return true;
+
+						} else {
+							$scope.submitAlteraSenha = true;
+							toastr.error(result.data[0].resultado);
+							proceed = 0
+							showLoader(false);
+							return false
+						}
+					},
+					error: function (result) {
+						$scope.submitAlteraSenha = true;
+						toastr.error($_CONFIG.language.errors.falha_conexao);
+						showLoader(false);
+						proceed = 0
+						return false
+					}
+				});
+
+			}
+		}
+	});
+
+	$("#cliEstado").change(function () {
+		var estado = this.value;
+		$("#cliCidade").empty();
+		if (estado === -1) {
+			$("#cliCidade").attr("disabled", true);
+		} else {
+			$.ajax({
+				dataType: "html",
+				url: '/pages/cadastros/buscaCidades.php',
+				method: "POST",
+				data: {
+					estCodigo: estado
+				},
+				success: function (data) {
+					$("#cliCidade").append(data);
+					$("#cliCidade").attr("disabled", false);
+				}
+			});
+		}
+	});
+
+	$("#cliEstadoEdt").change(function () {
+		var estado = this.value;
+		$("#cliCidadeEdt").empty();
+		if (estado === -1) {
+			$("#cliCidadeEdt").attr("disabled", true);
+		} else {
+			$.ajax({
+				dataType: "html",
+				url: '/pages/cadastros/buscaCidades.php',
+				method: "POST",
+				data: {
+					estCodigo: estado
+				},
+				success: function (data) {
+					$("#cliCidadeEdt").append(data);
+					$("#cliCidadeEdt").attr("disabled", false);
+				}
+			});
+		}
+	});
+
+	$translate('mascaras.celular')
+		.then(function (value) {
+			if (value != '') {
+				$('#cliCelular').mask(value);
+			}
+		});
+
+	$translate('mascaras.telefone')
+		.then(function (value) {
+			if (value != '') {
+				$('#cliTelefone').mask(value);
+				$('#cliTelefoneEdt').mask(value);
+			}
+		});
+
+	$scope.editarCliente = function (registroTabela) {
+		$scope.limpaLoginSenha();
+		$scope.buscaServicoCombo();
+
+		$('#cliNomeEdt').val(registroTabela.Nome);
+		$('#pesnomealterasenha').val(registroTabela.Nome);
+		
+
+		if ((registroTabela.CPF).length <= 14) {
+			$("#tipocampoCPFCliEdt").val(1)
+			$scope.changeCpfCnpjCliEdt(1)
+		} else {
+			$("#tipocampoCPFCliEdt").val(2)
+			$scope.changeCpfCnpjCliEdt(2)
+		}
+		$('#cliCpfEdt').val(registroTabela.CPF);
+		$('#cliEmailEdt').val(registroTabela.Email);
+		$('#cliCelularEdt').val(registroTabela.Celular);
+		$('#cliDialCodeEdt').val(registroTabela.DDI);
+		$scope.geraComboPaisTelefone('cliCelularEdt', 'cliDialCodeEdt', registroTabela.DDI)
+		$('#pescelularalterasenha').val(registroTabela.Celular);
+		$('#cliTelefoneEdt').val(registroTabela.Telefone);
+		$('#usuarioAlt').val(registroTabela.Email);
+
+		$('#cliAbreviaturaAlt').show(registroTabela.Email);
+
+		if (registroTabela.Login == "") {
+			$('#usuarioAltLbl').html("");
+		} else {
+			var typelogincolor = 'black';
+			if (registroTabela.Login == 'E-mail') {
+				typelogincolor = 'green';
+			} else if (registroTabela.Login == 'Facebook') {
+				typelogincolor = 'blue';
+			} else if (registroTabela.Login == 'Desativado') {
+				typelogincolor = 'red';
+			} else if (registroTabela.Login == 'Não Possui') {
+				typelogincolor = 'orange';
+			} else {
+				typelogincolor = 'green';
+			}
+
+			$('#usuarioAltLbl').html('<b style="color:black">' + $_CONFIG.language.login + ":</b> <span style='color:" + typelogincolor + "'>" + registroTabela.Login + '</span>');
+		}
+
+		$('#cliSexoEdt').val(registroTabela.Sexo);
+		
+		$('#cliDataNascimentoEdt').val(registroTabela.Nascimento);
+		$('#cliEnderecoEdt').val(registroTabela.Endereco);
+		$('#cliBairroEdt').val(registroTabela.Bairro);
+		
+		//$('#cliEstadoEdt').val(registroTabela.Estado);
+		$('#cliCepEdt').val(registroTabela.Cep);
+		$('#cliCodigoEdt').val(registroTabela.Codigo);
+		$('#cliEstadoEdt').val(registroTabela.EstCodigo);
+		$('#pesCodigoAlt').val(registroTabela.Codigo);
+		$('#usuCodigo').val(registroTabela.UsuCodigo);
+		$('#cliObservacaoEdt').val(registroTabela.Obs);
+		$('#cliComplementoEdt').val(registroTabela.Complemento);
+		$('#cliNumeroEdt').val(registroTabela.Numero);
+		$('#lblPontos').html(registroTabela.Pontos);
+		$("#pesCodigoPonto").val(registroTabela.Codigo);
+		$("#pesCodigoPontoRemove").val(registroTabela.Codigo);
+		$("#cliDataExpiracao").val(registroTabela.DataExpiracao);
+		$("#pesCodigoToken").val(registroTabela.Codigo);
+		$("#cliTentativas").val(registroTabela.NumTentativas);
+		$("#cliRGEdt").val(registroTabela.RG);
+		$("#cliIEEdt").val(registroTabela.PAF_IE);
+		$("#cliIMEdt").val(registroTabela.PAF_IM);
+		$('#cliCodigoEdt').val(registroTabela.Codigo);
+		if(registroTabela.Pai_Codigo != ''){
+			$("#cliPaisEdt").val(registroTabela.Pai_Codigo).change();
+		}else{
+			$("#cliPaisEdt").val($_CONFIG.PAIS);
+		}
+		setTimeout(function(){
+			$('#cliEstadoEdt').val(registroTabela.EstCodigo);
+			setTimeout(function(){
+				$('#cliCidadeEdt').val(registroTabela.CidCodigo);
+			},1000)
+		},1000)
+
+		$("#cliCidadeEdt").empty();
+		if (registroTabela.Imagem != undefined && registroTabela.Imagem != "") {
+			$("#cliImagemEdit").attr('src', registroTabela.Imagem)
+		} else {
+			$("#cliImagemEdit").attr('src', '../../img/nopicture.png')
+
+		}
+		$("#cliProfAdiEdt").val(registroTabela.ProfissionalComissao);
+		$("#cliProfAdiEdt").change();
+		$("#cliProfComEdt").val(registroTabela.AdicionalComissao)
+		$("#cliOndeEdt").val(registroTabela.ComoSoube)
+		$("#cliApelidoEdt").val(registroTabela.Apelido);
+		if (registroTabela.SituacaoUsuario == "") {
+			$("#btnDesativaUsuarioCliente").show();
+			$("#btnReativaUsuarioCliente").hide();
+			$("#acessoClientesAltera").show();
+		} else {
+			$("#btnDesativaUsuarioCliente").hide();
+			$("#btnReativaUsuarioCliente").show();
+			$("#acessoClientesAltera").hide();
+		}
+		if (registroTabela.Login == "Não Possui") {
+			$("#btnDesativaUsuarioCliente").hide();
+			$("#btnReativaUsuarioCliente").hide();
+			$("#acessoClientesAltera").hide();
+		} else if (registroTabela.Login == "Desativado") {
+			$("#btnDesativaUsuarioCliente").hide();
+			$("#btnReativaUsuarioCliente").show();
+			$("#acessoClientesAltera").hide();
+		}
+
+		$.ajax({
+			dataType: "html",
+			url: '/pages/cadastros/buscaCidades.php',
+			method: "POST",
+			data: {
+				estCodigo: registroTabela.EstCodigo
+			},
+			success: function (data) {
+				$("#cliCidadeEdt").append(data);
+				$("#cliCidadeEdt").attr("disabled", false);
+				$('#cliCidadeEdt').val(registroTabela.CidCodigo);
+			}
+		});
+		$scope.buscaServicoCliente(registroTabela.Codigo)
+		$scope.buscaListaTagsClientes(registroTabela.Codigo)
+
+		$("#pes_codigo_relacao").val(registroTabela.Codigo);
+		$("#tipo_cliente_ativo").val(2);
+
+		if(registroTabela.PRe_Ativo == 2){
+			$("#tipo_cliente_ativo").val(1)
+			$("#txtBotaoDesativar").html('Reativar Acesso')
+			
+		}else{
+			
+			$("#tipo_cliente_ativo").val(2)
+		}
+		if(registroTabela.Cli_Codigo != '' && !$scope.hasPrime){
+			$("#cli_codigo_senha_sms").val(registroTabela.Cli_Codigo)
+			$("#client_name").html(`Nome: ${registroTabela.Cli_Nome}`)
+			$("#client_phone").html(`Celular: ${registroTabela.Cli_Celular}`)
+			if(registroTabela.Cli_Imagem != ''){
+				$("#imagem_cliente_app").css('background-image',`url('${registroTabela.Cli_Imagem}')`)
+			}else{
+				$("#imagem_cliente_app").css('background-image',`url(../../img/noPicture.png`)
+			}
+			$("#navigationUsuCliente").hide()
+			$("#navigationCliDados").show()
+			$("#navigationCliCadastro").hide()
+			$("#infoClienteAcessoList").html('');
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/CLIENTEBuscaAcessoLista.php",
+				data: {
+					client_code: registroTabela.Cli_Codigo
+				},
+				dataType: "json",
+				success: function (data) {
+					if (data.data.error == false) {
+						if(data.data.customer.length > 0){
+							for (var i = 0; i < data.data.customer.length; i++) {
+								if(data.data.customer[i].TLg_Codigo == 1){
+									$("#infoClienteAcessoList").append(`<span  data-toggle="tooltip" title="${data.data.customer[i].login_email}" data-content="${data.data.customer[i].login_email}" class="info-box-icon " style="border-radius: 50px;width: 30px;height: 30px; margin-right:10px; background-image: url('../../img/_3573152.svg');background-repeat: no-repeat;background-size: contain;background-color:#f2f2f2"></span>`)
+								}else if(data.data.customer[i].TLg_Codigo == 2 || data.data.customer[i].TLg_Codigo == 3){
+									$("#infoClienteAcessoList").append(`<span data-toggle="tooltip" title="${data.data.customer[i].login_email}" data-content="${data.data.customer[i].login_email}" class="info-box-icon" style="border-radius: 50px;width: 30px;height: 30px; margin-right:10px; background-image: url('../../img/facebook_1384005.svg');background-repeat: no-repeat;background-size: contain;background-color:#f2f2f2"></span>`)
+								}else if(data.data.customer[i].TLg_Codigo == 4){
+									$("#infoClienteAcessoList").append(`<span data-toggle="tooltip" title="${data.data.customer[i].login_email}" data-content="${data.data.customer[i].login_email}" class="info-box-icon" style="border-radius: 50px;width: 30px;height: 30px; margin-right:10px; background-image: url('../../img/apple-logo_747.svg');background-repeat: no-repeat;background-size: contain;background-color:#f2f2f2"></span>`)
+								}else if(data.data.customer[i].TLg_Codigo == 5){
+									$("#infoClienteAcessoList").append(`<span data-toggle="tooltip" title="${data.data.customer[i].login_email}" data-content="${data.data.customer[i].login_email}" class="info-box-icon" style="border-radius: 50px;width: 30px;height: 30px; margin-right:10px; background-image: url('../../img/google_104093.svg');background-repeat: no-repeat;background-size: contain;background-color:#f2f2f2"></span>`)
+								}
+							}
+						}
+					} else {
+						toastr.error(data.data.message);
+					}
+					//$scope.buscaSolCad();
+				},
+				error: function (data) {
+					console.log('Falha ao inserir Cliente. Erro:' + data);
+					showLoader(false);
+				}
+			});
+			$compile($('#infoClienteAcessoList'))($scope);
+
+		}else{
+			$("#cli_codigo_senha_sms").val('')
+			$("#imagem_cliente_app").css('background-image',`url(../../img/noPicture.png`)
+			$("#client_name").html('')
+			$("#client_phone").html('')
+			$("#navigationUsuCliente").show()
+			$("#navigationCliDados").hide()
+			if(registroTabela.Login == 'Não Possui' && !$scope.hasPrime){
+				$("#navigationCliDados").hide()
+				$("#navigationUsuCliente").hide()
+				$("#navigationCliCadastro").show()
+
+				var datahtmlshort = `<button class="btn btn-primary btnCopyLinkApp btn-block" data-clipboard-text="https://sites.appbarber.com.br/link/${$_CONFIG.CODESTABELECIMENTO}/${$_CONFIG.APELIDOESTABELECIMENTO}" ><i class="fa fa-download" alt="Copiar"></i> Copiar Link de Download</button>
+				<button class="btn btn-success  btn-block" id="btnSendWhatsCliente" ng-click="sendDownloadApp('${registroTabela.Celular}','https://sites.appbarber.com.br/link/${$_CONFIG.CODESTABELECIMENTO}/${$_CONFIG.APELIDOESTABELECIMENTO}')"><i class="fa fa-whatsapp" alt="Copiar"></i> Enviar link via WhatsApp</button>`;
+				$("#divBtnLinkApp").html(datahtmlshort)
+				var clipboard = new ClipboardJS('.btnCopyLinkApp');
+				clipboard.on('success', function (e) {
+					toastr.success("Copiado!");
+				});
+				$compile($('#btnSendWhatsCliente'))($scope);
+			}
+		}
+
+
+
+	}
+	$scope.url = 'clientes';
+	$scope.infoCliente = function (codigo) {
+		$scope.mostraInfoClientes(codigo);
+	}
+
+
+	$scope.sendDownloadApp = function(phone,link){
+
+		var celular = $_CONFIG.language.mascaras.codigopais.replace('+', '') + phone.replace("(", "").replace(")", "").replace(" ", "").replace("-", "");
+		sendWhatsReminder(celular, `Baixe agora o AppBarber e realize seu cadastro!\n${link}`);
+	}
+
+	$scope.excluir = function (registroTabela, row) {
+		$scope.thisrow ='';
+
+		$scope.thisrow = row;
+		$("#pesCodigoRemoveCliente1").val(registroTabela.Codigo);
+		$("#btnAguardeRemocao").show()
+		$("#btnRemoveCliente1").hide()
+		$('#removeClienteConfirm1-modal').modal()
+		$("#btnCancelar1").css('margin-top','0px')
+		var numSegundosCliente = 1;
+		var descriptionCliente = 'segundos';
+		$("#numSegundosAguardoCliente").html(numSegundosCliente + ' ' + descriptionCliente);
+		var t = setInterval(function () {
+			numSegundosCliente = numSegundosCliente - 1;
+			if (numSegundosCliente == 1) {
+				descriptionCliente = 'segundo';
+			}
+			$("#numSegundosAguardoCliente").html(numSegundosCliente + ' ' + descriptionCliente);
+		}, 500);
+		setTimeout(function () {
+			clearInterval(t);
+			$("#btnAguardeRemocao").hide()
+			$("#btnRemoveCliente1").show()
+			$("#btnCancelar1").css('margin-top','5px')
+		}, (numSegundosCliente * 500));
+
+	}
+
+	$("#addPontos").keyup(function () {
+		if ($("#addPontos").val() < 0) {
+			$("#addPontos").val('');
+			toastr.warning("O número de pontos a ser inserido deve ser maior que 0");
+		}
+	})
+	$("#addPontos").change(function () {
+		if ($("#addPontos").val() < 0) {
+			$("#addPontos").val('');
+			toastr.warning("O número de pontos a ser inserido deve ser maior que 0");
+		}
+	})
+
+	$('#formAddPontos').submit(function (event) {
+		if ($scope.submitAddPontos) {
+			$scope.submitAddPontos = false;
+			event.preventDefault();
+			formAddPontos = $(this);
+			showLoader(true);
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/inserePessoaPonto.php",
+				data: {
+					pescodigo: $("#pesCodigoPonto").val(),
+					pontos: $("#addPontos").val(),
+					observacao: $("#pontosObs").val()
+				},
+				dataType: "json",
+
+				success: function (result) {
+					$scope.submitAddPontos = true;
+					if (result.result[0].erro == "0") {
+						toastr.success(result.result[0].resultado);
+						$("#AddPontos-modal").modal("hide");
+						$("#editar-modal").modal("hide");
+						formAddPontos.each(function () {
+							this.reset();
+						});
+						atualizaDados();
+					} else {
+						toastr.error(result.result[0].resultado);
+					}
+					showLoader(false);
+				},
+				error: function () {
+					$scope.submitAddPontos = true;
+					toastr.error($_CONFIG.language.mensagens.falha_conexao);
+					showLoader(false);
+				}
+			});
+		}
+		return true;
+	});
+
+	$("#removePontos").keyup(function () {
+		if ($("#removePontos").val() < 0) {
+			$("#removePontos").val('');
+			toastr.warning("O número de pontos a ser removido deve ser maior que 0");
+		}
+	});
+
+	$("#removePontos").change(function () {
+		if ($("#removePontos").val() < 0) {
+			$("#removePontos").val('');
+			toastr.warning("O número de pontos a ser removido deve ser maior que 0");
+		}
+	});
+
+	$('#formRemovePontos').submit(function (event) {
+		if ($scope.submitRemovePontos) {
+			$scope.submitRemovePontos = false;
+			event.preventDefault();
+			formRemovePontos = $(this);
+			var pontos = $("#removePontos").val() * -1;
+			showLoader(true);
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/inserePessoaPonto.php",
+				data: {
+					pescodigo: $("#pesCodigoPontoRemove").val(),
+					pontos: pontos,
+					observacao: $("#removePontosObs").val()
+				},
+				dataType: "json",
+				success: function (result) {
+					$scope.submitRemovePontos = true;
+					if (result.result[0].erro == "0") {
+						toastr.success(result.result[0].resultado);
+						$("#RemovePontos-modal").modal("hide");
+						$("#editar-modal").modal("hide");
+						formRemovePontos.each(function () {
+							this.reset();
+						});
+						atualizaDados();
+					} else {
+						toastr.error(result.result[0].resultado);
+					}
+					showLoader(false);
+				},
+				error: function () {
+					$scope.submitRemovePontos = true;
+					toastr.error($_CONFIG.language.mensagens.falha_conexao);
+					showLoader(false);
+				}
+			});
+		}
+		return true;
+	});
+
+	$scope.limpaLoginSenha = function () {
+		$("[id=cliLoginId]").val("");
+		$scope.cliEmailModel = "";
+		$scope.cliLogin = "";
+		$("#cliSenha").val("");
+		$("#usuarioAlt").val("");
+		$("#senhaAlt").val("");
+		$("#cliPais").val($_CONFIG.PAIS).change();
+		$scope.buscaProfissionalCombo()
+	}
+
+	$scope.DesativaUsuario = function () {
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/desativaUsuario.php",
+			data: {
+				tipo: 1,
+				usuCodigo: $("#usuCodigo").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+	$scope.ReativaUsuario = function () {
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/desativaUsuario.php",
+			data: {
+				tipo: 2,
+				usuCodigo: $("#usuCodigo").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$("#cliEmailEdt").keyup(function () {
+		$("#usuarioAlt").val($("#cliEmailEdt").val())
+	})
+	$("#usuarioAlt").keyup(function () {
+		$("#cliEmailEdt").val($("#usuarioAlt").val())
+	})
+
+	$('#editar-modal').on('hidden.bs.modal', function () {
+		$('a[data-target="#tab1"]').tab('show');
+	});
+
+	function validarEmail(email) {
+		var exclude = /[^@\-\.\w]|^[_@\.\-]|[\._\-]{2}|[@\.]{2}|(@)[^@]*\1/;
+		var check = /@[\w\-]+\./;
+		var checkend = /\.[a-zA-Z]{2,3}$/;
+		if (((email.search(exclude) != -1) || (email.search(check)) == -1) || (email.search(checkend) == -1)) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	buscaEstados($_CONFIG.PAIS);
+	$('[data-toggle="popover"]').popover({
+		container: 'body'
+	});
+
+	$scope.$on("$destroy", function () {
+		$("#cliCep").unbind("keyup");
+		$("#cliCepEdt").unbind("keyup");
+		emit();
+	});
+
+	$scope.alteraAcessoCliente = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraAcessoCliente.php",
+			data: {
+				usuCodigo: $("#usuCodigo").val(),
+				dataExpiracao: $("#cliDataExpiracao").val(),
+				tentativas: $("#cliTentativas").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.showGeraToken = function () {
+		$("#tokenCliente-modal").modal("show");
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaListaPontoItens.php',
+			method: "POST",
+			success: function (data) {
+				if (data.buscaListaPontosItens.length > 0) {
+					var html = "<option value=''>Nenhum Selecionado</option>";
+					for (var i = 0; i < data.buscaListaPontosItens.length; i++) {
+						html += "<option value='" + data.buscaListaPontosItens[i].PIt_Codigo + "'> " + data.buscaListaPontosItens[i].Descricao + "</option>";
+					}
+				}
+				$("#itemTokem").html(html);
+			}
+		});
+	}
+
+	$scope.resgataToken = function () {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaListaPontosResgate.php",
+			data: {
+				pitcodigo: $("#itemTokem").val(),
+				pescodigo: $("#pesCodigoToken").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					atualizaDados();
+					$("#resultadoToken").html(result.data[0].resultado);
+					$("#tokenId").html(result.data[0].token);
+					$('#editar-modal').modal("hide");
+					$('#tokenCliente-modal').modal("hide");
+					$('#showTokenCliente-modal').modal("show");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaServicoCliente = function (codigo) {
+		if (typeof (tabelacliservico) !== 'undefined') {
+			tabelacliservico.destroy();
+		}
+		tabelacliservico = $('#tableServicoCliente').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaPessoaServicoCliente.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.pescodigo = codigo;
+					d.tipo = 1;
+				}
+			},
+			"scrollX": isPortrait,
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			'initComplete': function () {
+				$compile($('#tableServicoCliente'))($scope);
+				$('#tableServicoCliente_paginate').click(function () {
+					$compile($('#tableServicoCliente'))($scope);
+				});
+				$('#tableServicoCliente_filter').change(function () {
+					$compile($('#tableServicoCliente'))($scope);
+				});
+				$('#tableServicoCliente_length').change(function () {
+					$compile($('#tableServicoCliente'))($scope);
+				});
+				resizeContent();
+			},
+			'columns': [{
+					'data': 'Ser_Descricao'
+				},
+				{
+					'data': 'PSC_Tempo'
+				},
+				{
+					"class": 'edtTempoServico',
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-success btn-xs"  >Editar</button>',
+				},
+				{
+					"class": 'removeTempoServico',
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-danger btn-xs"  >Excluir</button>',
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tableServicoCliente tbody').on('click', 'td.edtTempoServico', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelacliservico.row(tr);
+			var data = row.data();
+			var codigo = row.data().PSC_Codigo;
+			var tempo = row.data().PSC_Tempo;
+			$("#pscCodigoAltera").val(codigo);
+			$("#clienteServicoTempoEdt").val(tempo);
+			$('#alteraClienteServico-modal').modal();
+		});
+
+		$('#tableServicoCliente tbody').on('click', 'td.removeTempoServico', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelacliservico.row(tr);
+			var data = row.data();
+			swal({
+					title: "Excluir",
+					text: "Deseja realmente excluir esta associação?",
+					type: "warning",
+					showCancelButton: true,
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: "Sim",
+					cancelButtonText: "Não"
+				},
+				function (Confirmou) {
+					if (Confirmou) {
+						showLoader(true);
+						$.ajax({
+							type: "POST",
+							url: "/pages/cadastros/removePessoaServicoCliente.php",
+							data: {
+								psccodigo: row.data().PSC_Codigo
+							},
+							dataType: "json",
+							success: function (result) {
+								if (result.data[0].erro == "0") {
+									$scope.buscaServicoCliente($('#cliCodigoEdt').val())
+									toastr.success(result.data[0].resultado);
+									showLoader(false);
+								} else {
+									toastr.error(result.data[0].resultado);
+									showLoader(false);
+								}
+							},
+							error: function (result) {
+								showLoader(false);
+								toastr.error('Falha de conexão');
+							}
+						});
+					}
+				});
+		});
+	}
+
+	$scope.insereSerCliente = function () {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/inserePessoaServicoCliente.php",
+			data: {
+				pescodigo: $('#cliCodigoEdt').val(),
+				servico: $("#clienteServico").val(),
+				tempo: $("#clienteServicoTempo").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					$scope.buscaServicoCliente($('#cliCodigoEdt').val())
+					showLoader(false);
+				} else {
+					toastr.error(result.data[0].resultado);
+					showLoader(false);
+				}
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.mensagens.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.alteraSerCliente = function () {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraPessoaServicoCliente.php",
+			data: {
+				psccodigo: $("#pscCodigoAltera").val(),
+				tempo: $("#clienteServicoTempoEdt").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					$scope.buscaServicoCliente($('#cliCodigoEdt').val())
+					$('#alteraClienteServico-modal').modal('hide');
+					showLoader(false);
+				} else {
+					toastr.error(result.data[0].resultado);
+					showLoader(false);
+				}
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.mensagens.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.goToAnamnese = function () {
+		$state.go('anamnese', {
+			codigo: item
+		});
+	}
+
+	$('#cortaImagemAll-modal').on('hidden.bs.modal', function (e) {
+		if (mBlob != undefined && mBlob != "") {
+			if ((location.hash == '#/clientes') && (($("#editar-modal").data('bs.modal') || {}).isShown) || (($("#cadastrar-modal").data('bs.modal') || {}).isShown) && ($("#formid").val() != "#formCadastro")) {
+				$('#cliImagemEdit').attr('src', mImage);
+				$scope.saveImageCli();
+			}
+		} else {
+			if ((location.hash == '#/clientes') && (($("#editar-modal").data('bs.modal') || {}).isShown) || ($("#cadastrar-modal").data('bs.modal') || {}).isShown) {
+				$scope.saveImageCli();
+			}
+		}
+		$("#imagemCutAll").resize();
+		$("#imagemCutAll").cropper("reset");
+	})
+
+	$scope.editaImagemCliente = function () {
+		$("#cliFotoEdt").click()
+	}
+
+	$scope.saveImageCli = function () {
+		showLoader(true)
+		if (mBlob != undefined) {
+			dataaltera = new FormData();
+			dataaltera.append('figura', mBlob);
+			dataaltera.append('cliente', $('#cliCodigoEdt').val())
+			$.ajax({
+				dataType: 'json',
+				method: 'POST',
+				url: '/pages/cadastros/alteraClienteImagem.php',
+				data: dataaltera,
+				processData: false,
+				contentType: false,
+				success: function (data) {
+
+					if (data.data[0].erro == 0) {
+						$('#cliImagemEdit').attr('src', data.data[0].urlimagem);
+						toastr.success(data.data[0].resultado);
+
+						mBlob = "";
+						$("#cliFotoEdt").fileinput('clear');
+
+					} else {
+						toastr.error(data.data[0].resultado);
+					}
+					showLoader(false)
+				},
+				error: function (result) {
+					toastr.error('Falha de conexão');
+					showLoader(false)
+				}
+			});
+		} else {
+			toastr.warning("Ops! Parece que você não concluiu a seleção da nova imagem, nenhuma alteração será feita");
+			$("#cliFotoEdt").fileinput('clear');
+			showLoader(false)
+		}
+	}
+
+	$scope.removeImagemCliente = function () {
+
+		swal({
+				title: 'Deseja realmente remover essa imagem',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: $_CONFIG.language.sim,
+				cancelButtonText: $_CONFIG.language.nao,
+				closeOnConfirm: true
+			},
+			function () {
+				showLoader(true)
+				dataaltera = new FormData();
+
+				dataaltera.append('figura', '');
+				dataaltera.append('cliente', $('#cliCodigoEdt').val())
+				dataaltera.append('cliFiguraEdit', '')
+				$.ajax({
+					dataType: 'json',
+					method: 'POST',
+					url: '/pages/cadastros/alteraClienteImagem.php',
+					data: dataaltera,
+					processData: false,
+					contentType: false,
+					success: function (data) {
+						if (data.data[0].erro == 0) {
+							$('#cliImagemEdit').attr('src', '../../img/nopicture.png');
+							toastr.success(data.data[0].resultado);
+							$("#otpimagencliente").val("").change();
+						} else {
+							toastr.error(data.data[0].resultado);
+						}
+						showLoader(false)
+
+					},
+					error: function (result) {
+						toastr.error('Falha de conexão');
+						showLoader(false)
+					}
+				});
+			});
+	}
+
+	$(".btniconchange").click(function () {
+		var thisState = 1;
+		if ($(this).parent().children()[1].children[0].className == 'fa fa-plus') {
+			thisState = 1;
+		} else {
+			thisState = 0;
+		}
+		$(".btniconchange").children().each(function () {
+			this.className = 'fa fa-plus'
+		})
+		if (thisState == 1) {
+			$(this).parent().children()[1].children[0].className = 'fa fa-minus'
+		} else {
+			$(this).parent().children()[1].children[0].className = 'fa fa-plus'
+		}
+	});
+
+	carregaDados();
+
+	$scope.changeCpfCnpjCli = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFCli").val(1)
+			$("#btnCpfCnpjCli").html("CPF");
+			$("#cliCpf").val('');
+			$("#cliCpf").attr('maxlength', '14')
+			$("#cliCpf").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFCli").val(2)
+			$("#btnCpfCnpjCli").html("CNPJ")
+			$("#cliCpf").val('');
+			$("#cliCpf").attr('placeholder', 'CNPJ')
+			$("#cliCpf").attr('maxlength', '18')
+		}
+	}
+
+	$("#cliCpf").keypress(function () {
+		if ($("#tipocampoCPFCli").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	/*-----------------------------------------*/
+	$scope.changeCpfCnpjCli = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFCli").val(1)
+			$("#btnCpfCnpjCli").html("CPF");
+			$("#cliCpf").val('');
+			$("#cliCpf").attr('maxlength', '14')
+			$("#cliCpf").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFCli").val(2)
+			$("#btnCpfCnpjCli").html("CNPJ")
+			$("#cliCpf").val('');
+			$("#cliCpf").attr('placeholder', 'CNPJ')
+			$("#cliCpf").attr('maxlength', '18')
+		}
+	}
+
+	$("#cliCpf").keypress(function () {
+		if ($("#tipocampoCPFCli").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$scope.changeCpfCnpjCliEdt = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFCliEdt").val(1)
+			$("#btnCpfCnpjCliEdt").html("CPF");
+			$("#cliCpfEdt").val('');
+			$("#cliCpfEdt").attr('maxlength', '14')
+			$("#cliCpfEdt").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFCliEdt").val(2)
+			$("#btnCpfCnpjCliEdt").html("CNPJ")
+			$("#cliCpfEdt").val('');
+			$("#cliCpfEdt").attr('placeholder', 'CNPJ')
+			$("#cliCpfEdt").attr('maxlength', '18')
+		}
+	}
+
+	$("#cliCpfEdt").keypress(function () {
+		if ($("#tipocampoCPFCliEdt").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$scope.confirmRemoveCliente1 = function(){
+
+		showLoader(true);
+		$.ajax({
+			dataType: "html",
+			url: '/pages/cadastros/removeClientes.php',
+			data: {
+				pescodigo: $("#pesCodigoRemoveCliente1").val()
+			},
+			success: function (data) {
+				if (data == "0") {
+					toastr.success($_CONFIG.language.mensagens.cliente_excluido);
+					$scope.thisrow.remove().draw(false);
+					$('#removeClienteConfirm1-modal').modal('hide')
+				} else {
+					toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+					$('#removeClienteConfirm1-modal').modal('hide')
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.mensagens.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		// $('#removeClienteConfirm1-modal').modal('hide')
+		// $("#btnAguardeRemocao2").show()
+		// $("#btnRemoveCliente2").hide()
+		// $('#removeClienteConfirm2-modal').modal()
+		// $("#pesCodigoRemoveCliente2").val($("#pesCodigoRemoveCliente1").val());
+		// $("#btnCancelar2").css('margin-top','0px')
+		// var numSegundosCliente2 = 5;
+		// var descriptionCliente2 = 'segundos';
+		// $("#numSegundosAguardoCliente2").html(numSegundosCliente2 + ' ' + descriptionCliente2);
+		// var t = setInterval(function () {
+		// 	numSegundosCliente2 = numSegundosCliente2 - 1;
+		// 	if (numSegundosCliente2 == 1) {
+		// 		descriptionCliente2 = 'segundo';
+		// 	}
+		// 	$("#numSegundosAguardoCliente2").html(numSegundosCliente2 + ' ' + descriptionCliente2);
+		// }, 1000);
+		// setTimeout(function () {
+		// 	clearInterval(t);
+		// 	$("#btnAguardeRemocao2").hide()
+		// 	$("#btnRemoveCliente2").show()
+		// 	$("#btnCancelar2").css('margin-top','5px')
+		// }, (numSegundosCliente2 * 1000));
+	}
+
+	// $scope.confirmRemoveCliente2 = function(){
+	// 	showLoader(true);
+	// 	$.ajax({
+	// 		dataType: "html",
+	// 		url: '/pages/cadastros/removeClientes.php',
+	// 		data: {
+	// 			pescodigo: $("#pesCodigoRemoveCliente2").val()
+	// 		},
+	// 		success: function (data) {
+	// 			if (data == "0") {
+	// 				toastr.success($_CONFIG.language.mensagens.cliente_excluido);
+	// 				$scope.thisrow.remove().draw(false);
+	// 				$('#removeClienteConfirm2-modal').modal('hide')
+	// 			} else {
+	// 				toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+	// 				$('#removeClienteConfirm2-modal').modal('hide')
+	// 			}
+	// 			showLoader(false);
+	// 		},
+	// 		error: function (result) {
+	// 			toastr.error($_CONFIG.language.mensagens.falha_conexao);
+	// 			showLoader(false);
+	// 		}
+	// 	});
+	// }
+
+	$scope.clienteTagColor = "#ebebeb";
+	var colorPicker = new iro.ColorPicker("#pickerTagCliente", {
+		width: 150,
+		color: "#ebebeb",
+		borderWidth: 1,
+		borderColor: "#fff",
+		layout: [{
+			component: iro.ui.Wheel,
+		}, ]
+	});
+
+	colorPicker.on('color:setActive', function (color) {
+		$scope.clienteTagColor = color.hexString;
+	});
+	colorPicker.on('input:end', function (color) {
+		$scope.clienteTagColor = color.hexString;
+	});
+
+	colorPicker.on('color:change', function (color) {
+		$("#tagClienteExemplo").css('background-color', color.hexString);
+	});
+
+	$scope.buscaListaTagsClientes = function(pescodigo){
+		if (typeof (optTableclienteTag) !== 'undefined') {
+			optTableclienteTag.destroy();
+		}
+		optTableclienteTag = $('#tableTagCliente').DataTable({
+			'ajax': {
+				'url': '/pages/cadastros/buscaClienteTag.php',
+				'method': 'POST',
+				'data': function (d) {
+					d.pescodigo = pescodigo;
+				}
+			},
+			"scrollX": isPortrait,
+			"stateSave": true,
+
+			'columns': [{
+					'data': 'CTa_Descricao',
+					'title': 'Descrição'
+				},
+				{
+					"data": "CTa_Cor",
+					"title": "Cor",
+					"render": function (data) {
+
+						return `<i class="fa fa-circle" aria-hidden="true" style="color:${data}"></i>`;
+						
+					}
+				},
+				{
+					"title":'Remover',
+					"class": 'btnRemover',
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-danger btn-xs"><i class="fa fa-trash"></i> Remover</button>',
+				}
+			],
+			'ordering': false,
+			'searching': false,
+			'lenghtChange': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tableTagCliente tbody').on('click', 'td.btnRemover', function () {
+			var tr = $(this).closest('tr');
+			var row = optTableclienteTag.row(tr);
+			var data = row.data();
+			swal({
+					title: "Excluir",
+					text: "Deseja realmente excluir esta tag?",
+					type: "warning",
+					showCancelButton: true,
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: "Sim",
+					cancelButtonText: "Não"
+				},
+				function (Confirmou) {
+					if (Confirmou) {
+						$.ajax({
+							type: "POST",
+							url: "/pages/cadastros/removeClienteTag.php",
+							data: {
+								codigo: row.data().CTa_Codigo
+							},
+							dataType: "json",
+							success: function (result) {
+								if (data.data[0].erro == 0) {
+									toastr.success(data.data[0].resultado);
+									$('#tableTagCliente').dataTable().api().ajax.reload();
+								}else{
+									toastr.error(data.data[0].resultado);
+								}
+							},
+							error: function (result) {}
+						});
+					}
+
+				});
+		});
+	}
+
+	$scope.saveTagCli = function () {
+		if($("#tagClienteText").val() != ''){
+			if($("#cliCodigoEdt").val() != ''){
+				showLoader(true)
+				$.ajax({
+					dataType: 'json',
+					method: 'POST',
+					url: '/pages/cadastros/insereClienteTag.php',
+					data: {
+						pescodigo: $("#cliCodigoEdt").val(),
+						cor: $scope.clienteTagColor,
+						descricao: $("#tagClienteText").val()
+					},
+					success: function (data) {
+						if (data.data[0].erro == 0) {
+							toastr.success(data.data[0].resultado);
+							$scope.buscaListaTagsClientes($("#cliCodigoEdt").val())
+						} else {
+							toastr.error(data.data[0].resultado);
+						}
+						showLoader(false)
+					},
+					error: function (result) {
+						toastr.error('Falha de conexão');
+						showLoader(false)
+					}
+				});
+			}else{
+				toastr.error('Favor informe a cor!');
+			}
+		}else{
+			toastr.error('Favor informe a descrição!');
+		}
+	}
+
+	$scope.reativaPessoaCliente = function (pescodigo) {
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/reativaPessoa.php',
+			data: {
+				tipo: 1,
+				codigo: pescodigo
+			},
+			dataType: 'json',
+			success: (result) => {
+				if (result.data[0].erro == '0') {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: (result) => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.sendSenhaSMS = function(){
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/CLIENTEEsqueceuSenhaCelular.php",
+			data: {
+				client_code: $("#cli_codigo_senha_sms").val()
+			},
+			dataType: "json",
+			success: function (data) {
+				if (data.data.error == false) {
+					toastr.success(data.data.message);
+					showLoader(false);
+				} else {
+					toastr.error(data.data.message);
+					showLoader(false);
+				}
+				//$scope.buscaSolCad();
+			},
+			error: function (data) {
+				console.log('Falha ao inserir Cliente. Erro:' + data);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.desativaCliente = function(){
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/CLIENTEAlteraAcesso.php",
+			data: {
+				clicodigo: $("#cli_codigo_senha_sms").val(),
+				pescodigocliente: $("#pes_codigo_relacao").val(),
+				tipo: $("#tipo_cliente_ativo").val()
+			},
+			dataType: "json",
+			success: function (data) {
+
+				if (data.data.result[0].erro == '0' ) {
+					toastr.success(data.data.result[0].resultado);
+
+					if($("#tipo_cliente_ativo").val() == 1){
+						$("#tipo_cliente_ativo").val(2)
+						$("#txtBotaoDesativar").html('Desativar Acesso')
+					}else{
+						$("#tipo_cliente_ativo").val(1)
+						$("#txtBotaoDesativar").html('Reativar Acesso')
+					}
+					showLoader(false);
+				} else {
+					toastr.error(data.data.result[0].resultado);
+					showLoader(false);
+				}
+				//$scope.buscaSolCad();
+			},
+			error: function (data) {
+				console.log('Falha ao inserir Cliente. Erro:' + data);
+				showLoader(false);
+			}
+		});
+	}
+});

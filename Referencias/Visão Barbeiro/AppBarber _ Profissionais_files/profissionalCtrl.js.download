@@ -1,0 +1,3684 @@
+angular.module('appBeleza').controller('profissionalCtrl', function ($compile, $rootScope, $scope, $state) {
+
+	$rootScope.header = sSistema + ' | ' + $_CONFIG.language.profissionais.breadcrumb;
+	$('#navProf').hide();
+	$('#formProf').hide();
+
+	$('[data-toggle="popover"]').popover({
+		container: 'body'
+	});
+
+	$('.valorFormat').on('keyup', function (e) {
+		formataValorDinheiro(this);
+	});
+
+	changeHeightBody();
+
+	validaPerfil($state.current.name);
+
+	$scope.dateFormat = $_CONFIG.language.mascaras.data;
+	$scope.lang = $_CONFIG.language.mascaras.lang;
+	var categorias = '';
+
+	$('.input-group.date').datepicker({
+		todayHighlight: true,
+		language: $scope.lang,
+		orientation: 'top',
+		autoclose: true,
+		format: $scope.dateFormat
+	});
+
+	$('[data-inputmask]').inputmask();
+
+	$.ajax({
+		dataType: 'json',
+		url: localStorage.getItem('host'),
+		data: {
+			metodo: 'buscaParametro',
+			id: $scope.idCliente,
+			parcodigo: 58,
+			origem: 1
+		},
+		success: function (data) {
+			if (data.result[0] != '') {
+				if (data.result[0].PVa_Vlr_Principal == '1') {
+					$("#jornadaServico").show();
+				} else {
+					$("#jornadaServico").hide();
+				}
+			} else {
+				$("#jornadaServico").hide();
+			}
+		}
+	});
+
+	if (typeof (parTempo) == 'undefined' || parTempo == '') {
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 5,
+				origem: 1
+			},
+			success: (data) => {
+				if (data.result.length > 0) {
+					if (data.result[0].PVa_Vlr_Principal == '40') {
+						parTempo = '20';
+					} else if (data.result[0].PVa_Vlr_Principal == '45') {
+						parTempo = '15';
+					} else {
+						parTempo = data.result[0].PVa_Vlr_Principal;
+					}
+				} else {
+					parTempo = '30';
+				}
+				$('.timepicker').timepicker({
+					'timeFormat': 'H:i',
+					'maxTime': '23',
+					'minTime': '01',
+					'forceRoundTime': true,
+					'step': parseInt(parTempo)
+				});
+			}
+		});
+	} else {
+		if (parTempo == '40') {
+			parTempo = '20';
+		} else if (parTempo == '45') {
+			parTempo = '15';
+		}
+		$('.timepicker').timepicker({
+			'timeFormat': 'H:i',
+			'maxTime': '23',
+			'minTime': '01',
+			'forceRoundTime': true,
+			'step': parseInt(parTempo)
+		});
+
+	}
+
+	$scope.validar = function () {
+		var proNome = formCadastro.proNome.value;
+		var proCpf = formCadastro.proCpf.value;
+		var proEmail = formCadastro.proEmail.value;
+		var proCelular = formCadastro.proCelular.value;
+
+		if (proNome == '') {
+			alert($_CONFIG.language.errors.campo_nome);
+			formCadastro.proNome.focus();
+			return false;
+		}
+
+		if (proCpf == '') {
+			alert($_CONFIG.language.errors.campo_cpf);
+			formCadastro.proCpf.focus();
+			return false;
+		}
+
+		if (proEmail == '') {
+			alert($_CONFIG.language.errors.campo_email);
+			formCadastro.proEmail.focus();
+			return false;
+		}
+
+		if (proCelular == '') {
+			alert($_CONFIG.language.errors.campo_celular);
+			formCadastro.proCelular.focus();
+			return false;
+		}
+	}
+
+	$scope.validarAlterar = function () {
+		var proSenha = formAlteraSenha.senhaAlt.value;
+
+		if (proSenha == '') {
+			toastr.error($_CONFIG.language.errors.campo_senha);
+			formAlteraSenha.senhaAlt.focus();
+			return false;
+		}
+
+	}
+
+	$scope.carregaDados = () => {
+		validaSenha();
+
+		tabelaprofissionais = $('#tbBuscaProf').DataTable({
+			ajax: {
+				url: '/pages/cadastros/buscaProfissionais.php',
+				dataSrc: 'profissionais'
+			},
+			columnDefs: [{
+				visible: false,
+				searchable: false,
+				className: 'dt-center'
+			}],
+			language: {
+				url: $_CONFIG.language.datatables
+			},
+			scrollX: isPortrait,
+			dom: 'Blfrtip',
+			buttons: [, {
+				extend: "excelHtml5",
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: 'Profissionais',
+				orientation: 'landscape',
+				pageSize: 'LEGAL',
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}],
+			initComplete: () => {
+				$(".sorting_asc").click(() => {
+					$compile($('#tbBuscaProf'))($scope);
+				});
+			},
+			order: [
+				[1, 'asc']
+			],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			columns: [{
+				'title': 'Gestor',
+				'data': 'PAF_Gestor',
+				'class': 'mobileapp',
+				'render': (data) => {
+					return (data == '1' ? 'Sim' : 'Não')
+				},
+				'width': '2%'
+			}, {
+				'title': 'Nome Completo',
+				'data': 'Pes_Nome',
+				'class': 'mobileapp',
+				'width': '25%'
+			}, {
+				'title': 'CPF',
+				'data': 'PAF_CPF',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'E-mail',
+				'data': 'PAF_Email',
+				'class': 'mobileapp',
+				'width': '25%'
+			}, {
+				'title': 'Celular',
+				'data': 'PAF_Celular',
+				'class': 'mobileapp',
+				'width': '15%'
+			}, {
+				'title': 'Telefone',
+				'data': 'PAF_Telefone',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Login',
+				'data': 'Usu_Login',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Senha',
+				'data': 'Usu_Senha',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Sexo',
+				'data': 'PAF_Sexo',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Nascimento',
+				'data': 'PAF_Dat_Nascimento',
+				'class': 'mobileapp',
+				'type': 'moment-DD/MM/YYYY',
+				'visible': false
+			}, {
+				'title': 'Endereço',
+				'data': 'PAF_Endereco',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Bairro',
+				'data': 'PAF_Bairro',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Cidade',
+				'data': 'Cid_Nome',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Estado',
+				'data': 'Est_Sigla',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'CEP',
+				'data': 'PAF_CEP',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Codigo',
+				'data': 'Pes_Codigo',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'CidCodigo',
+				'data': 'Cid_Codigo',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'EstCodigo',
+				'data': 'Est_Codigo',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Complemento',
+				'data': 'PAF_Complemento',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Obs',
+				'data': 'PAF_Observacao',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Número',
+				'data': 'PAF_Numero',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'RG',
+				'data': 'PAF_RG',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'UsuCodigo',
+				'data': 'Usu_Codigo',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'PAFGestor',
+				'data': 'PAF_Gestor',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Apelido',
+				'data': 'Pes_Apelido',
+				'class': 'mobileapp',
+				'width': '10%'
+			}, {
+				'title': 'Disp',
+				'data': 'PAF_Dis_Aplicativo',
+				'class': 'mobileapp',
+				'render': (data) => {
+					return mostraDisponivelApp(data)
+				},
+			}, {
+				'title': 'DisAppCodigo',
+				'data': 'PAF_Dis_Aplicativo',
+				'class': 'mobileapp',
+				'visible': false,
+				'width': '5%'
+			}, {
+				'title': 'Nota',
+				'data': 'Nota',
+				'class': 'nota',
+				'render': (data) => {
+					return mostraNotas(data)
+				},
+				'width': '15%',
+				'visible': $_CONFIG.MOSTRANOTAPROFISSIONAIS
+			}, {
+				'title': '',
+				'class': 'info text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-info" ><i class="fa fa-info-circle"></i></button>',
+				'width': '1%'
+			}, {
+				'title': '',
+				'class': 'editar text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-success" ><i class="fa fa-pencil"></i></button>',
+				'width': '1%'
+			}, {
+				'title': '',
+				'class': 'excluir text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-danger" ><i class="fa fa-trash"></i></button>',
+				'width': '1%'
+			}, {
+				'title': 'SituacaoUsuario',
+				'data': 'SituacaoUsuario',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'Data Cadastro',
+				'data': 'Pes_Dat_Cadastro',
+				'class': 'mobileapp',
+				'visible': false
+			}, {
+				'title': 'EhCNPJ',
+				'data': 'EhCNPJ',
+				'class': 'mobileapp',
+				'visible': false
+			}]
+		});
+
+		if (isMobile) {
+			$('#tbBuscaProf tbody').on('click', 'td.mobileapp', function () {
+				var row = tabelaprofissionais.row($(this));
+				$scope.editarProfissional(row)
+				$('#editar-modal').modal();
+			});
+
+		}
+
+		$('#tbBuscaProf tbody').on('click', 'td.info', function () {
+			var row = tabelaprofissionais.row($(this));
+			$scope.infoProfissional(row);
+		});
+
+		$('#tbBuscaProf tbody').on('click', 'td.excluir', function () {
+			var row = tabelaprofissionais.row($(this));
+			$scope.excluir(row);
+		});
+
+		$('#tbBuscaProf tbody').on('click', 'td.editar', function () {
+			var row = tabelaprofissionais.row($(this));
+			$scope.editarProfissional(row)
+			$('#editar-modal').modal();
+		});
+		/*----------------------------------------------------------------------------------------*/
+
+		tabelaprofissionaisexcluido = $('#tbBuscaProfExcluido').DataTable({
+			ajax: {
+				url: '/pages/cadastros/buscaProfissionalRemovido.php',
+				data:{
+					tipo:1
+				}
+			},
+			
+			language: {
+				url: $_CONFIG.language.datatables
+			},
+			scrollX: isPortrait,
+			dom: 'Blfrtip',
+			buttons: [, {
+				extend: "excelHtml5",
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: 'Profissionais',
+				orientation: 'landscape',
+				pageSize: 'LEGAL',
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}],
+			initComplete: () => {
+				$(".sorting_asc").click(() => {
+					$compile($('#tbBuscaProfExcluido'))($scope);
+				});
+			},
+			order: [
+				[1, 'asc']
+			],
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			columns: [{
+				'title': 'Gestor',
+				'data': 'PAF_Gestor',
+				'render': (data) => {
+					return (data == '1' ? 'Sim' : 'Não')
+				},
+				'width': '2%'
+			}, {
+				'title': 'Nome Completo',
+				'data': 'Pes_Nome',
+				'width': '30%'
+			}, {
+				'title': 'E-mail',
+				'data': 'PAF_Email',
+				'width': '30%'
+			}, {
+				'title': 'Celular',
+				'data': 'PAF_Celular',
+				'width': '20%'
+			}, {
+				'title': 'Apelido',
+				'data': 'Pes_Apelido',
+				'width': '10%'
+			}, {
+				'title': '',
+				'class': 'info text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-info btn-block" ><i class="fa fa-info-circle"></i> Info</button>',
+				'width': '2%'
+			},{
+				'title': '',
+				'class': 'reativar text-center',
+				'orderable': false,
+				'data': null,
+				'defaultContent': '<button class="btn btn-xs btn-warning btn-block" ><i class="fa fa-user-plus"></i> Reativar</button>',
+				'width': '6%'
+			}]
+		});
+
+
+		$('#tbBuscaProfExcluido tbody').on('click', 'td.info', function () {
+			var row = tabelaprofissionaisexcluido.row($(this));
+			$scope.infoProfissional(row);
+		});
+
+		$('#tbBuscaProfExcluido tbody').on('click', 'td.reativar', function () {
+			var row = tabelaprofissionaisexcluido.row($(this));
+			var codigoProfissional = row.data().Pes_Codigo;
+
+			/*--------------------------*/
+
+			swal({
+				title: "Tem certeza que deseja reativar esse profissional?",
+				text: "Ao reativar o profissional, caso o mesmo tenha usuário, ele voltará a ter acesso a própria agenda e ao sistema web!",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#569c54",
+				cancelButtonColor: "#d62d2d",
+				confirmButtonText: "Reativar",
+				cancelButtonText: "Cancelar",
+				closeOnConfirm: true,
+				closeOnCancel: true,
+				html: true
+			}, function (isConfirm) {
+				if (isConfirm) {
+					$scope.reativaPessoa(codigoProfissional)
+
+				} 
+			});
+			/*--------------------------*/
+			
+		});
+
+
+		/*----------------------------------------------------------------------------------------*/
+	}
+
+	function atualizaDados() {
+		showLoader(true);
+		$rootScope.$emit('buscaProfissionalHeaderAgenda', {});
+		tabelaprofissionais.ajax.reload(() => {
+			showLoader(false);
+			$compile($('#tbBuscaProf'))($scope);
+		});
+
+		tabelaprofissionaisexcluido.ajax.reload(() => {
+			showLoader(false);
+			$compile($('#tbBuscaProfExcluido'))($scope);
+		});
+	}
+
+	function mostraNotas(data) {
+		var html = "";
+		if (data != "") {
+			var nota = parseFloat(data);
+
+			var fullStar = "<span><i class='fa fa-star'></i></span>";
+			var halfStar = "<span><i class='fa fa-star-half-o'></i></span>";
+			var emptyStar = "<span><i class='fa fa-star-o'></i></span>";
+			var hintNota = "Nota: " + nota;
+			if (nota == 0) {
+				hintNota = "Sem Avaliação";
+			}
+			html += "<div class='row text-center' style='color: #F9A825; font-size: 18px;' data-toggle='tooltip' data-placement='top' title='" + hintNota + "'>";
+
+			if (nota == 5) {
+				html += (fullStar + fullStar + fullStar + fullStar + fullStar);
+			} else if (nota > 4) {
+				html += (fullStar + fullStar + fullStar + fullStar + halfStar);
+			} else if (nota == 4) {
+				html += (fullStar + fullStar + fullStar + fullStar + emptyStar);
+			} else if (nota > 3) {
+				html += (fullStar + fullStar + fullStar + halfStar + emptyStar);
+			} else if (nota == 3) {
+				html += (fullStar + fullStar + fullStar + emptyStar + emptyStar);
+			} else if (nota > 2) {
+				html += (fullStar + fullStar + halfStar + emptyStar + emptyStar);
+			} else if (nota == 2) {
+				html += (fullStar + fullStar + emptyStar + emptyStar + emptyStar);
+			} else if (nota > 1) {
+				html += (fullStar + halfStar + emptyStar + emptyStar + emptyStar);
+			} else if (nota == 1) {
+				html += (fullStar + emptyStar + emptyStar + emptyStar + emptyStar);
+			} else if (nota > 0) {
+				html += (halfStar + emptyStar + emptyStar + emptyStar + emptyStar);
+			} else if (nota == 0) {
+				html += (emptyStar + emptyStar + emptyStar + emptyStar + emptyStar);
+			}
+
+			html += '</div>';
+		}
+		return html;
+	}
+
+	function mostraDisponivelApp(data) {
+		var html = "";
+		if (data == "1") {
+			html += "<i class='ion ion-iphone' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='App'></i><i class='ion ion-ios-monitor-outline' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='Web'></i>";
+		} else {
+			html += "<i class='ion ion-ios-monitor-outline' style='margin:5px;' data-toggle='tooltip' data-placement='top' title='Web'></i>";
+		}
+		return html;
+
+	}
+
+	$('#formCadastro').submit(function (event, obj) {
+		event.preventDefault();
+		formCadastro = $(this);
+		showLoader(true);
+		dataInsere.append("blob", mBlob);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionais.php',
+			data: dataInsere,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				
+					if (result.insereProfissional[0].erro == '0') {
+						atualizaDados();
+						toastr.success(result.insereProfissional[0].resultado);
+						$('#cadastrar-modal').modal('hide');
+	
+						formCadastro.each(function () {
+							this.reset();
+						});
+						mBlob = '';
+					} else {
+						toastr.error(result.insereProfissional[0].resultado);
+					}
+				
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formEditar').submit(function (event) {
+		event.preventDefault();
+		var noslashes = ($("#proApelidoEdt").val()).replace(/'/g,'');
+		$("#proApelidoEdt").val(noslashes);
+		showLoader(true);
+		dataEdita = new FormData(this);
+		dataEdita.append("blob", mBlob);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraProfissionais_v4.php',
+			data: dataEdita,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.alteraProfissional[0].erro == '0') {
+					toastr.success(result.alteraProfissional[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal('hide');
+
+				} else {
+					toastr.error(result.alteraProfissional[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formAlteraSenha').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var gestor = 0;
+		if ($("#proGestorEdt").is(":checked")) {
+			gestor = 'on'
+		}
+		var dados = new FormData(this);
+		dados.append('tipo', '1');
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraProfissionais.php",
+			data: {
+				proCodigoEdt: $("#pesCodigoAlt").val(),
+				proNomeEdt: "",
+				proEmailEdt: $("#usuarioAlt").val(),
+				proCelularEdt: "",
+				proRgEdt: "",
+				proCpfEdt: "",
+				proSexoEdt: "",
+				proDataNascimentoEdt: "",
+				proTelefoneEdt: "",
+				proEnderecoEdt: "",
+				proNumeroEdt: "",
+				proComplementoEdt: "",
+				proCepEdt: "",
+				proBairroEdt: "",
+				proObservacaoEdt: "",
+				proCidadeEdt: "",
+				proDispAppEdt: "",
+				proApelidoEdt: "",
+				proGestorEdt: gestor
+			},
+			dataType: "json",
+			async: "false",
+			success: (result) => {
+				if (result.alteraProfissional[0].erro == "0") {
+
+					$.ajax({
+						type: 'POST',
+						url: '/pages/cadastros/alteraSenha.php',
+						data: dados,
+						dataType: 'json',
+						processData: false,
+						contentType: false,
+						success: (result) => {
+							if (result.result[0].erro == '0') {
+								toastr.success(result.result[0].resultado);
+								$("#senhaAlt").val("");
+								atualizaDados();
+								$('#editar-modal').modal('hide');
+							} else {
+								toastr.error(result.result[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: () => {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+
+				} else {
+					toastr.error(result.alteraProfissional[0].resultado);
+					proceed = 0
+					showLoader(false);
+					return false
+				}
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+				proceed = 0;
+				return false;
+			}
+		});
+
+		return true;
+	});
+
+	$('#proFotoWiz').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ['png', 'jpg', 'jpeg'],
+		showUpload: false
+	});
+
+
+	$('#formDadosWizard').submit(function (event) {
+		var noslashes = ($("#proApelidoWiz").val()).replace(/'/g,'');
+		$("#proApelidoWiz").val(noslashes);
+		event.preventDefault();
+		formCadastro = $(this);
+		showLoader(true);
+		dadosInsere = new FormData(this);
+		if (mBlob != undefined) {
+			dadosInsere.append("blob", mBlob);
+		}
+		dadosInsere.delete('proFotoWiz')
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionais_v3.php',
+			data: dadosInsere,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if(result.insereProfissional.length >0){
+
+					if (result.insereProfissional[0].erro == '0') {
+						toastr.success(result.insereProfissional[0].resultado);
+						$('#pesCodigoWiz').val(result.insereProfissional[0].pescodigo);
+						$('#proLoginWiz').val($('#proEmailWiz').val());
+	
+						buscaJornada($('#pesCodigoWiz').val());
+						$('.date.dataNascimento').datepicker('update', '');
+						showLoader(false);
+						mBlob = '';
+						swal({
+							title: "Hora de associar os serviços!",
+							text: "Deseja escolher e associar <b>manualmente</b> ou deseja que o sistema associe <b>TODOS</b> os serviços <b>automaticamente</b> ao profissional?",
+							type: "warning",
+							showCancelButton: true,
+							confirmButtonColor: "#7ddd54",
+							cancelButtonColor: "#679bef",
+							confirmButtonText: "Automático",
+							cancelButtonText: "Manual",
+							closeOnConfirm: false,
+							closeOnCancel: true,
+							html: true
+						}, function (isConfirm) {
+							if (isConfirm) {
+	
+								var obj = $('#spServico').get(0).options;
+								var vet = [];
+								showLoader(true);
+								for (var i = 0; i < obj.length; i++) {
+									vet.push(obj[i].value);
+								}
+								
+	
+								$.ajax({
+									type: 'POST',
+									url: '/pages/cadastros/insereServicoProfissional.php',
+									data: {
+										spServico: vet,
+										spProfissional: $('#pesCodigoWiz').val()
+									},
+									dataType: 'json',
+	
+									success: (result) => {
+										if (result.sucesso) {
+											var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+										} else {
+											var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+										}
+										swal({
+											title: "<small>Resultado</small>",
+											text: texto,
+											html: true
+										});
+										atualizaDados();
+										$scope.avancaTab();
+										buscaServico($('#pesCodigoWiz').val());
+										
+										showLoader(false);
+									},
+									error: () => {
+										toastr.error($_CONFIG.language.errors.falha_conexao);
+										showLoader(false);
+									}
+								});
+	
+							} else {
+								atualizaDados();
+								$scope.avancaTab();
+								buscaServico($('#pesCodigoWiz').val());
+							}
+						});
+					} else {
+						toastr.error(result.insereProfissional[0].resultado);
+					}
+				}else{
+					toastr.error(result.insereProfissional.resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		showLoader(false);
+		return true;
+	});
+
+	$('#formEnderecoWizard').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		formEndereco = $(this);
+		dataAltera = new FormData(this);
+		dataAltera.append('proCodigoEdt', $('#pesCodigoWiz').val());
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/alteraProfissionais_v2.php',
+			data: dataAltera,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.alteraProfissional[0].erro == '0') {
+					toastr.success(result.alteraProfissional[0].resultado);
+					atualizaDados();
+					$scope.avancaTab();
+				} else {
+					toastr.error(result.alteraProfissional[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formUsuarioWizard').submit(function (event) {
+		event.preventDefault();
+		if ($('#proSenhaWiz').val() == '') {
+			toastr.error($_CONFIG.language.errors.campo_senha);
+		} else {
+			showLoader(true);
+			formUsuario = $(this);
+			dataUsuario = new FormData(this);
+			dataUsuario.append('proCodigoEdt', $('#pesCodigoWiz').val());
+			dataUsuario.append('abreviatura', $('#proAbreviaturaWiz').html());
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/alteraProfissionais_v2.php',
+				data: dataUsuario,
+				dataType: 'json',
+				processData: false,
+				contentType: false,
+				success: (result) => {
+					if (result.alteraProfissional[0].erro == '0') {
+						toastr.success(result.alteraProfissional[0].resultado);
+						atualizaDados();
+						$scope.avancaTab();
+					} else {
+						toastr.error(result.alteraProfissional[0].resultado);
+					}
+					showLoader(false);
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		}
+		return true;
+	});
+
+	$('#formJornadaWizard').submit(function (event) {
+		event.preventDefault();
+		formJornada = $(this);
+		dataJornada = new FormData(this);
+		dataJornada.append('pjProfissional', $('#pesCodigoWiz').val());
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionalJornada.php',
+			data: dataJornada,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.insereProfissionalJornada[0].erro == '0') {
+					atualizaDados();
+					buscaJornada($('#pesCodigoWiz').val());
+					formJornada.each(function () {
+						this.reset();
+					});
+					toastr.success(result.insereProfissionalJornada[0].resultado);
+					var diasDaSemana = $('#pjDiaSemana');
+					diasDaSemana.multiselect('deselectAll', false);
+					diasDaSemana.multiselect('updateButtonText');
+					$('.select2').val(null).trigger('change');
+				} else {
+					toastr.error(result.insereProfissionalJornada[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formServicoWizard').submit(function (event) {
+
+		event.preventDefault();
+		formServico = $(this);
+		dadosServico = new FormData(this);
+		dadosServico.append('spProfissional', $('#pesCodigoWiz').val());
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoProfissional.php',
+			data: dadosServico,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+
+				if (result.sucesso) {
+					var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+				} else {
+					var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+				}
+
+				swal({
+					title: "<small>Resultado</small>",
+					text: texto,
+					html: true
+				});
+
+				atualizaDados();
+				buscaServico($('#pesCodigoWiz').val());
+				formServico.each(function () {
+					this.reset();
+				});
+				$('#spServico').multiselect('deselectAll', false);
+				$('#spServico').multiselect('updateButtonText', true);
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formJornadaEdt').submit(function (event) {
+		event.preventDefault();
+		formJornada = $(this);
+		dataJornada = new FormData(this);
+		dataJornada.append('pjProfissional', $('#pesCodigoWiz').val());
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionalJornada.php',
+			data: dataJornada,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.insereProfissionalJornada[0].erro == '0') {
+					atualizaDados();
+					buscaJornadaEdt($('#pesCodigoWiz').val());
+					formJornada.each(function () {
+						this.reset();
+					});
+					toastr.success(result.insereProfissionalJornada[0].resultado);
+					var diasDaSemana = $('#pjDiaSemanaEdt');
+					diasDaSemana.multiselect('deselectAll', false);
+					diasDaSemana.multiselect('updateButtonText');
+					$('.select2').val(null).trigger('change');
+				} else {
+					toastr.error(result.insereProfissionalJornada[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formServicoEdt').submit(function (event) {
+		event.preventDefault();
+		formServico = $(this);
+		dadosServico = new FormData(this);
+		dadosServico.append('spProfissional', $('#pesCodigoWiz').val());
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereServicoProfissional.php',
+			data: dadosServico,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+
+				if (result.sucesso) {
+					var texto = '<span style="color:green;"><i class="fa fa-check"></i>&nbspInseridos com sucesso:&nbsp' + result.sucesso + '</span>'
+				} else {
+					var texto = '<span style="color:red;"><i class="fa fa-times"></i>&nbspFalhas ao inserir:&nbsp' + result.falha + '</span>'
+				}
+
+				swal({
+					title: "<small>Resultado</small>",
+					text: texto,
+					html: true
+				});
+
+				atualizaDados();
+				buscaServicoEdt($('#pesCodigoWiz').val());
+				formServico.each(function () {
+					this.reset();
+				});
+				$('#spServicoi').multiselect('deselectAll', false);
+				$('#spServicoi').multiselect('updateButtonText', true);
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#wizardprof-modal').on('hidden.bs.modal', function () {
+		var semservico = false;
+		var semjornada = false;
+		if ($('#pesCodigoWiz').val() != "" || $('#pesCodigoWiz').val() != undefined) {
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/buscaServicoProfissionalWizard.php',
+				data: {
+					spProfissional: $('#pesCodigoWiz').val()
+				},
+				dataType: 'html',
+				success: (result) => {
+					if (result == "") {
+						semservico = true
+					}
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+				}
+			});
+
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/buscaProfissionalJornadaWizard.php',
+				data: {
+					pjProfissional: $('#pesCodigoWiz').val()
+				},
+				dataType: 'html',
+				success: (result) => {
+
+					if (result.trim() == "") {
+						semjornada = true
+					} else {
+
+					}
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+				}
+			});
+		}
+
+		setTimeout(() => {
+
+			if (semservico && semjornada) {
+				swal({
+					title: "Atenção!",
+					text: "Esse profissional não teve <b>nenhum serviço</b> associado e <b>não teve jornada</b> de trabalho cadastrada, portanto <b>não será possível agendar</b> com ele.</br> Para associar <b>Serviços</b> e cadastrar uma <b>Jornada</b> clique em <label class='btn btn-success btn-xs'>Editar <i class='fa fa-pencil'></i></label> e selecione as abas <b>SERVIÇOS</b> e <b>JORNADA</b>",
+					type: "warning",
+					html: true
+				});
+			} else if (semservico && !semjornada) {
+				swal({
+					title: "Atenção!",
+					text: "Esse profissional não teve <b>nenhum serviço</b> associado, portanto <b>não será possível agendar</b> com ele.</br> Para associar <b>Serviços</b> clique em <label class='btn btn-success btn-xs'>Editar <i class='fa fa-pencil'></i></label> e selecione a aba <b>SERVIÇOS</b>",
+					type: "warning",
+					html: true
+				});
+			} else if (!semservico && semjornada) {
+				swal({
+					title: "Atenção!",
+					text: "Esse profissional <b>não teve jornada</b> de trabalho cadastrada, portanto <b>não será possível agendar</b> com ele.</br> Para cadastrar uma <b>Jornada</b> clique em <label class='btn btn-success btn-xs'>Editar <i class='fa fa-pencil'></i></label> e selecione a aba <b>JORNADA</b>",
+					type: "warning",
+					html: true
+				});
+			}
+
+		}, 1000)
+
+		$('#pesCodigoWiz').val('');
+		$scope.clearModal();
+		$scope.firstTab();
+	});
+
+	$('#editar-modal').on('hidden.bs.modal', function () {
+		$('#editar-modal a[data-toggle="tab"]:first').click();
+		$("#formEditar").each(function () {
+			this.reset();
+		});
+	});
+
+	$scope.avancaTab = function () {
+		var $active = $('.wizard .nav-tabs li.active');
+		$active.next().removeClass('disabled');
+		$scope.nextTab($active);
+	}
+
+	$scope.retornaTab = function () {
+		var $active = $('.wizard .nav-tabs li.active');
+		$active.prev().removeClass('disabled');
+		$scope.prevTab($active);
+	}
+
+	$scope.nextTab = function (elem) {
+		$(elem).next().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.prevTab = function (elem) {
+		$(elem).prev().find('a[data-toggle="tab"]').click();
+	}
+
+	$scope.firstTab = function () {
+		$('#wizardprof-modal a[data-toggle="tab"]:first').click();
+	}
+
+	$scope.clearModal = function () {
+		$('#formEnderecoWizard').each(function () {
+			this.reset();
+		});
+
+		$('#formServicoWizard').each(function () {
+			this.reset();
+		});
+
+		$('#formJornadaWizard').each(function () {
+			this.reset();
+		});
+
+		$('#formUsuarioWizard').each(function () {
+			this.reset();
+		});
+
+		$('#formDadosWizard').each(function () {
+			this.reset();
+		});
+
+		$('.select2').val(null).trigger('change');
+		var diasDaSemana = $('#pjDiaSemana');
+		diasDaSemana.multiselect('deselectAll', false);
+		diasDaSemana.multiselect('updateButtonText');
+
+	}
+
+	$scope.fecharModal = function () {
+		$('#wizardprof-modal').modal('hide');
+		$scope.firstTab();
+	}
+
+	function buscaJornada(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaProfissionalJornadaWizard.php',
+			data: {
+				pjProfissional: codigo
+			},
+			dataType: 'html',
+			success: function (result) {
+				$('#tbodyJornada').html(result);
+				$compile($('#tbodyJornada'))($scope);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+	}
+
+	function buscaJornadaper(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaPessoaJornadaPeriodo.php',
+			data: {
+				pjProfissionalper: codigo
+			},
+			dataType: 'html',
+			success: (result) => {
+				$('#tbodyJornadaEdtPer').html(result);
+				$compile($('#tbodyJornadaEdtPer'))($scope);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+	}
+
+	function buscaJornadaServico(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaPessoaJornadaServico.php',
+			data: {
+				pescodigo: codigo
+			},
+			dataType: 'html',
+			success: (result) => {
+				$('#tbodyJornadaEdtSer').html(result);
+				$compile($('#tbodyJornadaEdtSer'))($scope);
+
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+	}
+
+	function buscaServico(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaServicoProfissionalWizard.php',
+			data: {
+				spProfissional: codigo
+			},
+			dataType: 'html',
+			success: (result) => {
+				$('#tbodyServico').html(result);
+				$compile($('#tbodyServico'))($scope);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+	}
+
+	function buscaJornadaEdt(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaProfissionalJornadaWizardEdt.php',
+			data: {
+				pjProfissional: codigo
+			},
+			dataType: 'html',
+			success: (result) => {
+				$('#tbodyJornadaEdt').html(result);
+				$compile($('#tbodyJornadaEdt'))($scope);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+	}
+
+	function buscaServicoEdt(codigo) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaServicoProfissionalWizardPro.php',
+			data: {
+				spProfissional: codigo
+			},
+			dataType: 'html',
+			success: (result) => {
+				$('#tbodyServicoEdt').html(result);
+				$compile($('#tbodyServicoEdt'))($scope);
+			},
+			error: (result) => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+		$scope.buscaServicoCombo(codigo)
+	}
+
+	$scope.excluirJornada = function (dia, codigo) {
+		swal({
+			title: $_CONFIG.language.mensagens.excluir_titulo,
+			text: $_CONFIG.language.mensagens.excluir_jornada,
+			type: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#DD6B55',
+			confirmButtonText: $_CONFIG.language.sim,
+			cancelButtonText: $_CONFIG.language.nao
+		}, () => {
+			showLoader(true);
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/removeProfissionalJornada.php',
+				data: {
+					pescodigo: codigo,
+					dia: dia
+				},
+				success: (data) => {
+					if (data == '0') {
+						toastr.success('Jornada Excluida com Sucesso.');
+						buscaJornada(codigo);
+						buscaJornadaEdt(codigo);
+					} else {
+						toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+					}
+					showLoader(false);
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		});
+	}
+
+	$scope.excluirJornadaPeriodo = function (dia, codigo) {
+		swal({
+			title: $_CONFIG.language.mensagens.excluir_titulo,
+			text: $_CONFIG.language.mensagens.excluir_jornada,
+			type: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#DD6B55',
+			confirmButtonText: $_CONFIG.language.sim,
+			cancelButtonText: $_CONFIG.language.nao
+		}, () => {
+			showLoader(true);
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/removePessoaJornadaPeriodo.php',
+				data: {
+					pescodigo: codigo,
+					dia: dia
+				},
+				success: (data) => {
+					if (data == '0') {
+						toastr.success('Jornada Excluida com Sucesso.');
+						buscaJornada(codigo);
+						buscaJornadaEdt(codigo);
+						buscaJornadaper(codigo);
+					} else {
+						toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+					}
+					showLoader(false);
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		});
+	}
+
+	$scope.excluirServico = function (codigo, profissional) {
+		swal({
+				title: $_CONFIG.language.mensagens.excluir_titulo,
+				text: $_CONFIG.language.mensagens.desfazer_associacao,
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: $_CONFIG.language.sim,
+				cancelButtonText: $_CONFIG.language.nao
+			},
+			function () {
+				showLoader(true);
+				$.ajax({
+					dataType: 'html',
+					method: 'GET',
+					url: '/pages/cadastros/removeServicoProfissional.php',
+					data: {
+						psecodigo: codigo
+					},
+					success: (data) => {
+						if (data == '0') {
+							toastr.success($_CONFIG.language.errors.associacao_removida);
+							buscaServico(profissional);
+							buscaServicoEdt(profissional);
+							$scope.buscaServicoCombo(profissional);
+						} else {
+							toastr.error(data, $_CONFIG.language.mensagens.falha_excluir);
+						}
+						showLoader(false);
+					},
+					error: () => {
+						toastr.error($_CONFIG.language.errors.falha_conexao);
+						showLoader(false);
+					}
+				});
+			});
+	}
+
+	$('#spValor').change(function () {
+		mascara(this, soValorReal)
+	});
+
+	$scope.editarServico = function (codigo, profissional, comissao, tempo2, valor) {
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 5,
+				origem: 1
+			},
+			success: (data) => {
+				if (data.result[0] != '') {
+					parTempo = data.result[0].PVa_Vlr_Principal;
+					var tempo = parseInt(parTempo);
+					$('#serIntervalo').html('');
+					for (var i = tempo; i <= 360; i = i + tempo) {
+						$('#serIntervalo').append('<option value="' + i + '" >' + i + ' ' + $_CONFIG.language.minutos + '</option>');
+					};
+
+					$('#serIntervalo').val(tempo2);
+
+					$('.timepicker').timepicker({
+						'timeFormat': 'H:i',
+						'forceRoundTime': true,
+						'step': tempo
+					});
+				} else {
+					$('.timepicker').timepicker({
+						'timeFormat': 'H:i',
+						'forceRoundTime': true,
+						'step': 10
+					});
+				}
+			}
+		});
+
+		if (comissao == '') {
+			$('#valComissao').val('');
+		} else {
+			$('#valComissao').val(comissao);
+		}
+		if (tempo2 == '') {
+			$('#serIntervalo').val('');
+		} else {
+			$('#serIntervalo').val(tempo2);
+		}
+		$('#pseCodigo').val(codigo);
+		$('#proCodigo').val(profissional);
+		$('#spValor').val(valor);
+		$('#spValor').change();
+		$('#editarServico-modal').modal('show');
+	}
+
+
+	$scope.editaServicoLinha = function (codigo, profissional, comissao, tempo2, valor) {
+		if (isMobile) {
+			$scope.editarServico(codigo, profissional, comissao, tempo2, valor);
+		}
+
+	}
+
+	$scope.geraComboPaisTelefone('proCelularWiz','proDDiWiz',undefined)
+
+	$scope.buscaValorAlteraServico = function () {
+		$scope.alteraServico($('#pseCodigo').val(), $('#valComissao').val(), $('#serIntervalo').val(), $('#proCodigo').val(), $('#spValor').val());
+	}
+
+	$('#btnRemoveComissao').on('click', function () {
+		$scope.alteraServico($('#pseCodigo').val(), '', $('#serIntervalo').val(), $('#proCodigo').val(), '')
+	});
+
+	$('#btnRemoveTempo').on('click', function () {
+		$scope.alteraServico($('#pseCodigo').val(), $('#valComissao').val(), '', $('#proCodigo').val(), '')
+	})
+
+	$('#btnRemoveValor').on('click', function () {
+		$scope.alteraServico($('#pseCodigo').val(), $('#valComissao').val(), $('#serIntervalo').val(), $('#proCodigo').val(), '')
+	})
+
+	$scope.alteraServico = function (codigo, comissao, tempo, profissional, valor) {
+		showLoader(true);
+		$.ajax({
+			dataType: 'json',
+			method: 'POST',
+			url: '/pages/cadastros/alteraServicoProfissionalv2.php',
+			data: {
+				psecodigo: codigo,
+				comissao: comissao,
+				temposervico: tempo,
+				valor: valor
+			},
+			success: (data) => {
+				if (data.result[0].erro == '0') {
+					toastr.success($_CONFIG.language.mensagens.associacao_alterada);
+					buscaServico(profissional);
+					buscaServicoEdt(profissional);
+				} else if (data.result[0].erro == '2') {
+					toastr.warning(data.result[0].resultado);
+					buscaServico(profissional);
+					buscaServicoEdt(profissional);
+				} else {
+					toastr.error(data.result[0].resultado, $_CONFIG.language.mensagens.falha_alterar);
+				}
+				showLoader(false);
+				$('#editarServico-modal').modal('hide');
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$('#valComissao').on('keyup', function () {
+		valor = $('#valComissao').val();
+		valoa = parseInt(valor);
+		if (valor >= 100) {
+			$('#valComissao').val(100);
+		}
+	});
+
+	$.ajax({
+		type: 'POST',
+		url: '/pages/cadastros/buscaCategoria.php',
+		dataType: 'json',
+		data: {
+			tipo: 1
+		},
+		success: (result) => {
+			for (var i = 0; i < result.data.length; i++) {
+				categorias += "<option value='" + result.data[i].TCa_Codigo + "'>" + result.data[i].TCa_Descricao + "</option>";
+			};
+			$('#spCategoria').html(categorias);
+			$('#spCategoria').multiselect({
+				buttonText: function (options, select) {
+					if (options.length === 0) {
+						return 'Categorias';
+					} else if (options.length > 3) {
+						return $_CONFIG.language.mais_categorias_selecionada;
+					} else {
+						var labels = [];
+						options.each(function () {
+							if ($(this).attr('label') !== undefined) {
+								labels.push($(this).attr('label'));
+							} else {
+								labels.push($(this).html());
+							}
+						});
+						return labels.join(', ') + '';
+					}
+				},
+				buttonWidth: '100%'
+			});
+		},
+		error: () => {
+			$('#spCategoria').multiselect();
+		}
+	});
+
+	collapseAll();
+
+	$('#psComissao').on('keydown', function () {
+		if ($(this).val().length > 2) {
+			$('#psComissao').val('100');
+		} else if ($(this).val() < 0) {
+			$('#psComissao').val('0');
+		}
+	});
+
+	$('#pjDiaSemana').multiselect({
+		checkboxName: 'pjDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#pjDiaSemana').on('click', function () {
+		$('#pjDiaSemana').multiselect('updateButtonText', true);
+	});
+
+	$('#pjDiaSemanaEdt').multiselect({
+		checkboxName: 'pjDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#pjDiaSemanaEdt').on('click', function () {
+		$('#pjDiaSemanaEdt').multiselect('updateButtonText', true);
+	});
+
+	$('#pjDiaSemanaEdtPer').multiselect({
+		checkboxName: 'pjDiaSemanaEdtPer[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#pjDiaSemanaEdtPer').on('click', function () {
+		$('#pjDiaSemanaEdtPer').multiselect('updateButtonText', true);
+	});
+
+	$('#pjDiaSemanaEdtSer').multiselect({
+		checkboxName: 'pjDiaSemanaEdtSer[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#pjDiaSemanaEdtSer').on('click', function () {
+		$('#pjDiaSemanaEdtSer').multiselect('updateButtonText', true);
+	});
+
+	$('#jorAltDiaSemana').multiselect({
+		checkboxName: 'jorAltDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.dia_semana;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#jorAltDiaSemana').on('click', function () {
+		$('#jorAltDiaSemana').multiselect('updateButtonText', true);
+	});
+
+	$('#proFotoWiz').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ['jpg', 'png', 'jpeg'],
+		showUpload: false
+	});
+
+	$('#proFotoEdt').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: $_CONFIG.language.btn_procurar,
+		removeLabel: $_CONFIG.language.btn_remover,
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ['jpg', 'png', 'jpeg'],
+		showUpload: false
+	});
+	if ($_CONFIG.language.mascaras.celular != '') {
+		$('#proCelular').mask($_CONFIG.language.mascaras.celular);
+		$('#proCelularWiz').mask($_CONFIG.language.mascaras.celular);
+		$('#proCelularEdt').mask($_CONFIG.language.mascaras.celular);
+	}
+
+	if ($_CONFIG.language.mascaras.telefone != '') {
+		$('#proTelefone').mask($_CONFIG.language.mascaras.telefone);
+		$('#proTelefoneWiz').mask($_CONFIG.language.mascaras.telefone);
+		$('#proTelefoneEdt').mask($_CONFIG.language.mascaras.telefone);
+	}
+
+	function readImage(file) {
+		var reader = new FileReader();
+		var image = new Image();
+		reader.readAsDataURL(file);
+		reader.onload = function (_file) {
+			image.src = _file.target.result;
+			image.onload = function () {
+				var w = this.width,
+					h = this.height,
+					t = file.type,
+					n = file.name,
+					s = ~~(file.size / 1024) + 'KB';
+
+				if (s > 500) {
+					alert($_CONFIG.language.imagem_maior_que + ' 500kb');
+					$('#proFoto').fileinput('clear');
+					formCadastro.proFoto.focus();
+					return false;
+				}
+			};
+			image.onerror = function () {
+				alert('Invalid file type: ' + file.type);
+				$('#proFoto').fileinput('clear');
+				formCadastro.proFoto.focus();
+				return false;
+			};
+
+		};
+	}
+
+	function collapseDados() {
+		$('#btnDadosPessoais').click();
+	}
+
+	function collapseEndereco() {
+		$('#btnEndereco').click();
+	}
+
+	function collapseUsuario() {
+		$('#btnDadosUsuario').click();
+	}
+
+	function collapseJornada() {
+		$('#btnJornada').click();
+	}
+
+	function collapseAll() {
+		collapseDados();
+		collapseEndereco();
+		collapseUsuario();
+		collapseJornada();
+	}
+
+	$('#proFoto').change(function (e) {
+		var F = this.files;
+		if (F && F[0])
+			for (var i = 0; i < F.length; i++)
+				readImage(F[i]);
+	});
+
+	$('#proFotoWiz').change(function (e) {
+		var F = this.files;
+		if (F && F[0])
+			for (var i = 0; i < F.length; i++)
+				readImage(F[i]);
+	});
+
+	$('#proEstado').change(function () {
+		var estado = this.value;
+		$('#proCidade').empty();
+		if (estado === -1) {
+			$('#proCidade').attr('disabled', true);
+		} else {
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/buscaCidades.php',
+				method: 'POST',
+				data: {
+					estCodigo: estado
+				},
+				success: (data) => {
+					$('#proCidade').append(data);
+					$('#proCidade').attr('disabled', false);
+				}
+			});
+		}
+	});
+
+	$('#proEstadoWiz').change(function () {
+		var estado = this.value;
+		$('#proCidadeWiz').empty();
+		if (estado === -1) {
+			$('#proCidadeWiz').attr('disabled', true);
+		} else {
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/buscaCidades.php',
+				method: 'POST',
+				data: {
+					estCodigo: estado
+				},
+				success: (data) => {
+					$('#proCidadeWiz').append(data);
+					$('#proCidadeWiz').attr('disabled', false);
+				}
+			});
+		}
+	});
+
+	$('#proEstadoEdt').change(function () {
+		var estado = this.value;
+		$('#proCidadeEdt').empty();
+		if (estado === -1) {
+			$('#proCidadeEdt').attr('disabled', true);
+		} else {
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/buscaCidades.php',
+				method: 'POST',
+				data: {
+					estCodigo: estado
+				},
+				success: (data) => {
+					$('#proCidadeEdt').append(data);
+					$('#proCidadeEdt').attr('disabled', false);
+				}
+			});
+
+		}
+	});
+
+	$scope.editarProfissional = (row) => {
+
+		var registroTabela = row.data();
+
+		if (registroTabela.EhCNPJ == 1) {
+			$("#tipocampoCPFEdt").val(2)
+			$scope.changeCpfCnpjEdt(2)
+		} else {
+			$("#tipocampoCPFEdt").val(1)
+			$scope.changeCpfCnpjEdt(1)
+		}
+		$('#proNomeEdt').val(registroTabela.Pes_Nome);
+		$('#proCpfEdt').val(registroTabela.PAF_CPF);
+		$('#proEmailEdt').val(registroTabela.PAF_Email);
+		$('#proCelularEdt').val(registroTabela.PAF_Celular);
+		$('#proTelefoneEdt').val(registroTabela.PAF_Telefone);
+		$('#usuarioAlt').val(registroTabela.PAF_Email);
+		$("#proDataExpiracao").val(registroTabela.Usu_Dat_Expiracao);
+		$("#proTentativas").val(registroTabela.Usu_Tentativa);
+
+		if (registroTabela.Usu_Login == '') {
+			$('#proAbreviaturaAlt').show();
+		} else {
+			$('#proAbreviaturaAlt').hide();
+		}
+
+		$('#proSexoEdt').val(registroTabela.PAF_Sexo);
+		$('#proDataNascimentoEdt').val(registroTabela.PAF_Dat_Nascimento);
+		$('#proEnderecoEdt').val(registroTabela.PAF_Endereco);
+		$('#proBairroEdt').val(registroTabela.PAF_Bairro);
+		$('#proCepEdt').val(registroTabela.PAF_CEP);
+		$('#proCodigoEdt').val(registroTabela.Pes_Codigo);
+		$('#pesCodigoAlt').val(registroTabela.Pes_Codigo);
+		$('#pesCodigoWiz').val(registroTabela.Pes_Codigo);
+		$('#pesCodigoWizPer').val(registroTabela.Pes_Codigo);
+		$('#pesCodigoWizSer').val(registroTabela.Pes_Codigo);
+		$('#usuCodigo').val(registroTabela.Usu_Codigo);
+		$('#usuCodigoWiz').val(registroTabela.Usu_Codigo);
+		$('#usuCodigoWizSer').val(registroTabela.Usu_Codigo);
+		if (registroTabela.PAF_Imagem != undefined && registroTabela.PAF_Imagem != '') {
+			$('#profImagemEdit').attr('src', registroTabela.PAF_Imagem)
+		} else {
+			$('#profImagemEdit').attr('src', '../../img/nopicture.png')
+		}
+		if(registroTabela.PAF_Disp_Apresentacao == ""){
+			$("#proDispAresentacaoEdt").val(1)
+		}else{
+			$("#proDispAresentacaoEdt").val(registroTabela.PAF_Disp_Apresentacao)
+		}
+		
+		$('#proDDiEdt').val(registroTabela.PAF_DDI);
+		$('#proComplementoEdt').val(registroTabela.PAF_Complemento);
+		$('#proObservacaoEdt').val(registroTabela.PAF_Observacao);
+		$('#proNumeroEdt').val(registroTabela.PAF_Numero);
+		$('#proRgEdt').val(registroTabela.PAF_RG);
+		$('#proApelidoEdt').val(registroTabela.Pes_Apelido);
+		$('#proDispAppEdt').val(registroTabela.PAF_Dis_Aplicativo);
+		if (registroTabela.SituacaoUsuario == '') {
+			$('#btnDesativaUsuario').show();
+			$('#btnReativaUsuario').hide();
+		} else {
+			$('#btnDesativaUsuario').hide();
+			$('#btnReativaUsuario').show();
+		}
+		if (registroTabela.Usu_Login == '') {
+			$('#btnDesativaUsuario').hide();
+			$('#acessoProfissionalAltera').hide();
+		} else {
+			$('#btnDesativaUsuario').show();
+			$('#acessoProfissionalAltera').show();
+		}
+
+		if (registroTabela.Usu_Login == 'Não Possui') {
+			$('#btnDesativaUsuario').hide();
+			$('#btnReativaUsuario').hide();
+			$('#acessoProfissionalAltera').hide();
+		}
+		if (document.getElementById('proGestor') != null) {
+
+			if (registroTabela.PAF_Gestor == '1') {
+				$('#proGestorEdt').get(0).checked = true;
+			} else {
+				$('#proGestorEdt').get(0).checked = false;
+			}
+		}
+
+		$('#proEstadoEdt').val(registroTabela.Est_Codigo);
+
+		$('#proCidadeEdt').empty();
+		$.ajax({
+			dataType: 'html',
+			url: '/pages/cadastros/buscaCidades.php',
+			method: 'POST',
+			data: {
+				estCodigo: registroTabela.Est_Codigo
+			},
+			success: (data) => {
+				$('#proCidadeEdt').append(data);
+				$('#proCidadeEdt').attr('disabled', false);
+				$('#proCidadeEdt').val(registroTabela.Cid_Codigo);
+			}
+		});
+		
+		$scope.geraComboPaisTelefone('proCelularEdt','proDDiEdt',registroTabela.PAF_DDI)
+		
+
+		$("#pesCodigoRemuneracao").val(registroTabela.Pes_Codigo);
+		$("#pesCodigoDeducao").val(registroTabela.Pes_Codigo);
+		$scope.buscaServicoCombo(registroTabela.Pes_Codigo);
+		buscaJornadaEdt(registroTabela.Pes_Codigo);
+		buscaJornadaper(registroTabela.Pes_Codigo);
+		buscaServicoEdt(registroTabela.Pes_Codigo);
+		buscaCategoria(registroTabela.Pes_Codigo);
+		buscaJornadaServico(registroTabela.Pes_Codigo)
+		$("#pesCodigoEdtRemuneracao").val(registroTabela.Pes_Codigo)
+		$("#pesCodigoEdtDeducao").val(registroTabela.Pes_Codigo)
+		$("#spValorRemuneracao").val("");
+		$("#spRemuneracao").val("").change();
+		$scope.buscaServicoComboJornada()
+		$scope.buscaProfissionalRemuneracao(registroTabela.Pes_Codigo)
+		$scope.buscaTipoPessoaPagamento();
+		$scope.buscaProfissionalDeducao(registroTabela.Pes_Codigo)
+		$scope.buscaTipoPessoaDeducao();
+		$scope.buscaPerfilUsuario(registroTabela.Usu_Codigo)
+
+	}
+
+	$("#proEmailEdt").keyup(() => {
+		$("#usuarioAlt").val($("#proEmailEdt").val())
+	})
+	$("#usuarioAlt").keyup(() => {
+		$("#proEmailEdt").val($("#usuarioAlt").val())
+	})
+
+	$scope.infoProfissional = function (row) {
+		var registroTabela = row.data();
+
+		$('#proNomeInfo').html(registroTabela.Pes_Nome);
+		$('#proCpfInfo').html(registroTabela.PAF_CPF);
+		$('#proEmailInfo').html(registroTabela.PAF_Email);
+		$('#proCelularInfo').html(registroTabela.PAF_Celular);
+		$('#proTelefoneInfo').html(registroTabela.PAF_Telefone);
+		$('#proLoginInfo').html(registroTabela.Usu_Login);
+		$('#proDatCadastroInfo').html(registroTabela.Pes_Dat_Cadastro)
+		$('#proSexoInfo').html(registroTabela.PAF_Sexo);
+		$('#proDataNascimentoInfo').html(registroTabela.PAF_Dat_Nascimento);
+		$('#proEnderecoInfo').html(registroTabela.PAF_Endereco);
+		$('#proBairroInfo').html(registroTabela.PAF_Bairro);
+		$('#proCidadeInfo').html(registroTabela.Cid_Nome);
+		$('#proEstadoInfo').html(registroTabela.Est_Sigla);
+		$('#proCepInfo').html(registroTabela.PAF_CEP);
+		$('#proCodigoInfo').html(registroTabela.Pes_Codigo);
+
+		$("#info-modal").modal();
+	}
+
+	$scope.excluir = function (row) {
+		var registroTabela = row.data();
+		swal({
+			title: $_CONFIG.language.mensagens.excluir_titulo,
+			text: $_CONFIG.language.mensagens.excluir_profissional.replace('_NOME_', registroTabela.Pes_Nome),
+			type: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#DD6B55',
+			confirmButtonText: $_CONFIG.language.sim,
+			cancelButtonText: $_CONFIG.language.nao,
+			closeOnConfirm: true
+		}, () => {
+			showLoader(true);
+			$.ajax({
+				dataType: 'html',
+				url: '/pages/cadastros/removeProfissionais.php',
+				data: {
+					pescodigo: registroTabela.Pes_Codigo
+				},
+				success: (data) => {
+					if (data == '0') {
+						toastr.success($_CONFIG.language.mensagens.profissional_excluido);
+						row.remove().draw();
+					} else {
+						var resultado = data;
+						toastr.error(resultado, $_CONFIG.language.mensagens.falha_excluir);
+					}
+					showLoader(false);
+				},
+				error: () => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+					showLoader(false);
+				}
+			});
+		});
+		$('#proCodigoInfo').html(registroTabela.Pes_Codigo);
+	}
+
+	function buscaCEP(cep) {
+		if (cep && cep.length >= 9) {
+			cep = cep.replace('-', '');
+
+			$.ajax({
+				dataType: 'json',
+				url: 'http://cep.correiocontrol.com.br/' + cep + '.json',
+				method: 'GET',
+				success: (data) => {
+					$('.loader').show();
+
+					$('#proEstado').val(1);
+					$('#proEstado').val($('#' + data.uf + '').val())
+					$('#proCidade').empty();
+					$.ajax({
+						dataType: 'html',
+						url: '/pages/cadastros/buscaCidades.php',
+						method: 'POST',
+						data: {
+							estCodigo: $('#' + data.uf + '').val(),
+							cidNome: data.localidade
+						},
+						success: (data) => {
+							$('#proCidade').append(data);
+							$('#proCidade').attr('disabled', false);
+						}
+					});
+					$('#proBairro').val(data.bairro);
+					$('#proEndereco').val(data.logradouro);
+					$('#proCidade').val(data.localidade);
+				}
+			});
+
+			$('.loader').hide();
+
+		}
+
+	};
+
+	function buscaCategoria(codigo) {
+
+		if (typeof (tbCategoriaWz) != 'undefined') {
+			tbCategoriaWz.api().destroy();
+		}
+
+		tbCategoriaWz = $('#tbCategoriaWiz').dataTable({
+			'dom': 'T<"clear">lfrtip',
+			'ajax': {
+				'url': $('#tbCategoriaWiz').data('source'),
+				'method': 'POST',
+				'data': {
+					pescodigo: codigo
+				},
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			"scrollX": isPortrait,
+			'columnDefs': [{
+				'targets': [0, 2, 3],
+				'visible': false,
+				'searchable': false
+			}],
+			'columns': [{
+					'data': 'TCa_Codigo'
+				},
+				{
+					'data': 'TCa_Descricao'
+				},
+				{
+					'data': 'Pes_Nome'
+				},
+				{
+					'data': 'PTC_Codigo'
+				},
+				{
+					'class': 'excluir-control',
+					'orderable': false,
+					'data': null,
+					'defaultContent': ''
+				}
+
+			],
+			'paging': false,
+			'searching': false,
+			'ordering': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbCategoriaWiz tbody').on('click', 'td.excluir-control', function () {
+			var tr = $(this).closest('tr');
+			var idx = tr[0]._DT_RowIndex;
+			var registroTabela = tbCategoriaWz.fnGetData(idx);
+			swal({
+					title: $_CONFIG.language.mensagens.excluir_titulo,
+					text: $_CONFIG.language.mensagens.excluir_categoria,
+					type: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#DD6B55',
+					confirmButtonText: $_CONFIG.language.sim,
+					cancelButtonText: $_CONFIG.language.nao
+				},
+				function () {
+					showLoader(true);
+					$.ajax({
+						dataType: 'html',
+						url: '/pages/cadastros/removeProfissionalCategoria.php',
+						data: {
+							tcacodigo: registroTabela.TCa_Codigo,
+							pescodigo: codigo
+						},
+						success: (data) => {
+							toastr.success($_CONFIG.language.mensagens.categoria_excluida);
+							tbCategoriaWz.api().ajax.reload();
+							$('#spCategoria').multiselect('deselectAll', false);
+							$('#spCategoria').multiselect('updateButtonText');
+
+							showLoader(false);
+						},
+						error: () => {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				});
+
+		});
+	}
+
+	$('#formCategoriaEdt').submit(function (event) {
+		event.preventDefault();
+		formCategoria = $(this);
+		categorias = new FormData(this);
+		categorias.append('pesCodigo', $('#pesCodigoWiz').val());
+
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/insereProfissionalCategoria.php',
+			data: categorias,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.result[0].erro == '0') {
+					tbCategoriaWz.api().ajax.reload();
+					formCategoria.each(function () {
+						this.reset();
+					});
+					$('#spCategoria').multiselect('deselectAll', false);
+					$('#spCategoria').multiselect('updateButtonText');
+					toastr.success(result.result[0].resultado);
+					$('.select2').val(null).trigger('change');
+				} else {
+					toastr.error(result.result[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$scope.refresh = function () {
+		atualizaDados();
+	}
+
+	$scope.DesativaUsuario = function () {
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/desativaUsuario.php',
+			data: {
+				tipo: 1,
+				usuCodigo: $('#usuCodigo').val()
+			},
+			dataType: 'json',
+			success: (result) => {
+				if (result.data[0].erro == '0') {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal('hide');
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: (result) => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.ReativaUsuario = function () {
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/desativaUsuario.php',
+			data: {
+				tipo: 2,
+				usuCodigo: $('#usuCodigo').val()
+			},
+			dataType: 'json',
+			success: (result) => {
+				if (result.data[0].erro == '0') {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal('hide');
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: (result) => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$('#formJornadaEdtPer').submit(function (event) {
+		event.preventDefault();
+		formJornada = $(this);
+		dataJornada = new FormData(this);
+		dataJornada.append('pjProfissionalPer', $('#pesCodigoWizPer').val());
+
+
+		dataJornada.append('dataini',moment($('#dataJonadaPerido').data('daterangepicker').startDate).format("DD/MM/YYYY") );
+		dataJornada.append('datafim', moment($('#dataJonadaPerido').data('daterangepicker').endDate).format("DD/MM/YYYY"));
+		showLoader(true);
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/inserePessoaJornadaPeriodo.php',
+			data: dataJornada,
+			dataType: 'json',
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.insereProfissionalJornada[0].erro == '0') {
+					atualizaDados();
+					buscaJornadaper($('#pesCodigoWizPer').val());
+					formJornada.each(function () {
+						this.reset();
+					});
+					toastr.success(result.insereProfissionalJornada[0].resultado);
+					var diasDaSemana = $('#pjDiaSemanaEdtPer');
+					diasDaSemana.multiselect('deselectAll', false);
+					diasDaSemana.multiselect('updateButtonText');
+					$('.select2').val(null).trigger('change');
+				} else {
+					toastr.error(result.insereProfissionalJornada[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#spServico').multiselect({
+		checkboxName: 'spServico[]',
+		enableFiltering: true,
+		includeSelectAllOption: true,
+		buttonWidth: '100%',
+		selectAllText: 'Selecionar Todos',
+		allSelectedText: 'Todos os Serviços Selecionados',
+		filterPlaceholder: 'Buscar Serviço',
+		maxHeight: 200,
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return $_CONFIG.language.servico;
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$('#spServico').on('click', function () {
+		$('#spServico').multiselect('updateButtonText', true);
+	});
+
+	$scope.buscaServicoCombo = function (profissional) {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaServicoNaoAssociado.php',
+			dataType: 'json',
+			data: {
+				profissional: profissional
+			},
+			success: (result) => {
+				$('#spServicoi').multiselect('destroy');
+				var html = "";
+
+				for (var i = 0; i < result.servicos.length; i++) {
+					html += '<option value="' + result.servicos[i].Ser_Codigo + '"  >' + result.servicos[i].Ser_Descricao + '</option>';
+				}
+
+				$('#spServicoi').html(html);
+				$('#spServicoi').multiselect({
+					checkboxName: 'spServico[]',
+					enableFiltering: true,
+					includeSelectAllOption: true,
+					buttonWidth: '100%',
+					selectAllText: 'Selecionar Todos',
+					allSelectedText: 'Todos os Serviços Selecionados',
+					filterPlaceholder: 'Buscar Serviço',
+					maxHeight: 200,
+					buttonText: function (options, select) {
+						if (options.length === 0) {
+							return $_CONFIG.language.servico;
+						} else {
+							var labels = [];
+							options.each(function () {
+								if ($(this).attr('label') !== undefined) {
+									labels.push($(this).attr('label'));
+								} else {
+									labels.push($(this).html());
+								}
+							});
+							return labels.join(', ') + '';
+						}
+					}
+				});
+
+				$('#spServicoi').on('click', function () {
+					$('#spServicoi').multiselect('updateButtonText', true);
+				});
+
+			}
+		});
+	}
+
+	$('#cortaImagemAll-modal').on('hidden.bs.modal', function (e) {
+		if (mBlob != undefined && mBlob != "") {
+			if (location.hash == '#/profissionais') {
+				if ($("#formid").val() != "#formDadosWizard") {
+					$('#profImagemEdit').attr('src', mImage);
+					$scope.saveImageProf();
+				}
+			}
+		} else {
+
+			if (location.hash == '#/profissionais') {
+				$scope.saveImageProf();
+			}
+		}
+		$("#imagemCutAll").resize();
+		$("#imagemCutAll").cropper("reset");
+		$(this).data('modal', null);
+	})
+
+	$scope.editarimagemprof = function () {
+		$("#proFotoEdt").click()
+	}
+
+	$scope.saveImageProf = function () {
+
+		showLoader(true)
+
+		if (mBlob != undefined) {
+
+			dataaltera = new FormData();
+
+			dataaltera.append('figura', mBlob);
+			dataaltera.append('profissional', $('#proCodigoEdt').val())
+			//dataaltera.append('proFotoEdt', $('#proFotoEdt').prop('files')[0])
+			$.ajax({
+				dataType: 'json',
+				method: 'POST',
+				url: '/pages/cadastros/alteraProfissionalImagem.php',
+				data: dataaltera,
+				processData: false,
+				contentType: false,
+				success: (data) => {
+
+					if (data.data[0].erro == 0) {
+						$('#profImagemEdit').attr('src', data.data[0].urlimagem);
+						toastr.success(data.data[0].resultado);
+						mBlob = "";
+						$("#proFotoEdt").fileinput("clear")
+
+					} else {
+						toastr.error(data.data[0].resultado);
+					}
+					showLoader(false)
+				},
+				error: () => {
+					toastr.error('Falha de conexão');
+					showLoader(false)
+				}
+			});
+		} else {
+			toastr.warning("Ops! Parece que você não concluiu a seleção da nova imagem, nenhuma alteração será feita");
+			$("#proFotoEdt").fileinput("clear")
+			showLoader(false)
+		}
+
+	}
+
+	$scope.removeImagemProf = function () {
+		swal({
+			title: 'Deseja realmente remover essa imagem',
+			type: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#DD6B55',
+			confirmButtonText: $_CONFIG.language.sim,
+			cancelButtonText: $_CONFIG.language.nao,
+			closeOnConfirm: true
+		}, () => {
+			showLoader(true)
+			dataaltera = new FormData();
+
+			dataaltera.append('figura', '');
+			dataaltera.append('profissional', $('#proCodigoEdt').val())
+			dataaltera.append('proFotoEdt', '')
+			$.ajax({
+				dataType: 'json',
+				method: 'POST',
+				url: '/pages/cadastros/alteraProfissionalImagem.php',
+				data: dataaltera,
+				processData: false,
+				contentType: false,
+				success: (data) => {
+					if (data.data[0].erro == 0) {
+						$('#profImagemEdit').attr('src', '../../img/nopicture.png');
+						toastr.success(data.data[0].resultado);
+						$("#otpimagenprofissional").val("").change();
+					} else {
+						toastr.error(data.data[0].resultado);
+					}
+					showLoader(false)
+
+				},
+				error: () => {
+					toastr.error('Falha de conexão');
+					showLoader(false)
+				}
+			});
+		});
+
+	}
+
+	$scope.alteraAcessoProfissional = function () {
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraAcessoCliente.php",
+			data: {
+				usuCodigo: $("#usuCodigo").val(),
+				dataExpiracao: $("#proDataExpiracao").val(),
+				tentativas: $("#proTentativas").val()
+			},
+			dataType: "json",
+			success: (result) => {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					$('#editar-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.alteraProfissionalJornada = function (dia, profissional, hrini1, hrfim1, hrini2, hrfim2,pjDisponivel) {
+		$("#profissionalAlteraJornada").val(profissional);
+		$("#jorAltDiaSemana option").prop("selected", false);
+		$("#jorAltDiaSemana").multiselect("refresh");
+		$("#jorAltDiaSemana").multiselect("select", dia);
+		$("#jorHoraIniEdt1").val(hrini1)
+		$("#jorHoraFimEdt1").val(hrfim1)
+		$("#jorHoraIniEdt2").val(hrini2)
+		$("#jorHoraFimEdt2").val(hrfim2)
+		if(pjDisponivel != ''){
+			$("#jorDispAgendamento").val(pjDisponivel)
+		}else{
+			$("#jorDispAgendamento").val(1)
+		}
+		$('#alteraHorarioJornada-modal').modal();
+	}
+
+	$scope.alteraProfissionalJornadaLinha = function (dia, profissional, hrini1, hrfim1, hrini2, hrfim2,pjDisponivel) {
+		if (isMobile) {
+			$scope.alteraProfissionalJornada(dia, profissional, hrini1, hrfim1, hrini2, hrfim2,pjDisponivel)
+		}
+	}
+
+	$scope.alteraProfissionalJornadaPerido = function (dia, profissional, hrini1, hrfim1, hrini2, hrfim2, dataini, datafim) {
+		$("#profissionalAlteraJornadaPer").val(profissional);
+		$("#jorAltDiaSemanaPer option").prop("selected", false);
+		$("#jorAltDiaSemanaPer").multiselect("refresh");
+		$("#jorAltDiaSemanaPer").multiselect("select", dia);
+		$("#jorHoraIniEdt1Per").val(hrini1);
+		$("#jorHoraFimEdt1Per").val(hrfim1);
+		$("#jorHoraIniEdt2Per").val(hrini2);
+		$("#jorHoraFimEdt2Per").val(hrfim2);
+		// $('.date.divDataIniAltPer').datepicker('update', dataini);
+		// $('.date.divDataFimAltPer').datepicker('update', datafim);
+	
+
+		$('#dataJonadaPeridoEdt').data('daterangepicker').setStartDate(dataini);
+		$('#dataJonadaPeridoEdt').data('daterangepicker').setEndDate(datafim);
+
+		$('#alteraHorarioJornadaPerido-modal').modal();
+	}
+
+	$scope.alteraProfissionalJornadaPeridoLinha = function (dia, profissional, hrini1, hrfim1, hrini2, hrfim2, dataini, datafim) {
+		if (isMobile) {
+			$scope.alteraProfissionalJornadaPerido(dia, profissional, hrini1, hrfim1, hrini2, hrfim2, dataini, datafim)
+		}
+	}
+
+	$scope.saveJornaProfissionalAltera = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraProfissionalJornadav2.php",
+			data: {
+				pjCodigo: $("#profissionalAlteraJornada").val(),
+				pjDiaId: $("#jorAltDiaSemana").val()[0],
+				pjHoraIni1: $("#jorHoraIniEdt1").val(),
+				pjHoraFim1: $("#jorHoraFimEdt1").val(),
+				pjHoraIni2: $("#jorHoraIniEdt2").val(),
+				pjHoraFim2: $("#jorHoraFimEdt2").val(),
+				pjDisponivel: $("#jorDispAgendamento").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					buscaJornadaEdt($("#profissionalAlteraJornada").val());
+					$('#alteraHorarioJornada-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.saveJornaProfissionalAlteraPeriodo = function () {
+		showLoader(true);
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraProfissionalJornadaPeriodo.php",
+			data: {
+				profissional: $("#profissionalAlteraJornadaPer").val(),
+				dia: $("#jorAltDiaSemanaPer").val()[0],
+				horaini1: $("#jorHoraIniEdt1Per").val(),
+				horafim1: $("#jorHoraFimEdt1Per").val(),
+				horaini2: $("#jorHoraIniEdt2Per").val(),
+				horafim2: $("#jorHoraFimEdt2Per").val(),
+				dataini: moment($('#dataJonadaPeridoEdt').data('daterangepicker').startDate).format("DD/MM/YYYY") ,
+				datafim: moment($('#dataJonadaPeridoEdt').data('daterangepicker').endDate).format("DD/MM/YYYY")
+			},
+			dataType: "json",
+			success: (result) => {
+				if (result.data[0].erro == "0") {
+					toastr.success(result.data[0].resultado);
+					buscaJornadaper($('#profissionalAlteraJornadaPer').val());
+
+					$('#alteraHorarioJornadaPerido-modal').modal("hide");
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaTipoPessoaPagamento = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaTipoPessoaPagamento.php",
+			data: {
+				tipo: 1
+			},
+			dataType: "json",
+			success: (result) => {
+
+				var html = "";
+				html += "<option value=''>Tipo de remuneração </option>"
+				for (var i = 0; i < result.data.length; i++) {
+					html += "<option value='" + result.data[i].TPP_Codigo + "'>" + result.data[i].TPP_Descricao + "</option>";
+				};
+				$("#spRemuneracao").html(html);
+				$("#spRemuneracaoEdt").html(html);
+
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+
+	}
+
+	$scope.buscaProfissionalRemuneracao = function (codigo) {
+
+		if (typeof (tabelaRemuneracao) != 'undefined') {
+			$('#tbRemuneracao tbody').unbind('click')
+			tabelaRemuneracao.destroy();
+		}
+
+		tabelaRemuneracao = $('#tbRemuneracao').DataTable({
+			'dom': 'T<"clear">lfrtip',
+			'ajax': {
+				'url': "/pages/cadastros/buscaPessoaPagamento.php",
+				'method': 'POST',
+				'data': {
+					codigo: codigo,
+					tipo: 1
+				},
+			},
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			"scrollX": isPortrait,
+			'columns': [{
+					'data': 'TPP_Descricao'
+				},
+				{
+					'data': 'PPg_Valor'
+				},
+				{
+					'class': 'editarpessoaremuneracao',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<a><i class='fa fa-pencil' style='cursor:pointer;'></i></a>"
+				},
+				{
+					'class': 'excluirpessoaremuneracao',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<a><i class='fa fa-trash' style='cursor:pointer;'></i></a>"
+				}
+
+			],
+			'paging': false,
+			'searching': false,
+			'ordering': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbRemuneracao tbody').on('click', 'td.editarpessoaremuneracao', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaRemuneracao.row(tr);
+			var data = row.data();
+			$("#spRemuneracaoValor").val(data.PPg_Valor);
+			$("#spRemuneracaoCodigo").val(data.PPg_Codigo);
+			$scope.buscaTipoPessoaPagamento();
+
+			setTimeout(() => {
+				$("#spRemuneracaoEdt").val(data.TPP_Codigo);
+			}, 500);
+
+			$("#editarRemuneracaoProfissional-modal").modal();
+
+		});
+
+		$('#tbRemuneracao tbody').on('click', 'td.excluirpessoaremuneracao', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaRemuneracao.row(tr);
+			var data = row.data();
+			swal({
+				title: "Deseja realmente excluir esta Remuneração?",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#DD6B55",
+				confirmButtonText: "Sim",
+				cancelButtonText: "Não",
+				closeOnConfirm: true
+			}, () => {
+
+				showLoader(true);
+				$.ajax({
+					dataType: "json",
+					method: "POST",
+					url: '/pages/cadastros/removePessoaPagamento.php',
+					data: {
+						codigo: data.PPg_Codigo
+					},
+					success: (result) => {
+
+						if (result.data.length != undefined) {
+							if (result.data[0].erro == 0) {
+								toastr.success(result.data[0].resultado);
+								// swal(result.data[0].resultado, "", "success");
+								$scope.buscaProfissionalRemuneracao(data.Pes_Codigo);
+							} else {
+								swal(result.data[0].resultado, "", "error");
+							}
+						} else {
+							swal(result.data.resultado, "", "error");
+						}
+
+						showLoader(false);
+					},
+					error: () => {
+						swal("Falha na conexão.", "", "error");
+						showLoader(false);
+					}
+				});
+			});
+		});
+
+	}
+
+	$('#formInserePessoaPagamento').submit(function (event) {
+		event.preventDefault();
+		formInsere = $(this);
+		showLoader(true);
+		var pescodigo = new FormData(this);
+		pescodigo = pescodigo.get("pesCodigoRemuneracao")
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/inserePessoaPagamento.php",
+			data: new FormData(this),
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: (result) => {
+
+				if (result.data.length != undefined) {
+					if (result.data[0].erro == 0) {
+
+						$scope.buscaProfissionalRemuneracao(pescodigo);
+						toastr.success(result.data[0].resultado);
+						//swal(result.data[0].resultado, "", "success");
+
+						formInsere.each(function () {
+							this.reset();
+						});
+					} else {
+						swal(result.data[0].resultado, "", "error");
+					}
+
+				} else {
+					swal(result.data.resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: () => {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+
+	});
+
+	$('#formAlteraPessoaPagamento').submit(function (event) {
+		event.preventDefault();
+		formEditar = $(this);
+		showLoader(true);
+		var pescodigo = $("#pesCodigoEdtRemuneracao").val()
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraPessoaPagamento.php",
+			data: new FormData(this),
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.data.length != undefined) {
+					if (result.data[0].erro == 0) {
+						$scope.buscaProfissionalRemuneracao(pescodigo)
+						//swal(result.data[0].resultado, "", "success");
+						toastr.success(result.data[0].resultado);
+						$("#editarRemuneracaoProfissional-modal").modal("hide")
+						$("#pesCodigoEdtRemuneracao").val(pescodigo)
+					} else {
+						swal(result.data[0].resultado, "", "error");
+					}
+				} else {
+					swal(result.data.resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: () => {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+
+	});
+
+	$('#spValorDeducao').on('change', function () {
+		valor = parseFloat($(this).val().replace(',', '.'));
+		if (valor > 100) {
+			$('#spValorDeducao').val('100.00');
+		} else if ($(this).val() < 0) {
+			$('#spValorDeducao').val('0');
+		}
+	});
+
+	$scope.buscaTipoPessoaDeducao = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaTipoPessoaDeducao.php",
+			data: {
+				tipo: 1
+			},
+			dataType: "json",
+			success: (result) => {
+
+				var html = "";
+				html += "<option value=''>Tipo de dedução </option>"
+				for (var i = 0; i < result.data.length; i++) {
+					html += "<option value='" + result.data[i].TPD_Codigo + "'>" + result.data[i].TPD_Descricao + "</option>";
+				};
+				$("#spDeducao").html(html);
+				$("#spDeducaoEdt").html(html);
+
+			},
+			error: () => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+			}
+		});
+
+	}
+
+	$scope.buscaProfissionalDeducao = function (codigo) {
+
+		if (typeof (tabelaDeducao) != 'undefined') {
+			$('#tbDeducao tbody').unbind('click')
+			tabelaDeducao.destroy();
+		}
+
+		tabelaDeducao = $('#tbDeducao').DataTable({
+			'dom': 'T<"clear">lfrtip',
+			'ajax': {
+				'url': "/pages/cadastros/buscaPessoaDeducao.php",
+				'method': 'POST',
+				'data': {
+					codigo: codigo,
+					tipo: 1
+				},
+			},
+
+			"scrollX": isPortrait,
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			'columns': [{
+					'data': 'TPD_Descricao'
+				},
+				{
+					'data': 'PDe_Valor'
+				},
+				{
+					'class': 'editarpessoadeducao',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<a><i class='fa fa-pencil' style='cursor:pointer;'></i></a>"
+				},
+				{
+					'class': 'excluirpessoadeducao',
+					'orderable': false,
+					'data': null,
+					'defaultContent': "<a><i class='fa fa-trash' style='cursor:pointer;'></i></a>"
+				}
+
+			],
+			'paging': false,
+			'searching': false,
+			'ordering': false,
+			'language': {
+				'url': $_CONFIG.language.datatables
+			}
+		});
+
+		$('#tbDeducao tbody').on('click', 'td.editarpessoadeducao', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaDeducao.row(tr);
+			var data = row.data();
+			$("#spDeducaoValor").val(data.PDe_Valor);
+			$("#spDeducaoCodigo").val(data.PDe_Codigo);
+			setTimeout(function () {
+				$("#spDeducaoEdt").val(data.TPD_Codigo);
+
+			}, 500)
+			$("#editarDeducaoProfissional-modal").modal();
+
+		});
+
+		$('#tbDeducao tbody').on('click', 'td.excluirpessoadeducao', function () {
+			var tr = $(this).closest('tr');
+			var row = tabelaDeducao.row(tr);
+			var data = row.data();
+			swal({
+				title: "Deseja realmente excluir esta Dedução?",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#DD6B55",
+				confirmButtonText: "Sim",
+				cancelButtonText: "Não",
+				closeOnConfirm: true
+			}, () => {
+				showLoader(true);
+				$.ajax({
+					dataType: "json",
+					method: "POST",
+					url: '/pages/cadastros/removePessoaDeducao.php',
+					data: {
+						codigo: data.PDe_Codigo
+					},
+					success: (result) => {
+
+						if (result.data.length != undefined) {
+							if (result.data[0].erro == 0) {
+								toastr.success(result.data[0].resultado);
+								$scope.buscaProfissionalDeducao(data.Pes_Codigo);
+							} else {
+								swal(result.data[0].resultado, "", "error");
+							}
+						} else {
+							swal(result.data.resultado, "", "error");
+						}
+
+						showLoader(false);
+					},
+					error: () => {
+						swal("Falha na conexão.", "", "error");
+						showLoader(false);
+					}
+				});
+			});
+		});
+
+	}
+
+	$('#formInserePessoaDeducao').submit(function (event) {
+		event.preventDefault();
+
+		if($("#spDeducao").val() != ''){
+
+			formInsere = $(this);
+			showLoader(true);
+			var pescodigo = new FormData(this);
+			pescodigo = pescodigo.get("pesCodigoDeducao")
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/inserePessoaDeducao.php",
+				data: new FormData(this),
+				dataType: "json",
+				processData: false,
+				contentType: false,
+				success: (result) => {
+	
+					if (result.data.length >0) {
+						if (result.data[0].erro == 0) {
+	
+							$scope.buscaProfissionalDeducao(pescodigo);
+							toastr.success(result.data[0].resultado);
+	
+							formInsere.each(function () {
+								this.reset();
+							});
+						} else {
+							swal(result.data[0].resultado, "", "error");
+						}
+	
+					} else {
+						swal(result.data.resultado, "", "error");
+					}
+					showLoader(false);
+				},
+				error: () => {
+					swal("Falha na conexão.", "", "error");
+					showLoader(false);
+				}
+			});
+			return true;
+		}else{
+			toastr.error('Informe o tipo de dedução!')
+		}
+
+	});
+
+	$('#spDeducaoValor').on('change', function () {
+		valor = parseFloat($(this).val().replace(',', '.'));
+		if (valor > 100) {
+			$('#spDeducaoValor').val('100.00');
+		} else if ($(this).val() < 0) {
+			$('#spDeducaoValor').val('0');
+		}
+	});
+
+	$('#formAlteraPessoaDeducao').submit(function (event) {
+		event.preventDefault();
+		formEditar = $(this);
+		showLoader(true);
+		var pescodigo = $("#pesCodigoEdtDeducao").val()
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraPessoaDeducao.php",
+			data: new FormData(this),
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: (result) => {
+				if (result.data.length != undefined) {
+					if (result.data[0].erro == 0) {
+						$scope.buscaProfissionalDeducao(pescodigo)
+						toastr.success(result.data[0].resultado);
+						$("#editarDeducaoProfissional-modal").modal("hide")
+						$("#pesCodigoEdtRemuneracao").val(pescodigo)
+					} else {
+						swal(result.data[0].resultado, "", "error");
+					}
+				} else {
+					swal(result.data.resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: () => {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+
+	});
+
+	$scope.carregaDados();
+
+	$scope.buscaServicoComboJornada = function () {
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/buscaServicoSelect.php',
+			dataType: 'json',
+			success: function (result) {
+				var html = "";
+				html += '<option value="">Serviço</option>';
+				for (var i = 0; i < result.servicos.length; i++) {
+					html += '<option value="' + result.servicos[i].Ser_Codigo + '">' + result.servicos[i].Ser_Descricao + '</option>';
+				}
+
+				$('#pjServico').html(html);
+				$('#pjServico').select2();
+			}
+		});
+	}
+
+	$('#formJornadaEdtSer').submit(function (event) {
+		event.preventDefault();
+		if ($("#pjDiaSemanaEdtSer").val() != null) {
+			if ($("#pjServico").val() != "") {
+				formJornadaSer = $(this);
+				dataJornada = new FormData(this);
+				showLoader(true);
+				$.ajax({
+					type: 'POST',
+					url: '/pages/cadastros/inserePessoaJornadaServico.php',
+					data: dataJornada,
+					dataType: 'json',
+					processData: false,
+					contentType: false,
+					success: (result) => {
+						if (result.data[0].erro == '0') {
+							atualizaDados();
+							buscaJornadaServico($('#pesCodigoWizSer').val());
+							toastr.success(result.data[0].resultado);
+							var diasDaSemana = $('#pjDiaSemanaEdtSer');
+							diasDaSemana.multiselect('deselectAll', false);
+							diasDaSemana.multiselect('updateButtonText');
+							$('.select2').val(null).trigger('change');
+							$("#pjServico").val("")
+							$("#pjServico").change()
+						} else {
+							toastr.error(result.data[0].resultado);
+						}
+						showLoader(false);
+					},
+					error: () => {
+						toastr.error($_CONFIG.language.errors.falha_conexao);
+						showLoader(false);
+					}
+				});
+
+				return true;
+
+			} else {
+				toastr.error('Selecione um serviço!');
+				return false;
+			}
+		} else {
+			toastr.error('Selecione um dia da semana!');
+			return false;
+		}
+	});
+
+	$scope.excluirJornadaServico = function (codigo) {
+		swal({
+			title: "Deseja realmente excluir esta associação?",
+			type: "warning",
+			showCancelButton: true,
+			confirmButtonColor: "#DD6B55",
+			confirmButtonText: "Sim",
+			cancelButtonText: "Não",
+			closeOnConfirm: true
+		}, () => {
+
+			showLoader(true);
+			$.ajax({
+				dataType: "json",
+				method: "POST",
+				url: '/pages/cadastros/removePessoaJornadaServico.php',
+				data: {
+					codigo: codigo
+				},
+				success: (result) => {
+
+					if (result.data.length != undefined) {
+						if (result.data[0].erro == 0) {
+							toastr.success(result.data[0].resultado);
+							buscaJornadaServico($('#pesCodigoWizSer').val())
+						} else {
+							swal(result.data[0].resultado, "", "error");
+						}
+					} else {
+						swal(result.data.resultado, "", "error");
+					}
+
+					showLoader(false);
+				},
+				error: () => {
+					swal("Falha na conexão.", "", "error");
+					showLoader(false);
+				}
+			});
+		});
+	}
+
+
+	$scope.changeCpfCnpj = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPF").val(1)
+			$("#btnCpfCnpj").html("CPF");
+			$("#proCpfWiz").val('')
+			$("#proCpfWiz").attr('maxlength', '14')
+			$("#proCpfWiz").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPF").val(2)
+			$("#btnCpfCnpj").html("CNPJ")
+			$("#proCpfWiz").val('')
+			$("#proCpfWiz").attr('placeholder', 'CNPJ')
+			$("#proCpfWiz").attr('maxlength', '18')
+		}
+	}
+
+
+	$("#tipocampoCPF").val(1)
+	$scope.changeCpfCnpj(1)
+
+	$("#proCpfWiz").keypress(function () {
+		if ($("#tipocampoCPF").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$scope.changeCpfCnpjEdt = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFEdt").val(1)
+			$("#btnCpfCnpjEdt").html("CPF");
+			$("#proCpfEdt").val('');
+			$("#proCpfEdt").attr('maxlength', '14')
+			$("#proCpfEdt").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFEdt").val(2)
+			$("#btnCpfCnpjEdt").html("CNPJ")
+			$("#proCpfEdt").val('');
+			$("#proCpfEdt").attr('placeholder', 'CNPJ')
+			$("#proCpfEdt").attr('maxlength', '18')
+		}
+	}
+
+	$("#proCpfEdt").keypress(function () {
+		if ($("#tipocampoCPFEdt").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+	
+
+	$scope.reativaPessoa = function (pescodigo) {
+
+		$.ajax({
+			type: 'POST',
+			url: '/pages/cadastros/reativaPessoa.php',
+			data: {
+				tipo: 2,
+				codigo: pescodigo
+			},
+			dataType: 'json',
+			success: (result) => {
+				if (result.data[0].erro == '0') {
+					toastr.success(result.data[0].resultado);
+					atualizaDados();
+					
+				} else {
+					toastr.error(result.data[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: (result) => {
+				toastr.error($_CONFIG.language.errors.falha_conexao);
+				showLoader(false);
+			}
+		});
+	}
+
+
+	$scope.buscaPerfilUsuario = function(usuario){
+
+
+
+		$(".btnAlteraAcessoUsuario").remove();
+		$(".tipoAcessoProfissional").hide();
+
+		if(usuario != ''){
+			$("#profissionalComAcesso").show()
+			$.ajax({
+				type: 'POST',
+				url: '/pages/cadastros/buscaUsuarioPerfil.php',
+				data: {
+					usuarioProfissional: usuario,
+					tipo: 1
+				},
+				dataType: 'json',
+				success: (result) => {
+					if (result.data.length > 0) {
+						if(result.data.length == 1){
+							if(result.data[0].SMo_Codigo == 1){
+								$("#acessoUsuWeb").append(`<button class="btn btn-danger btn-xs pull-right btnAlteraAcessoUsuario" ng-click="addUsuWeb(${usuario})">Bloqueado <i class="fa fa-lock"></i></button>`)
+							}
+							if(result.data[0].SMo_Codigo == 2){
+								$("#acessoUsuApp").append(`<button class="btn btn-danger btn-xs pull-right btnAlteraAcessoUsuario" ng-click="addUsuApp(${usuario})">Bloqueado <i class="fa fa-lock"></i></button>`)
+							}
+						}
+						for (var i = 0; i < result.data.length; i++) {
+							if(result.data[i].SMo_Codigo == 1){
+								$("#acessoUsuApp").append(`<button class="btn btn-success btn-xs pull-right btnAlteraAcessoUsuario"  ng-click="removeAcessoSistema(${result.data[i].UPe_Codigo},${usuario})">Liberado <i class="fa fa-unlock-alt"></i></button>`)
+							}
+							if(result.data[i].SMo_Codigo == 2){
+								$("#acessoUsuWeb").append(`<button class="btn btn-success btn-xs pull-right btnAlteraAcessoUsuario"  ng-click="removeAcessoSistema(${result.data[i].UPe_Codigo},${usuario})">Liberado <i class="fa fa-unlock-alt"></i></button>`)
+							}
+						}
+						$compile($('#acessoUsuWeb'))($scope);
+						$compile($('#acessoUsuApp'))($scope);
+					} else {
+						if(result.data.erro != undefined){
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+						}else{
+							$("#acessoUsuWeb").append(`<button class="btn btn-danger btn-xs pull-right btnAlteraAcessoUsuario" ng-click="addUsuWeb(${usuario})">Bloqueado <i class="fa fa-lock"></i></button>`)
+							$("#acessoUsuApp").append(`<button class="btn btn-danger btn-xs pull-right btnAlteraAcessoUsuario" ng-click="addUsuApp(${usuario})">Bloqueado <i class="fa fa-lock"></i></button>`)
+							$compile($('#acessoUsuWeb'))($scope);
+						$compile($('#acessoUsuApp'))($scope);
+						}
+					}
+				},
+				error: (result) => {
+					toastr.error($_CONFIG.language.errors.falha_conexao);
+				}
+			});
+		}else{
+			$("#profissionalSemAcesso").show()
+		}
+
+	}
+
+
+	$scope.removeAcessoSistema = function(upecodigo,usucodigo){
+
+		
+
+			swal({
+				title: "Tem certeza que deseja bloquear essa forma de acesso do profissional?",
+				text: "Ao bloquear uma forma de acesso do profissional, ele não poderá mais logar na plataforma especificada. <br> Caso deseje remover o acesso total, basta desativar o usuário!",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não',
+				closeOnConfirm: true,
+				html:true
+			}, function (isConfirm) {
+				if (isConfirm) {
+					showLoader(true)
+					$.ajax({
+						type: 'POST',
+						url: '/pages/cadastros/removeUsuarioPerfil.php',
+						data: {
+							upecodigo: upecodigo
+						},
+						dataType: 'json',
+						success: (result) => {
+							if (result.data[0].erro == '0') {
+								$scope.buscaPerfilUsuario(usucodigo)
+								toastr.success(result.data[0].resultado);
+							} else {
+								toastr.error(result.data[0].resultado);
+							}
+							showLoader(false);
+						},
+						error: (result) => {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+							showLoader(false);
+						}
+					});
+				} 
+			});
+		
+
+	}
+
+
+	$scope.addUsuWeb = function(usucodigo){
+
+		if(isGestor){
+			swal({
+				title: "Tem certeza que deseja dar acesso ao módulo web para o profissional?",
+				text: `Ao dar acesso ao módulo web, o profissional terá acesso a mais opções que no aplicativo. <br><br>Se prosseguir com a ativação, você pode limitar algumas ações com o perfil de acesso.<br><br>
+				Para mais informações sobre o perfil de acesso <a class="btn btn-primary btn-xs" target="_blank" href="https://appbarber-appbeleza.zendesk.com/hc/pt-br/articles/360001572971-Como-montar-um-Perfil-de-Acesso-no-Webadmin">Clique Aqui!</a>`,
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não',
+				closeOnConfirm: true,
+				html: true
+			}, function (isConfirm) {
+				if (isConfirm) {
+					var percodigo = '';
+					$.ajax({
+						type: 'POST',
+						url: '/pages/cadastros/buscaUsuarioPerfil.php',
+						data: {
+							usuarioProfissional: usucodigo,
+							tipo:2
+						},
+						dataType: 'json',
+						success: (result) => {
+							if (result.data.length > 0) {
+								if (result.data[0].erro == '0') {
+									percodigo = result.data[0].Per_Codigo;
+
+									$.ajax({
+										type: 'POST',
+										url: '/pages/cadastros/insereUsuarioPerfil.php',
+										data: {
+											percodigo: percodigo,
+											usucodigo:usucodigo
+										},
+										dataType: 'json',
+										success: (result) => {
+											if (result.data[0].erro == '0') {
+												$scope.buscaPerfilUsuario(usucodigo)
+												toastr.success(result.data[0].resultado);
+											} else {
+												toastr.error(result.data[0].resultado);
+											}
+											showLoader(false);
+										},
+										error: (result) => {
+											toastr.error($_CONFIG.language.errors.falha_conexao);
+											showLoader(false);
+										}
+									});
+								} else {
+									toastr.error(result.data[0].resultado);
+								}
+							} else {
+								toastr.error($_CONFIG.language.errors.falha_conexao);
+							}
+						},
+						error: (result) => {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+						}
+					});
+				
+				} 
+			});
+		}else{
+			toastr.error('A liberação de acesso deve ser feita por um usuário gestor');
+		}
+	}
+
+
+	$scope.addUsuApp = function(usucodigo){
+		if(isGestor){
+			swal({
+				title: "Tem certeza que deseja dar acesso ao módulo aplicativo para o profissional?",
+				text: `O profissional terá acesso  a própria agenda e as proprias comissões pelo Aplicativo.<br> Demais funcionalidades podem ser limitadas/liberas pelos parâmetros do sistema!`,
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não',
+				closeOnConfirm: true,
+				html: true
+			}, function (isConfirm) {
+				if (isConfirm) {
+					var percodigo = '';
+					$.ajax({
+						type: 'POST',
+						url: '/pages/cadastros/buscaUsuarioPerfil.php',
+						data: {
+							usuarioProfissional: usucodigo,
+							tipo:3
+						},
+						dataType: 'json',
+						success: (result) => {
+							if (result.data.length > 0) {
+								if (result.data[0].erro == '0') {
+									percodigo = result.data[0].Per_Codigo;
+
+									$.ajax({
+										type: 'POST',
+										url: '/pages/cadastros/insereUsuarioPerfil.php',
+										data: {
+											percodigo: percodigo,
+											usucodigo:usucodigo
+										},
+										dataType: 'json',
+										success: (result) => {
+											if (result.data[0].erro == '0') {
+												$scope.buscaPerfilUsuario(usucodigo)
+												toastr.success(result.data[0].resultado);
+											} else {
+												toastr.error(result.data[0].resultado);
+											}
+											showLoader(false);
+										},
+										error: (result) => {
+											toastr.error($_CONFIG.language.errors.falha_conexao);
+											showLoader(false);
+										}
+									});
+								} else {
+									toastr.error(result.data[0].resultado);
+								}
+							} else {
+								toastr.error($_CONFIG.language.errors.falha_conexao);
+							}
+						},
+						error: (result) => {
+							toastr.error($_CONFIG.language.errors.falha_conexao);
+						}
+					});
+				
+				} 
+			});
+		}else{
+			toastr.error('A liberação de acesso deve ser feita por um usuário gestor');
+		}
+
+	}
+
+
+	var localeDateRangePicker = {
+        "format": "DD/MM/YYYY",
+        "separator": " - ",
+        "applyLabel": "Confirmar",
+        "cancelLabel": "Cancelar",
+        "fromLabel": "De",
+        "toLabel": "Até",
+        "customRangeLabel": "Personalizado",
+        "weekLabel": "S",
+        "daysOfWeek": [
+            "Dom",
+            "Seg",
+            "Ter",
+            "Qua",
+            "Qui",
+            "Sex",
+            "Sab"
+        ],
+        "monthNames": [
+            "Janeiro",
+            "Fevereiro",
+            "Março",
+            "Abril",
+            "Maio",
+            "Junho",
+            "Julho",
+            "Agosto",
+            "Setembro",
+            "Outubro",
+            "Novembro",
+            "Dezembro"
+        ],
+        "firstDay": 1
+    };
+
+	function cb(start, end) {
+        $('#reportrange span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+    }
+    $('#dataJonadaPerido').daterangepicker({
+        "locale": localeDateRangePicker
+    }, cb);
+
+	$('#dataJonadaPeridoEdt').daterangepicker({
+        "locale": localeDateRangePicker
+    }, cb);
+
+});

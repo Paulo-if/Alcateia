@@ -1,0 +1,221 @@
+//Validação de E-mail
+function validarEmail(email){
+  var exclude=/[^@\-\.\w]|^[_@\.\-]|[\._\-]{2}|[@\.]{2}|(@)[^@]*\1/;
+  var check=/@[\w\-]+\./;
+  var checkend=/\.[a-zA-Z]{2,3}$/;
+  if(((email.search(exclude) != -1)||(email.search(check)) == -1)||(email.search(checkend) == -1)){return false;}
+  else {return true;}
+};
+
+//Validação CNPJ
+function validarCNPJ(cnpj) {
+
+  cnpj = cnpj.replace(/[^\d]+/g,'');
+  if(cnpj == '') return false;
+
+  if (cnpj.length != 14)
+      return false;
+
+  // Elimina CNPJs invalidos conhecidos
+  if (cnpj == "00000000000000" ||
+      cnpj == "11111111111111" ||
+      cnpj == "22222222222222" ||
+      cnpj == "33333333333333" ||
+      cnpj == "44444444444444" ||
+      cnpj == "55555555555555" ||
+      cnpj == "66666666666666" ||
+      cnpj == "77777777777777" ||
+      cnpj == "88888888888888" ||
+      cnpj == "99999999999999")
+      return false;
+
+  // Valida DVs
+  tamanho = cnpj.length - 2
+  numeros = cnpj.substring(0,tamanho);
+  digitos = cnpj.substring(tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  for (i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2)
+          pos = 9;
+  }
+  resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+  if (resultado != digitos.charAt(0))
+      return false;
+
+  tamanho = tamanho + 1;
+  numeros = cnpj.substring(0,tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  for (i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2)
+          pos = 9;
+  }
+  resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+  if (resultado != digitos.charAt(1))
+        return false;
+  return true;
+};
+
+//Validação de CPF
+function validarCPF(cpf) {
+
+  cpf = cpf.replace(/[^\d]+/g,'');
+  if(cpf == '') return false;
+
+  // Elimina CPFs invalidos conhecidos
+  if (cpf.length != 11 ||
+      cpf == "00000000000" ||
+      cpf == "11111111111" ||
+      cpf == "22222222222" ||
+      cpf == "33333333333" ||
+      cpf == "44444444444" ||
+      cpf == "55555555555" ||
+      cpf == "66666666666" ||
+      cpf == "77777777777" ||
+      cpf == "88888888888" ||
+      cpf == "99999999999")
+          return false;
+  // Valida 1o digito
+  add = 0;
+  for (i=0; i < 9; i ++)
+      add += parseInt(cpf.charAt(i)) * (10 - i);
+      rev = 11 - (add % 11);
+      if (rev == 10 || rev == 11)
+          rev = 0;
+      if (rev != parseInt(cpf.charAt(9)))
+          return false;
+  // Valida 2o digito
+  add = 0;
+  for (i = 0; i < 10; i ++)
+      add += parseInt(cpf.charAt(i)) * (11 - i);
+  rev = 11 - (add % 11);
+  if (rev == 10 || rev == 11)
+      rev = 0;
+  if (rev != parseInt(cpf.charAt(10)))
+      return false;
+  return true;
+};
+
+function buscaCodigoPostal(cep, pais) {
+  mCep = cep;
+  cep = cep.replace("-","");
+  if (pais == "pt-BR"){
+    if (cep && cep.length >= 8) {
+      
+    }
+  } else if (pais == "pt"){
+    if (cep && cep.length >= 7) {
+      showLoader(true);
+      $.ajax({
+        dataType: "json",
+        method: "POST",
+        url: '/pages/cadastros/buscaPostalCode.php',
+        data: {
+          code : cep,
+          pais : pais
+        },
+        success: function( data ) {
+          console.log(data);
+          $("#empEstado").dropdown("set value",$("#"+data.estado.replace(" ","").toLowerCase()+"").val());
+          $("#empCidade").empty();
+          $("#empLat").val();
+          $("#empLong").val();
+          $.ajax ({
+            dataType: "json",
+            url: '/pages/cadastros/buscaCidadesWizard.php',
+            method: "POST",
+            data: {
+               estCodigo: $("#"+data.estado.replace(" ","").toLowerCase()+"").val(),
+               cidNome: data.cidade
+            },
+            success: function( result ) {
+              console.log(result);
+              $("#empCidade").append(result.cidades);
+              $("#empCidade").attr("disabled", false);
+
+              setTimeout(function() {
+                $("#empCidade").dropdown("set selected",result.cidcodigo);
+                buscaLatLong();
+              }, 10);
+
+              showLoader(false);
+              $("#empBairro").val(data.bairro);
+              $("#empLogradouro").val(data.endereco);
+
+            }
+          });
+        },
+        error: function(){
+          showLoader(false);
+          swal("Falha na consulta." , "Falha ao buscar o CEP", "error");
+        }
+      });
+    }
+
+  }
+}
+
+//DIV Loader
+function showLoader(show){
+  if (show) {
+    $("#loader").show();
+    loaderDiv = new ajaxLoader($('body'));
+  } else {
+    loaderDiv.remove();
+    //$("#loader").hide();
+  }
+};
+
+//Ajax Loader
+function ajaxLoader (el, options)
+{
+    var defaults = {
+        bgColor         : '#fff',
+        duration        : 800,
+        opacity         : 0.7,
+        classOveride    : false
+    }
+    this.options    = jQuery.extend(defaults, options);
+    this.container  = $(el);
+
+    this.init = function() {
+        var container = this.container;
+        // Delete any other loaders
+        this.remove();
+        // Create the overlay
+        var overlay = $('<div></div>').css({
+                'background-color': this.options.bgColor,
+                'opacity':this.options.opacity,
+                'width':container.width(),
+                'height':container.height(),
+                'position':'absolute',
+                'top':'0px',
+                'left':'0px',
+                'z-index':99999
+        }).addClass('ajax_overlay');
+        // add an overiding class name to set new loader style
+        if (this.options.classOveride) {
+            overlay.addClass(this.options.classOveride);
+        }
+        // insert overlay and loader into DOM
+        container.append(
+            overlay.append(
+                $('<div></div>').addClass('ajax_loader')
+            ).fadeIn(this.options.duration)
+        );
+    };
+
+    this.remove = function(){
+        var overlay = this.container.children(".ajax_overlay");
+        if (overlay.length) {
+            overlay.fadeOut(this.options.classOveride, function() {
+                overlay.remove();
+            });
+        }
+    }
+
+    this.init();
+};

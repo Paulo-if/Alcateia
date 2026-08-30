@@ -1,0 +1,510 @@
+.modal{
+    overflow:auto;
+}
+
+.modal-starapp-95 {
+  width: 95%;
+}
+.modal-starapp-90 {
+  width: 90%;
+}
+.modal-starapp-85 {
+  width: 85%;
+}
+.modal-starapp-80 {
+  width: 80%;
+}
+.modal-starapp-75 {
+  width:75%;
+}
+.modal-starapp-70 {
+  width:70%;
+}
+.modal-starapp-65 {
+  width:65%;
+}
+.modal-starapp-60 {
+  width:60%;
+}
+.modal-starapp-55 {
+  width: 55%;
+}
+.modal-starapp-50 {
+  width:50%;
+}
+.modal-starapp-45 {
+  width:45%;
+}
+.modal-starapp-40 {
+  width:40%;
+}
+.modal-starapp-35 {
+  width:35%;
+}
+.modal-starapp-30 {
+  width:30%;
+}
+.modal-starapp-25 {
+  width:25%;
+}
+.modal-starapp-20 {
+  width:20%;
+}
+
+
+@media (max-width: 767px){
+  .modal-starapp-95 {
+    width: 95%;
+  }
+  .modal-starapp-90 {
+    width: 95%;
+  }
+  .modal-starapp-85 {
+    width: 95%;
+  }
+  .modal-starapp-80 {
+    width: 95%;
+  }
+  .modal-starapp-75 {
+    width:95%;
+  }
+  .modal-starapp-70 {
+    width:95%;
+  }
+  .modal-starapp-65 {
+    width:95%;
+  }
+  .modal-starapp-60 {
+    width:95%;
+  }
+  .modal-starapp-55 {
+    width: 95%;
+  }
+  .modal-starapp-50 {
+    width:95%;
+  }
+  .modal-starapp-45 {
+    width:95%;
+  }
+  .modal-starapp-40 {
+    width:95%;
+  }
+  .modal-starapp-35 {
+    width:95%;
+  }
+  .modal-starapp-30 {
+    width:95%;
+  }
+  .modal-starapp-25 {
+    width:95%;
+  }
+  .modal-starapp-20 {
+    width:95%;
+  }
+
+}
+
+.titleAgenda {
+  font-size: 16px !important;
+}
+.fixed-agenda{
+  position: fixed;
+  z-index: 999;
+}
+.timelineAgenda {
+    position: absolute;
+    border-top: 1.8px solid #EF5350;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    z-index: 999;
+}
+.typeahead,
+.tt-query,
+.tt-hint {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 30px;
+  border: 2px solid #ccc;
+  outline: none;
+}
+
+.typeahead {
+  background-color: #fff;
+}
+
+.typeahead:focus {
+  border: 2px solid #0097cf;
+}
+
+.tt-query {
+  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+     -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+          box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+}
+
+.tt-hint {
+  color: #999
+}
+
+.tt-menu {
+  width: 422px;
+  margin: 12px 0;
+  padding: 8px 0;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  -webkit-border-radius: 8px;
+     -moz-border-radius: 8px;
+          border-radius: 8px;
+  -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+     -moz-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+          box-shadow: 0 5px 10px rgba(0,0,0,.2);
+}
+
+.tt-suggestion {
+  padding: 3px 20px;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.tt-suggestion:hover {
+  cursor: pointer;
+  color: #fff;
+  background-color: #0097cf;
+}
+
+.tt-suggestion.tt-cursor {
+  color: #fff;
+  background-color: #0097cf;
+
+}
+
+.tt-suggestion p {
+  margin: 0;
+}
+
+/*### Footer Name Prof ###*/
+#rowNameProf{
+  padding : -10px;
+
+}
+
+#divNameProf {
+  background-color:#D2D6DE;
+  /*-webkit-box-shadow: 0 1px 2px 0px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px 0px rgba(0, 0, 0, 0.1);*/
+}
+
+
+/*#### Flip Seach Cliente ###*/
+/* entire container, keeps perspective */
+.flip-container {
+  perspective: 1000px;
+}
+
+.flip-container, .front, .back {
+  width: 100%;
+  height: 100%;
+}
+
+.rotate {
+  transform: rotateY(180deg);
+}
+
+/* flip speed goes here */
+.flipper {
+  transition: 0.6s;
+  transform-style: preserve-3d;
+
+  position: relative;
+}
+
+/* hide back of pane during swap */
+.front, .back {
+  backface-visibility: hidden;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* front pane, placed above back */
+.front {
+  z-index: 2;
+  /* for firefox 31 */
+  transform: rotateY(0deg);
+}
+
+/* back, initially hidden pane */
+.back {
+  transform: rotateY(180deg);
+}
+
+.pointer {
+  cursor: pointer !important;
+}
+
+.hierarchy {
+  background: #333;
+  color: #fff;
+}
+
+.bring-up {
+  position: relative;
+  z-index: 30;
+}
+
+
+/* Material-Switch */
+.lbl {
+  position: relative;
+  display: block;
+  height: 20px;
+  width: 44px;
+  background: #898989;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.lbl:after {
+  position: absolute;
+  left: -2px;
+  top: -3px;
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 100px;
+  background: #fff;
+  box-shadow: 0px 3px 3px rgba(0,0,0,0.05);
+  content: '';
+  transition: all 0.3s ease;
+}
+
+.lbl:active:after { transform: scale(1.15, 0.85); }
+
+.cbx:checked ~ label { background: #6fbeb5; }
+
+.cbx:checked ~ label:after {
+  left: 20px;
+  background: #179588;
+}
+
+.cbx:disabled ~ label {
+  background: #d5d5d5;
+  pointer-events: none;
+}
+
+.cbx:disabled ~ label:after { background: #bcbdbc; }
+
+.hidden { display: none; }
+
+
+
+/*fireworks*/
+span.svg {
+  display: block;
+  margin: auto;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+span.svg svg {
+  width: 200px;
+  height: 200px;
+  max-width: 200px;
+  margin: auto;
+}
+
+@keyframes fireworkone {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: .15;
+  }
+  50% {
+    opacity: .3;
+  }
+  75% {
+    opacity: .15;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fireworktwo {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: .45;
+  }
+  50% {
+    opacity: .8;
+  }
+  75% {
+    opacity: .45;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fireworthree {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: .55;
+  }
+  50% {
+    opacity: 1;
+  }
+  75% {
+    opacity: .55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.firework-icon .cls-1,
+.firework-icon .cls-2,
+.firework-icon .cls-3 {
+  opacity: 0;
+  animation-duration: 1s;
+  animation-iteration-count: infinite;
+}
+
+.firework-icon .cls-3 {
+  animation-name: fireworthree;
+  animation-delay: .11s;
+}
+
+.firework-icon .cls-2 {
+  animation-name: fireworktwo;
+  animation-delay: .41s;
+}
+
+.firework-icon .cls-1 {
+  animation-name: fireworkone;
+  animation-delay: .71s;
+}
+
+@keyframes elastic-pulse {
+  0% {
+    transform: scale(0.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.img-firework {
+  animation-duration: 1s;
+  animation-iteration-count: infinite;
+  animation-name: elastic-pulse;
+  animation-delay: 0s;
+}
+
+.fc-event-inner {
+  font-weight: 500 !important;
+}
+
+.sidebar-menu {
+  font-weight: 400 !important;
+}
+
+.nicelabel-default-position {
+  font-size: 13px !important;
+}
+
+.nav-tabs label {
+  font-weight: 400 !important;
+  font-size: 13px !important;
+}
+
+.toast-message {
+  font-weight: 400 !important;
+}
+
+
+/* CUSTOM CHECKBOX */
+
+/* Customize the label (the container) */
+.container {
+  display: block;
+  position: relative;
+  padding-left: 35px;
+  margin-top: 12px;
+  cursor: pointer;
+  font-size: 15px;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Hide the browser's default checkbox */
+.container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+/* Create a custom checkbox */
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background-color: #eee;
+  border: #5a5a5a;
+  border-style: solid;
+  border-radius: 2px;
+  border-width: 0.5px;
+}
+
+/* On mouse-over, add a grey background color */
+.container:hover input ~ .checkmark {
+  background-color: #ccc;
+}
+
+/* When the checkbox is checked, add a blue background */
+.container input:checked ~ .checkmark {
+  background-color: rgb(22, 88, 141);
+}
+
+/* Create the checkmark/indicator (hidden when not checked) */
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+/* Show the checkmark when checked */
+.container input:checked ~ .checkmark:after {
+  display: block;
+}
+
+/* Style the checkmark/indicator */
+.container .checkmark:after {
+  left: 7.5px;
+  top: 4px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 3px 3px 0;
+  -webkit-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  transform: rotate(45deg);
+}

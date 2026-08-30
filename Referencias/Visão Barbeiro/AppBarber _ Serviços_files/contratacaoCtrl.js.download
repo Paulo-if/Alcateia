@@ -1,0 +1,576 @@
+angular.module('appBeleza').controller("contratacaoCtrl", function ($rootScope, $scope) {
+
+	$rootScope.header = sSistema + " | Contratação";
+
+	changeHeightBody();
+
+	$("#navProf").hide();
+	$("#formProf").hide();
+
+	$scope.plans_1 = [];
+	$scope.plans_2 = [];
+	$scope.plans_3 = [];
+	$scope.plans_4 = [];
+
+	$scope.totalProfissionais = 0;
+	$scope.profSelected = "";
+	$scope.periodicidadeSelected = "";
+	$scope.paymentMethodSelected = "";
+	$scope.token_promocional = "";
+	$scope.installmentSelected = 1;
+	$scope.msgErrorTermoDeUso = "Você precisa aceitar o Termo de Condição de Uso do sistema.";
+	
+
+	$scope.planSelected = [];
+	$scope.plan = [];
+
+	$scope.optionPaymentMethod = [];
+	$scope.optionsPeridicidade = [];
+	$scope.optionsInstallments = [];
+
+	$scope.hasProfSelected = false;
+	$scope.hasPeriodSelected = false;
+	$scope.hasPaymentMethodSelected = false;
+
+	$scope.needShowInstallment = false;
+
+	$scope.showDetailsBoleto = false;	
+	$scope.showDetailsCreditCard = false;
+	$scope.showDetailsPix = false;
+
+	$scope.showPromoCode = false;
+
+	$scope.hasValidPromoCode = false;
+
+	//Tipos de Contratação (Payment Method)
+	$scope.BOLETO = 1;
+	$scope.CREDIT_CARD = 2;
+	$scope.PIX = 3;
+
+
+	var optionPeridicidade = [{
+		"id" : "1",
+		"name": "Mensal" 
+	},{
+		"id" : "2",
+		"name": "Semestral" 
+	},{
+		"id" : "3",
+		"name": "Anual" 
+	}];
+
+	var optionsPaymentMethodsWithPix = [{
+		"id" : "1",
+		"name": "Boleto" 
+	},{
+		"id" : "2",
+		"name": "Cartão de Crédito" 
+	},{
+		"id" : "3",
+		"name": "PIX" 
+	}];
+
+	var optionsPaymentMethodsWithoutPix = [{
+		"id" : "1",
+		"name": "Boleto" 
+	},{
+		"id" : "2",
+		"name": "Cartão de Crédito" 
+	}];
+
+	var optionsPaymentMethodsWithoutBoleto = [{
+		"id" : "2",
+		"name": "Cartão de Crédito" 
+	}];
+
+	$scope.buscaPlanos = function(token) {
+	
+		tipo = 4;
+
+		$.ajax({
+			method: "POST",
+			dataType: "json",
+			url: '/pages/cadastros/buscaplanov2-new.php',
+			data: {
+				tipo: tipo,
+				siscodigo: 1,
+				token: token,
+				placodigo: '',
+				tipobusca: 1
+			},
+			success: function (data) {
+				if (data.error){
+					toastr.error(data.message);
+				} else {
+
+					planos = data.plans;
+					if (data.plans.length > 0) {
+		
+						$scope.plans_1 = _.where(planos, {
+							plan_professional: '1 Profissional'
+						});
+		
+						$scope.plans_2 = _.where(planos, {
+							plan_professional: '2 a 5 Profissionais'
+						});
+		
+						$scope.plans_3 = _.where(planos, {
+							plan_professional: '6 a 15 Profissionais'
+						});
+		
+						$scope.plans_4 = _.where(planos, {
+							plan_professional: 'Mais de 15 Profissionais'
+						});
+
+						console.log($scope.plans_1, $scope.plans_2, $scope.plans_3, $scope.plans_4);
+
+						if (token != ""){
+							if ($scope.profSelected == "1"){
+								$scope.planSelected = $scope.plans_1;
+							} else if ($scope.profSelected == "2") {
+								$scope.planSelected = $scope.plans_2;
+							} else if ($scope.profSelected == "3") {
+								$scope.planSelected = $scope.plans_3;
+							} else if ($scope.profSelected == "4") {
+								$scope.planSelected = $scope.plans_4;
+							}
+
+							var plan = $scope.planSelected.filter((data) => {return data.plan_description == $scope.periodicidadeSelected.name});
+							
+							if (plan != undefined && plan.length > 0){
+								toastr.success('Código promocional validado com sucesso.');
+								$scope.plan = plan[0];
+								$scope.hasValidPromoCode = true;
+
+								$scope.needShowInstallment = false;
+								$scope.showDetailsBoleto = false;
+								$scope.showDetailsCreditCard = false;
+								$scope.showDetailsPix = false;		
+								$scope.paymentMethodSelected = "";		
+								$scope.hasPaymentMethodSelected = false;
+
+								$scope.$apply();
+							} else {
+								toastr.error('Código promocional inválido para esse tipo de plano.');
+								$scope.hasValidPromoCode = false;
+							}
+							
+						}
+						
+					} else if (data.result.length == 0 && token.length > 0) {
+						toastr.error('Código promocional inválido ou expirado.');
+						$scope.token_promocional = "";
+						$scope.hasValidPromoCode = false;
+					} else if (data.result.length == 0) {
+						toastr.error('Nenhum plano encontrado.');
+					}
+				}
+			}
+		});
+	}
+
+	$scope.createPeriodicidadeOption = function () {
+
+		if ($scope.profSelected == undefined || $scope.profSelected == ""){
+			$scope.needShowInstallment = false;
+			$scope.showDetailsBoleto = false;
+			$scope.showDetailsCreditCard = false;
+			$scope.showDetailsPix = false;
+
+			$scope.hasProfSelected = false;
+			$scope.hasPeriodSelected = false;
+			$scope.hasPaymentMethodSelected = false;
+			
+			$scope.periodicidadeSelected = "";
+			$scope.paymentMethodSelected = "";
+
+		} else {
+			
+			if ($scope.profSelected == "1"){
+				$scope.planSelected = $scope.plans_1;
+			} else if ($scope.profSelected == "2") {
+				$scope.planSelected = $scope.plans_2;
+			} else if ($scope.profSelected == "3") {
+				$scope.planSelected = $scope.plans_3;
+			} else if ($scope.profSelected == "4") {
+				$scope.planSelected = $scope.plans_4;
+			}
+
+			$scope.hasProfSelected = true;
+			$scope.hasPeriodSelected = false;
+			$scope.hasPaymentMethodSelected = false;
+			
+			$scope.needShowInstallment = false;
+			$scope.showDetailsBoleto = false;
+			$scope.showDetailsCreditCard = false;
+			$scope.showDetailsPix = false;
+
+			$scope.periodicidadeSelected = "";
+			$scope.paymentMethodSelected = "";
+
+			$scope.optionsPeridicidade = optionPeridicidade;
+		}
+	}
+
+	$scope.createPaymentMethodOption = function () {
+
+		$scope.needShowInstallment = false;
+		$scope.showDetailsBoleto = false;
+		$scope.showDetailsCreditCard = false;
+		$scope.showDetailsPix = false;		
+		$scope.paymentMethodSelected = "";		
+		$scope.hasPaymentMethodSelected = false;
+
+		if ($scope.periodicidadeSelected == undefined || $scope.periodicidadeSelected == ""){
+			$scope.hasPeriodSelected = false;
+			$scope.periodicidadeSelected = "";
+
+		} else {
+			
+			var plan = $scope.planSelected.filter((data) => {return data.plan_description == $scope.periodicidadeSelected.name});
+			$scope.plan = plan[0];
+			$scope.hasPeriodSelected = true;
+			
+			if($scope.totalProfissionais < 3 && $scope.periodicidadeSelected.id == "1") {
+				$scope.optionPaymentMethod = optionsPaymentMethodsWithoutBoleto;
+			} else if ($scope.periodicidadeSelected.id == "1"){
+				$scope.optionPaymentMethod = optionsPaymentMethodsWithoutPix;
+			} else {
+				$scope.optionPaymentMethod = optionsPaymentMethodsWithPix;
+			}
+		}		
+	}
+
+
+	$scope.createInstallmentsOption = function () {
+
+		$scope.showDetailsBoleto = false;
+		$scope.showDetailsCreditCard = false;
+		$scope.showDetailsPix = false;		
+
+		if ($scope.paymentMethodSelected && $scope.paymentMethodSelected.id == "2"){
+
+			if ($scope.periodicidadeSelected && $scope.periodicidadeSelected.id == "2"){
+				$scope.optionsInstallments = $scope.returnInstallments(6);
+				$scope.needShowInstallment = false;
+				$scope.showDetailsCreditCard = true;
+				
+			} else if ($scope.periodicidadeSelected && $scope.periodicidadeSelected.id == "3"){
+				
+				$scope.optionsInstallments = $scope.returnInstallments(12);
+				$scope.needShowInstallment = false;
+				$scope.showDetailsCreditCard = true;
+			} else if ($scope.periodicidadeSelected && $scope.periodicidadeSelected.id == "1"){
+				$scope.needShowInstallment = false;
+				$scope.showDetailsCreditCard = true;
+			} else {
+				$scope.needShowInstallment = false;
+			}
+
+		} else if ($scope.paymentMethodSelected && $scope.paymentMethodSelected.id == "3") {
+			$scope.needShowInstallment = false;
+			
+			$scope.showDetailsBoleto = false;
+			$scope.showDetailsCreditCard = false;
+			$scope.showDetailsPix = true;
+
+		}  else if ($scope.paymentMethodSelected && $scope.paymentMethodSelected.id == "1") {
+			
+			$scope.needShowInstallment = false;
+			$scope.showDetailsBoleto = true;
+			$scope.showDetailsCreditCard = false;
+			$scope.showDetailsPix = false;
+		}
+	}
+	
+	$scope.returnInstallments = function(installment){
+		optionsInstallments = [];
+		if (typeof(installment) == 'number') {
+			for (var i = 1; i <= installment; i++) {
+				var valor = 0;
+				if (i == 1){
+					valor = parseFloat($scope.plan.plan_value.replace(",", "."));
+				} else {
+					valor = parseFloat($scope.plan.plan_installment_value.replace(",", "."));
+				}
+
+				var parcela = valor / i;
+				optionsInstallments.push({id: i, name: `${i}x de ${parcela.formatMoney()}`});
+			}
+		}
+
+		return optionsInstallments
+	}
+
+	$scope.showDetails = function(){
+		$scope.showDetailsBoleto = false;
+		$scope.showDetailsCreditCard = true;
+		$scope.showDetailsPix = false;
+	}
+
+	$scope.validaPromoCode = function() {
+
+		if ($scope.token_promocional == ""){
+			toastr.error("Informe um Código Promocional.");
+		} else {
+			$scope.buscaPlanos($scope.token_promocional);
+		}
+
+	}
+
+	$scope.confirmContratacao = function(tipoContratacao) {
+
+		var $hasError = false;
+		var $error = "";
+
+		if ($scope.profSelected != undefined && $scope.profSelected != "") {
+
+			if ($scope.periodicidadeSelected != undefined && $scope.periodicidadeSelected.id != "") {
+
+				if ($scope.paymentMethodSelected != undefined && $scope.paymentMethodSelected.id != "") {
+
+					if (tipoContratacao == $scope.BOLETO){
+
+						if (!$scope.conduso_boleto_contratacao){
+							$hasError = true;
+							$error = $scope.msgErrorTermoDeUso;
+						} else {
+							$scope.card_hash_contratacao = "";
+						}
+							
+
+					} else if (tipoContratacao == $scope.CREDIT_CARD) {
+
+						if (!$scope.conduso_cartao_contratacao){
+							$hasError = true;
+							$error = $scope.msgErrorTermoDeUso;
+						} else {
+
+							if ($scope.paymentMethodSelected != undefined && $scope.paymentMethodSelected.id == "2") {
+								
+								if ($scope.periodicidadeSelected.id == "1"){
+									$scope.installmentSelected = "";
+									$hasError = false;
+								} else {
+									if ($scope.installmentSelected != ""){
+										$hasError = false;
+									} else {
+										$hasError = true;
+										$error = "Selecione o número de parcelas.";
+									}
+								}
+								
+							} else {
+								$hasError = false;
+							}
+						}
+				
+					} else if (tipoContratacao == $scope.PIX){
+						
+						if (!$scope.conduso_pix_contratacao){
+							$hasError = true;
+							$error = $scope.msgErrorTermoDeUso;
+						} else {
+							$scope.card_hash_contratacao = "";
+						}
+					} else {
+						$hasError = true;
+						$error = "Selecione o método de pagamento.";
+					}
+				
+				} else {
+					$hasError = true;
+					$error = "Selecione o método de pagamento.";
+				}
+			
+			} else {
+				$hasError = true;
+				$error = "Selecione o tipo do plano.";
+			}
+
+		} else {
+			$hasError = true;
+			$error = "Selecione o Número de Profissionais.";
+		}
+
+		if ($hasError) {
+			toastr.error($error);
+		} else {
+			$scope.criaContratacao();
+		}
+	}
+
+	$scope.criaContratacao = function() {
+
+		var html = `<table class="table table-condensed table-hover">
+							<tr height="2">
+								<th style="width:30%"><h6>Plano:</h6></th><td><h6> ${$scope.plan.plan_description} - ${$scope.plan.plan_professional}</h6></td>
+							</tr>
+							<tr height="2">
+								<th><h6>Pagamento:</h6></th><td><h6> ${$scope.paymentMethodSelected.name}</h6></td>
+							</tr>`;
+
+						if ($scope.periodicidadeSelected.id == "1"){
+							html += `<tr height="2">
+									<th><h6>Valor:</h6></th><td><h6>${$scope.plan.plan_value}</h6></td>
+								</tr>`;
+						} else {
+
+							// if ($scope.paymentMethodSelected.id == "2"){
+							// 	html += `<tr height="2">
+							// 				<th><h6>Valor a vista:</h6></th><td><h6>${$scope.plan.plan_value}</h6></td>
+							// 			</tr>
+							// 			<tr height="2">
+							// 				<th><h6>Valor parcelado:</h6></th><td><h6>${$scope.plan.plan_installment_value}</h6></td>
+							// 			</tr>`;
+							// } else {
+							// 	html += `<tr height="2">
+							// 				<th><h6>Valor:</h6></th><td><h6>${$scope.plan.plan_value}</h6></td>
+							// 			</tr>`;
+								
+							// }
+						}
+
+						if ($scope.hasValidPromoCode && $scope.token_promocional != ""){
+							html += `<tr height="2"><th><h6>Código Promocional:</h6></th><td><h6>${$scope.token_promocional}</h6></td></tr>`;
+						}
+		
+		var qtdInstallments = 1;		
+		
+		var qtdInstallments = 1;		
+		if ($scope.periodicidadeSelected.id == "2" && $scope.paymentMethodSelected.id == "2"){
+			qtdInstallments = 6;
+		} else if ($scope.periodicidadeSelected.id == "3" && $scope.paymentMethodSelected.id == "2"){
+			qtdInstallments = 12;
+		} else {
+			qtdInstallments = 1;
+		}		
+		
+		
+		html += '</table>';
+		swal({
+			title:"",
+			text: html,
+			html: true,
+			showCancelButton: true,
+			confirmButtonColor: "#00796B",
+			confirmButtonText: "Ir Para Checkout",
+			cancelButtonText: "Cancelar",
+			closeOnConfirm: true,
+			closeOnCancel: true
+		},
+		function(isConfirmed) {
+
+			if (isConfirmed) {
+
+				showLoader(true);
+			
+				$.ajax({
+					method: "POST",
+					dataType: "json",
+					url: '/php/plans/criaCheckoutContratacao.php',
+					data: {
+						placodigo: $scope.plan.plan_code,
+						payment_method: $scope.paymentMethodSelected.id,
+						periodicidade: $scope.periodicidadeSelected.id,
+						num_profissionais: $scope.profSelected,
+						installments: qtdInstallments,
+						token: $scope.token_promocional,
+						plan_id: $scope.plan.plan_external_code						
+					},
+					success: function (data) {
+						if (data.error){
+							setTimeout(() => {
+								swal("", data.checkout[0].result, "error");
+							}, 100);		
+
+						} else {
+							
+							if (data.checkout.length > 0){
+								$("#appblz-div-contratar").hide();
+								var hash = data.checkout[0].hash_code;
+								var nomeSistema = $Options.sistema.toLowerCase();
+								var link = `https://checkout.${nomeSistema}.com.br/?hash=${hash}`;
+								swal({
+									title: "<strong>Link de Pagamento</strong>",
+									text: `
+										Acesse o <b>link de pagamento</b> para concluir a contratação do plano.<br><br>
+										<a id="btnOpenCheckout" target="_blank" href="${link}" autofocus>${link}</a><br><br>
+										<small class="text-red">Caso não consiga acessar o link, verifique se o seu navegador não está bloqueando pop-ups.</small>`,
+									type: "info",
+									showCancelButton: true,
+									cancelButtonColor: "#d33",
+									confirmButtonColor: "#00796B",
+									confirmButtonText: 'Abrir Checkout',
+									cancelButtonText: 'Fechar',
+									closeOnConfirm: false,
+									closeOnCancel: true,
+									html: true,
+									animation: "slide-from-top"
+								},
+								function (isConfirm) {
+									if (isConfirm) {
+										const linkElement = document.createElement("a");
+										linkElement.href = link;
+										linkElement.target = "_blank";
+										linkElement.rel = "noopener noreferrer";
+										
+										// adiciona temporariamente no DOM (necessário no Safari/iOS)
+										document.body.appendChild(linkElement);
+										
+										// dispara o clique
+										linkElement.click();
+										
+										// remove o elemento
+										document.body.removeChild(linkElement);
+
+									}
+								});
+
+								setTimeout(() => {
+									const linkElement = document.createElement("a");
+									linkElement.href = link;
+									linkElement.target = "_blank";
+									linkElement.rel = "noopener noreferrer";
+									document.body.appendChild(linkElement);
+									linkElement.click();
+									document.body.removeChild(linkElement);
+								}, 200);
+								
+							}
+						}
+						
+						showLoader(false);
+					},
+					error: function() {
+						showLoader(false);
+					}
+				});
+				
+			}
+		});
+	}
+
+	$scope.buscaProfissionais = function() {
+		$.ajax({
+			dataType: "json",
+			method: "GET",
+			url : getStorage("host"),
+			data: {
+				metodo: "buscaProfissionais",
+				tipo: 6,
+				id: $_CONFIG.ID 
+			},
+			success: (data) => {
+
+				$scope.totalProfissionais = data.profissionais[0].total;
+				
+				$scope.$apply();
+			}
+		});
+	}
+	
+	$scope.buscaPlanos('');
+	$scope.buscaProfissionais();
+	
+});

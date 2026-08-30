@@ -1,0 +1,5724 @@
+angular.module('appBeleza').controller("contaCtrl", function ($rootScope, $scope, $http, $compile, $state, $translate) {
+	$rootScope.header = sSistema + " | Conta";
+	$("#navProf").hide();
+	$("#formProf").hide();
+	changeHeightBody();
+	$(".select2").select2();
+	$App.timePicker('.timepicker', '0:00am', 5);
+	$(".timepicker").mask('99:99');
+	$scope.geraComboPaisTelefone('filCellphone', 'filDialCode');
+
+	var host = localStorage.getItem("host");
+
+	if ($_CONFIG.PAIS != "1") {
+		$("#empCEP").attr("maxlength", "12").attr("onKeyPress", "mascara(this,soNumeros)");
+	}
+
+	$scope.dadosPerfil;
+	$scope.valorMaxTransf;
+	$scope.valorDisponivel;
+	$scope.taxaTransferencia = 3.67;
+	$scope.sSistema = sSistema;
+	$scope.siteSistema = "https://sites." + sSistema.toLowerCase() + ".com.br";
+
+	$scope.withContaStar = false;
+	$scope.bankAccounts;
+	$scope.totalBankAccounts = -1;
+	$scope.codigoEmpresaNF = '';
+
+	var dataAntecipa = funProxDiaUtil(moment().add(1, 'days').format("YYYY-MM-DD"), "YYYY-MM-DD");
+	var qrcode;
+	var tabelaApiExterna;
+	var apiExternaAtivas = 0;
+	var apiExternaBalance = null;
+	var apiExternaStatus = "";
+	var apiExternaUpdatedAt = "";
+	var apiExternaIp = "";
+	var apiExternaLastIpChange = "";
+	var relatorioApiExternaNextCursor = null;
+	var relatorioApiExternaCursorAtual = null;
+	var relatorioApiExternaHistorico = [];
+	var relatorioApiExternaPagina = 1;
+	$scope.antecipacao = {
+		bulk_anticipation_id: "",
+		amount: "",
+		automatic_transfer: false,
+		payment_date: moment(dataAntecipa).add(1, 'days').valueOf()
+	}
+
+	$.ajax({
+		dataType: "json",
+		url: '/pages/cadastros/buscaPais.php',
+		method: "POST",
+		success: function (data) {
+			var html = "";
+			for (var i = 0; i < data.result.length; i++) {
+				html += '<option value="' + data.result[i].Pai_Codigo + '" >' + data.result[i].Pai_Nome + '</option>';
+			}
+			$("#empPais").html(html);
+
+		}
+	});
+
+	$("#empPais").change(function () {
+		var paicodigo = this.value;
+		
+		// Mostrar/ocultar campo NIF baseado no país
+		if (paicodigo != "1") {
+			$("#rowNIF").show();
+		} else {
+			$("#rowNIF").hide();
+		}
+		
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaEstadoPais.php',
+			method: "POST",
+			data: {
+				paicodigo: paicodigo
+			},
+			success: function (data) {
+				var html = "";
+				html += '<option value="">Estado</option>';
+				for (var i = 0; i < data.result.length; i++) {
+					html += '<option id="'+ data.result[i].Est_Sigla +'" value="' + data.result[i].Est_Codigo + '" >' + data.result[i].Est_Nome + '</option>';
+				}
+
+				$("#empEstado").html(html);
+				$("#empEstado").change();
+			}
+		});
+	})
+
+	$("#tbListaAntecipacoes").bootstrapTable({
+		locale: 'pt-BR',
+		data: {}
+	});
+
+	$(".input-group.date").datepicker({
+		language: "pt-BR",
+		orientation: "top auto",
+		autoclose: true,
+		format: "dd/mm/yyyy"
+	});
+
+	$translate('mascaras.celular')
+		.then(function (value) {
+			if (value != '') {
+				$('#empCelular').mask(value);
+			}
+		});
+
+	if ($_CONFIG.PAIS == "1") {
+		var maskBehavior = function (val) {
+				return val.replace(/\D/g, '').length === 11 ? '(00) 00000-0000' : '(00) 0000-00009';
+			},
+			options = {
+				onKeyPress: function (val, e, field, options) {
+					field.mask(maskBehavior.apply({}, arguments), options);
+				}
+			};
+		$('#empTelefone').mask(maskBehavior, options);
+	} else {
+		$translate('mascaras.telefone')
+			.then(function (value) {
+				if (value != '') {
+					$('#empTelefone').mask(value);
+				}
+			});
+	}
+
+	var datafim = moment().locale("pt-br").format("L");
+	var dataini = moment().add(-7, "days").locale("pt-br").format("L");
+	$('.date.divDataIni').datepicker('update', dataini);
+	$('.date.divDataFim').datepicker('update', datafim);
+
+	$('#formAlteraSenha').submit((event) => {
+		event.preventDefault();
+		formCadastro = $(event.currentTarget);
+		showLoader(true);
+		var dados = new FormData(event.currentTarget);
+		dados.append("tipo", "1");
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraSenha.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+					toastr.success(result.result[0].resultado);
+					formCadastro.each(function () {
+						this.reset();
+					});
+				} else {
+					toastr.error(result.result[0].resultado);
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				toastr.error("Falha na conexão.");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	function buscaPerfil() {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaPerfil.php',
+			success: (data) => {
+				$scope.dadosPerfil = data.perfil[0];
+				$("#perNomeInfo").html($scope.dadosPerfil.nome);
+				$("#perEmailInfo").html($scope.dadosPerfil.email);
+				$("#perCpfInfo").html($scope.dadosPerfil.cpf);
+				$("#perCelularInfo").html($scope.dadosPerfil.celular);
+				$("#perTelefoneInfo").html($scope.dadosPerfil.telefone);
+				$("#perSexoInfo").html($scope.dadosPerfil.sexo);
+				$("#perDataNascimentoInfo").html($scope.dadosPerfil.data_nascimento);
+				$("#perEnderecoInfo").html($scope.dadosPerfil.endereco);
+				$("#perBairroInfo").html($scope.dadosPerfil.bairro);
+				$("#perCidadeInfo").html($scope.dadosPerfil.cidade);
+				$("#perEstadoInfo").html($scope.dadosPerfil.estado);
+				$("#perCepInfo").html($scope.dadosPerfil.cep);
+				$("#pesCodigoAlt").val($scope.dadosPerfil.pescodigo);
+				$("#usuCodigo").val($scope.dadosPerfil.usucodigo);
+
+				if ($scope.dadosPerfil.imagem != "") {
+					$("#perFotoInfo").prop('src', $scope.dadosPerfil.imagem);
+					$("#imgUsuFoto").prop('src', $scope.dadosPerfil.imagem);
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+	}
+
+	$("#perEstado").change(function () {
+		var estado = this.value;
+		$("#perCidade").empty();
+		if (estado === -1) {
+			$("#perCidade").attr("disabled", true);
+		} else {
+			$.ajax({
+				dataType: "html",
+				url: '/pages/cadastros/buscaCidades.php',
+				method: "POST",
+				data: {
+					estCodigo: estado
+				},
+				success: (data) => {
+					$("#perCidade").append(data);
+					$("#perCidade").attr("disabled", false);
+				}
+			});
+		}
+	});
+
+	$('#perCelular').mask('(00) 0000-00009');
+	$('#perCelular').blur(function (event) {
+		if ($(this).val().length == 15) {
+			$('#perCelular').mask('(00) 00000-0009');
+		} else {
+			$('#perCelular').mask('(00) 0000-00009');
+		}
+	});
+
+	$('#empFotoEdt').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar",
+		removeLabel: "Remover",
+		language: 'pt-BR',
+		browseIcon: '',
+		allowedFileExtensions: ["png", "jpg", "jpeg"],
+		showUpload: false
+	});
+
+	$('#perFoto').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar",
+		removeLabel: "Remover",
+		language: 'pt-BR',
+		browseIcon: '',
+		allowedFileExtensions: ["png", "jpg", "jpeg"],
+		showUpload: false
+	});
+
+	$('#fileImportDocument').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar",
+		removeLabel: "Remover",
+		language: 'pt-BR',
+		browseIcon: '',
+		allowedFileExtensions: ["xls", "xlsx", "csv"],
+		showUpload: false
+	});
+
+	$scope.empresa = "";
+	$scope.idCliente = $_CONFIG.ID;
+
+	function chageCNPJinit(tipo, val) {
+		if (tipo == 1) {
+			$("#tipocampoCPFEdtConta").val(1)
+			$("#btnCpfCnpjEdtConta").html("CPF");
+			$("#empCNPJ").val('');
+			$("#empCNPJ").attr('maxlength', '14')
+			$("#empCNPJ").attr('placeholder', 'CPF');
+
+		} else {
+			$("#tipocampoCPFEdtConta").val(2)
+			$("#btnCpfCnpjEdtConta").html("CNPJ")
+			$("#empCNPJ").val('');
+			$("#empCNPJ").attr('placeholder', 'CNPJ')
+			$("#empCNPJ").attr('maxlength', '18')
+		}
+		$("#empCNPJ").val(val);
+		$("#empCNPJ").keypress()
+	}
+
+	function chageCNPJFilialInit(tipo, val) {
+		if (tipo == 1) {
+			$("#tipocampoCPFFilial").val(1)
+			$("#btnCpfCnpjFilial").html("CPF");
+			$("#filDocumentNumber").attr('maxlength', '14')
+			$("#filDocumentNumber").attr('placeholder', 'CPF');
+		} else {
+			$("#tipocampoCPFFilial").val(2)
+			$("#btnCpfCnpjFilial").html("CNPJ")
+			$("#filDocumentNumber").attr('placeholder', 'CNPJ')
+			$("#filDocumentNumber").attr('maxlength', '18')
+		}
+		$("#filDocumentNumber").val(val);
+	}
+
+	function validaAbaCadastrarFilial() {
+		$("#menuCadastrarFilial").hide();
+
+		$.ajax({
+			type: "GET",
+			url: "/pages/cadastros/buscaEmpresaMatriz.php",
+			dataType: "json",
+			success: function (result) {
+				var establishment = result && result.branches_establishment && result.branches_establishment[0];
+				if (establishment && establishment.is_matriz == 1) {
+					$("#menuCadastrarFilial").show();
+				}
+			},
+			error: function () {
+				console.error("Falha na conexão ao buscar dados da organização");
+			}
+		});
+	}
+	$scope.validaAbaCadastrarFilial = validaAbaCadastrarFilial;
+
+	function validaAbaApi() {
+		escondeTelasApi();
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/EMPRESA_API_STATUS_Busca.php",
+			dataType: "json",
+			success: function (result) {
+
+				if (
+					result.error === false &&
+					result.organization &&
+					result.organization.length > 0
+				) {
+
+					const apiStatus = result.organization[0].api_status;
+
+					const ApiStatus = Object.freeze({
+						LIBERADO: 1,
+						PREENCHIDO: 2,
+						CONTRATOASSINADO: 3,
+						PAGO: 4,
+						CONTRATADO: 5
+					});
+
+					if (apiStatus == ApiStatus.LIBERADO) {
+						mostraFormularioApi();
+						return;
+					}
+
+					if (apiStatus == ApiStatus.PREENCHIDO) {
+						mostraAguardandoContratoApi();
+						return;
+					}
+
+					if (apiStatus == ApiStatus.CONTRATOASSINADO) {
+						mostraAguardandoPagamentoApi();
+						return;
+					}
+
+					if (apiStatus == ApiStatus.PAGO) {
+						mostraAguardandoIpFixo();
+						return;
+					}
+
+					if (apiStatus == ApiStatus.CONTRATADO) {
+						carregaTelaGerenciamentoApi();
+						return;
+					}
+
+				} else {
+					console.error("Resposta inesperada:", result);
+				}
+			},
+			error: function () {
+				showLoader(false);
+				toastr.error("Falha na conexão ao buscar status da API");
+			}
+		});
+	}
+
+	$scope.chageCNPJinit = chageCNPJinit;
+	$scope.validaAbaApi = validaAbaApi;
+
+	function carregaMapa(latitude, longitude, titulo, mapa, drag) {
+		var myLatlng = new google.maps.LatLng(latitude, longitude);
+		var mapOptions = {
+			zoom: 15,
+			center: myLatlng
+		}
+		var map = new google.maps.Map(mapa, mapOptions);
+		var marker = new google.maps.Marker({
+			position: myLatlng,
+			map: map,
+			title: titulo,
+			draggable: drag,
+			animation: google.maps.Animation.DROP
+		});
+
+		google.maps.event.addListener(marker, 'dragend', function (event) {
+			$("#empLat").val(this.getPosition().lat());
+			$("#empLong").val(this.getPosition().lng());
+		});
+
+	}
+
+	$scope.carregaDados = function () {
+
+		$http.get(localStorage.getItem("host") + '?metodo=buscaPessoa&tipo=2&id=' + $scope.idCliente).
+		success(function (data, status, headers, config) {
+			$scope.empresa = data.buscaPessoa[0];
+
+			var cnpj = $scope.empresa.CNPJ.replaceAll('.', '').replaceAll('-', '').replaceAll('/', '')
+			if (cnpj.length == 14) {
+				$scope.chageCNPJinit(2, cnpj)
+				chageCNPJFilialInit(2, cnpj)
+			} else {
+				$scope.chageCNPJinit(1, cnpj);
+				chageCNPJFilialInit(1, cnpj)
+			}
+			$("#filEmail").val($scope.empresa.Email);
+
+			lat = $scope.empresa.Latitude;
+			$scope.codigoEmpresaNF = $scope.empresa.CodigoNF
+			longit = $scope.empresa.Longitude;
+			markerTitle = $scope.empresa.Nome_Fantasia;
+			carregaMapa(lat, longit, markerTitle, document.getElementById('mapa'), false);
+			$scope.apresentacao = $scope.empresa.Apresentacao;
+			if($scope.empresa.PAJ_Ativo_Prime == '1'){
+				$("#planoPrime").show()
+			}else{
+				$("#planoPrime").hide()
+			}
+			$('[data-toggle="popover"]').popover({
+				container: 'body'
+			});
+
+			$("#tipoAtendimentoEmpresa").val($scope.empresa.TAt_Codigo)
+			
+			if ($scope.empresa.PAJ_NIF) {
+				$("#empNIF").val($scope.empresa.PAJ_NIF);
+			}
+
+			if ($scope.empresa.Wifi != 1) {
+				$("#empWifi").prop('checked', false);
+			} else {
+				$("#empWifi").prop('checked', true)
+			}
+			if ($scope.empresa.AtendeCrianca != 1) {
+				$("#empAtendeCrianca").prop('checked', false);
+			} else {
+				$("#empAtendeCrianca").prop('checked', true)
+			}
+			if ($scope.empresa.AcessoDeficiente != 1) {
+				$("#empAcessoDeficiente").prop('checked', false);
+			} else {
+				$("#empAcessoDeficiente").prop('checked', true)
+			}
+			if ($scope.empresa.Estacionamento == "Sim") {
+				$("#empEstacionamentoS").prop('checked', true)
+			} else if ($scope.empresa.Estacionamento == "Não") {
+				$("#empEstacionamentoN").prop('checked', true)
+			} else if ($scope.empresa.Estacionamento == "Sim,Pago") {
+				$("#empEstacionamentoSP").prop('checked', true)
+			}
+			if ($scope.empresa.Pagina == "1") {
+				$("#botaoCriaPagina").hide();
+			} else {
+				$("#botaoCriaPagina").show();
+			}
+			setTimeout(() => {
+				$("#empPais").val($scope.empresa.Pai_Codigo);
+				$("#empPais").change();
+				setTimeout(() => {
+					$('#empEstado').val($scope.empresa.Est_Codigo);
+					$.ajax({
+						dataType: "html",
+						url: '/pages/cadastros/buscaCidades.php',
+						method: "POST",
+						data: {
+							estCodigo: $scope.empresa.Est_Codigo
+						},
+						success: function (data) {
+
+							$("#empCidade").append(data);
+							$("#empCidade").attr("disabled", false);
+							$('#empCidade').val($scope.empresa.Cid_Codigo);
+						}
+					});
+				}, 1000);
+			}, 1000)
+
+			$scope.geraComboPaisTelefone('empCelular', 'empDDI', $scope.empresa.DDI)
+			setTimeout(() => {
+				$("#empCelular").val($scope.empresa.Celular)
+			}, 3000)
+
+			$("#empCidade").empty();
+
+			if ($scope.empresa.Token != "") {
+				$("#txtNomeRevendedor").html($scope.empresa.Revendedor);
+				$("#txtTokenRevendedor").html($scope.empresa.Token);
+				$("#divRevendedor").show();
+				$("#formTokenRevenda").hide();
+			} else {
+				formTokenRevenda
+				$("#divRevendedor").hide();
+				$("#formTokenRevenda").show();
+			}
+			setTimeout(function(){
+				carregaMapa(lat, longit, markerTitle, document.getElementById('mapaEdt'), true);
+			},3000)
+
+
+		}).
+		error(function (data, status, headers, config) {
+			console.log("Falha no método buscaPessoa. erro:" + data);
+		});
+	};
+
+	function carregaDados() {
+		tabelaDadosConta = $('#tbDadosConta').dataTable({
+			"ajax": "/pages/cadastros/buscaDadosConta.php",
+			"columnDefs": [{
+				"targets": [0, 7, 8, 9, 10, 11],
+				"visible": false,
+				"searchable": false
+			}],
+			"initComplete": function (e, records, f) {
+
+				if (records.data.length > 0) {
+					$("#dataVencimentoPlano").html(records.data[0].DataVenc);
+					$scope.dataContratacaoPlano = records.data[0].DataCont;
+					$scope.$apply();
+					$("#btnRenovarPlano").show();
+					$("#empNomeFant").prop('disabled',true);
+					$("#empCNPJ").prop('disabled',true);
+					$("#empIE").prop('disabled',true);
+					$("#empEmail").prop('disabled',true);
+					$("#btngroup-cnpj").prop('disabled',true);
+					$(".trocaTitularidade").show();
+				} else {
+					$("#dataVencimentoPlano").html('');
+					$("#dataContratacaoPlano").html('');
+					$("#btnRenovarPlano").hide();
+					$("#empNomeFant").prop('disabled',false)
+					$("#empCNPJ").prop('disabled',false)
+					$("#empIE").prop('disabled',false)
+					$("#empEmail").prop('disabled',false)
+					$("#btngroup-cnpj").prop('disabled',false)
+					$(".trocaTitularidade").hide();
+				}
+
+				$(".btnVerCartao").click(function () {
+					$App.showCartaoModal(this.dataset.cardid, this.dataset.customerid);
+				});
+
+				$("#btnBoletoCodigo").click(function () {
+					$("#codigoBoleto").html("");
+					mBoleto = new Boleto(this.dataset.codigo);
+					$("#valorBoleto").html(mBoleto.prettyAmount());
+					$("#vencimentoBoleto").html(this.dataset.vencimento);
+					var buttonCopyClipboard = '<button class="btn btn-sm btn-primary btnClip" data-clipboard-text="' + mBoleto.prettyNumber() + '"><i class="fa fa-copy" alt="Copiar"></i></button>';
+					$("#linkBoleto").html("<a href='" + this.dataset.link + "' target='_blank'>Visualizar o Boleto</a>");
+					$("#linhaBoleto").html(mBoleto.prettyNumber() + " " + buttonCopyClipboard);
+					mBoleto.toSVG('#codigoBoleto');
+
+					var clipboard = new ClipboardJS('.btnClip');
+					clipboard.on('success', function (e) {
+						toastr.success("Copiado!");
+					});
+
+					$("#boleto-modal").modal();
+
+				});
+
+				$("#btnPixCodigo").click(function () {
+					$App.showPIXModal(this.dataset.valor, this.dataset.link, 3, this.dataset.codexterno);
+				});
+			},
+			scrollX: isPortrait,
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			},
+			"columns": [
+				{ "data": "DT_RowId" },
+				{ "data": "Plano" },
+				{ "data": "Parcelas" },
+				{ "data": "Valor" },
+				{ "data": "DataVenc" },
+				{ "data": "DataPgto" },
+				{ "data": "Status" },
+				{ "data": "IDPM" },
+				{ "data": "Codigo" },
+				{ "data": "Dias" },
+				{ "data": "TipoAssinatura" },
+				{ "data": "TipoPagamento" },
+				{ "data": "Boleto" },
+				{ "data": "Nota" }
+			]
+		});
+		resizeContent();
+	}
+
+	$scope.mostrarAbaImportacao = function () {
+		if (!$scope.dataContratacaoPlano) {
+			return false;
+		}
+		var dataContratacao = moment($scope.dataContratacaoPlano, "DD/MM/YYYY");
+		return dataContratacao.isValid() && moment().diff(dataContratacao, "months", true) <= 3;
+	};
+
+	tabelaHorarioFuncionamento = $('#tbHorarioFun').dataTable({
+		"ajax": {
+			"url": "/pages/cadastros/buscaHorarioFuncionamento.php",
+			"method": "POST"
+		},
+		"columnDefs": [{
+			"targets": [1],
+			"visible": false,
+			"searchable": false
+		}],
+		"columns": [
+			{ "data": "Dia" },
+			{ "data": "PHF_Dia" },
+			{ "data": "PHF_Hora1" },
+			{ "data": "PHF_Hora2" },
+			{ "data": "PHF_Hora3" },
+			{ "data": "PHF_Hora4" },
+			{
+				"class": 'excluir-control',
+				"orderable": false,
+				"data": null,
+				"defaultContent": ''
+			}, {
+				"class": 'editar-control',
+				"orderable": false,
+				"data": null,
+				"defaultContent": ''
+			}
+		],
+		"language": {
+			"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+		},
+		"paging": false,
+		"ordering": false,
+		"info": false,
+		"searching": false
+	});
+
+	$('#tbHorarioFun tbody').on('click', 'td.excluir-control', function () {
+		var tr = $(this).closest('tr');
+
+		var idx = tr[0]._DT_RowIndex;
+		var registroTabela = tabelaHorarioFuncionamento.fnGetData(idx);
+
+		swal({
+				title: "Confirmar exclusão:",
+				text: "Deseja excluir  " + registroTabela.Dia,
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#DD6B55",
+				confirmButtonText: "Sim",
+				cancelButtonText: "Não",
+				closeOnConfirm: false
+			},
+			function () {
+				showLoader(true);
+				$.ajax({
+					dataType: "html",
+					url: '/pages/cadastros/removeHorarioFuncionamento.php',
+					data: {
+						dia: registroTabela.PHF_Dia
+					},
+					success: function (data) {
+						swal("Sucesso!", " Horario de funcionamento excluido.", "success");
+						tabelaHorarioFuncionamento.api().ajax.reload();
+						showLoader(false);
+					},
+					error: function (result) {
+						swal("Falha na conexão.", "", "error");
+						showLoader(false);
+					}
+				});
+			});
+	});
+
+	$('#tbHorarioFun tbody').on('click', 'td.editar-control', function () {
+		var tr = $(this).closest('tr');
+		var idx = tr[0]._DT_RowIndex;
+		var registroTabelaAlt = tabelaHorarioFuncionamento.fnGetData(idx);
+		$("#hfAltDiaSemana").multiselect("deselectAll", false);
+		$("#hfAltDiaSemana").multiselect("refresh");
+		$("#hfAltDiaSemana").multiselect("select", registroTabelaAlt.PHF_Dia);
+		$("#hfAltHoraIni1").select2("val", registroTabelaAlt.PHF_Hora1);
+		$("#hfAltHoraFim1").select2("val", registroTabelaAlt.PHF_Hora2);
+		$("#hfAltHoraIni2").select2("val", registroTabelaAlt.PHF_Hora3);
+		$("#hfAltHoraFim2").select2("val", registroTabelaAlt.PHF_Hora4);
+		$("#alteraHorarioFuncionamento-modal").modal();
+	});
+
+	function formatNumberBr(value) {
+		var text = (value || 0).toString();
+		return text.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+	}
+
+	function formatMoneyBr(value) {
+		var number = Number(value || 0);
+		var parts = number.toFixed(2).split(".");
+		parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+		return "R$ " + parts[0] + "," + parts[1];
+	}
+
+	function calculaApiExternaAtivas(rows) {
+		var count = 0;
+		if (!rows || !rows.length) {
+			return count;
+		}
+		for (var i = 0; i < rows.length; i++) {
+			if (rows[i].Ativa === 1 || rows[i].Ativa === "1") {
+				count++;
+				continue;
+			}
+			var status = rows[i].Status || "";
+			if (status.indexOf("bg-green") !== -1 || status.indexOf("Ativa") !== -1) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	
+
+	$scope.buscaSaldoSMS = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaDadosSMS.php',
+			method: "POST",
+			data: {
+				tipo: 1
+			},
+			success: function (data) {
+				if (data.result.length > 0) {
+					$("#lblSaldoSMS").html(data.result[0].Saldo);
+				}
+			}
+		});
+	}
+
+	$scope.buscaHistoricoSMS = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaDadosSMS.php',
+			method: "POST",
+			data: {
+				tipo: 2
+			},
+			success: function (data) {
+
+				var html = "";
+				if (data.result.length > 0) {
+					html += '<ul class="timeline">';
+					for (var i = 0; i < data.result.length; i++) {
+
+						valores = data.result[i];
+
+						var horario = valores.PSF_Dat_Compra.split(" ");
+						var usuario = valores.Usu_Nome;
+						var valor = valores.PSF_Valor;
+						var status = valores.SMSStatus;
+						var dataExp = valores.PSF_Dat_Expiracao;
+						var dataPag = valores.PSF_Dat_Pagamento;
+						var qtd = valores.PSF_Qtd_Compra;
+						var codStatus = valores.PSF_Status;
+						var linkNota = valores.PNo_Link_PDF;
+						var botaoNota= '';
+						if(linkNota != ''){
+							botaoNota = `<a class="btn btn-xs btn-warning" href="${linkNota}" target="_blank" style="margin-left:10px;"> <i class="fa fa-file-pdf-o" aria-hidden="true"></i> Nota</a>`
+						}
+
+						if (codStatus == '1') {
+							statusCor = 'bg-green';
+							statusIcon = 'ion ion-checkmark-round';
+						} else if (codStatus == '0') {
+							statusCor = 'bg-blue';
+							statusIcon = 'ion ion-clock';
+						} else {
+							statusCor = 'bg-red';
+							statusIcon = 'ion ion-close-round';
+						}
+
+						html += '<li class="time-label">';
+						html += '<span class="' + statusCor + '">';
+						html += horario[0];
+						html += '</span></li>';
+						html += '<li>';
+						html += '<i class="ion ' + statusIcon + ' ' + statusCor + '"></i>';
+						html += '<div class="timeline-item">';
+						html += '<span class="time"><i class="fa fa-clock-o"></i> ' + horario[1] + '</span>';
+						html += '<h3 class="timeline-header">Compra de ' + qtd + ' SMS</h3>';
+						html += '<div class="timeline-body">';
+						html += '<p>Realizada por: ' + usuario + '</p>';
+						html += '<p>Valor: ' + valor + '</p>';
+
+						if (codStatus != '0') {
+							html += '<p>Data do Pagamento: ' + dataPag + '</p>';
+						}
+
+						html += '<small class="label ' + statusCor + '">' + status + '</small>' + botaoNota;
+						html += '</div>';
+						if (codStatus == '1') {
+							html += '<div class="timeline-footer">';
+							html += 'Expira em: ' + dataExp;
+							html += '</div>';
+						}
+						html += '</div>';
+						html += '</li>';
+					}
+					html += '</ul>';
+
+				} else {
+					html += '<div class="callout callout-info">';
+					html += '<h4>Você ainda não possui nenhum histórico de compra.</h4>';
+					html += '<p>Clique em "Comprar SMS" para efetuar uma compra de créditos SMS.</p>';
+					html += '</div>';
+				}
+				$("#timelineSMS").html(html);
+			}
+		});
+	}
+
+
+	$scope.buscaSaldoWhats = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaDadosWhats.php',
+			method: "POST",
+			data: {
+				tipo: 1
+			},
+			success: function (data) {
+				if (data.result.length > 0) {
+					$("#lblSaldoWhats").html(data.result[0].Saldo);
+				}
+			}
+		});
+	}
+
+	$scope.buscaHistoricoWhats = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaDadosWhats.php',
+			method: "POST",
+			data: {
+				tipo: 2
+			},
+			success: function (data) {
+
+				var html = "";
+				if (data.result.length > 0) {
+					html += '<ul class="timeline">';
+					for (var i = 0; i < data.result.length; i++) {
+
+						valores = data.result[i];
+
+						var horario = valores.PWF_Dat_Compra.split(" ");
+						var usuario = valores.Usu_Nome;
+						var valor = valores.PWF_Valor;
+						var status = valores.WhatsStatus;
+						var dataExp = valores.PWF_Dat_Expiracao;
+						var dataPag = valores.PWF_Dat_Pagamento;
+						var qtd = valores.PWF_Qtd_Compra;
+						var codStatus = valores.PWF_Status;
+						var linkNota = valores.PNo_Link_PDF;
+						var botaoNota= '';
+						if(linkNota != ''){
+							botaoNota = `<a class="btn btn-xs btn-warning" href="${linkNota}" target="_blank" style="margin-left:10px;"> <i class="fa fa-file-pdf-o" aria-hidden="true"></i> Nota</a>`
+						}
+
+
+						if (codStatus == '1') {
+							statusCor = 'bg-green';
+							statusIcon = 'ion ion-checkmark-round';
+						} else if (codStatus == '0') {
+							statusCor = 'bg-blue';
+							statusIcon = 'ion ion-clock';
+						} else {
+							statusCor = 'bg-red';
+							statusIcon = 'ion ion-close-round';
+						}
+
+						html += '<li class="time-label">';
+						html += '<span class="' + statusCor + '">';
+						html += horario[0];
+						html += '</span></li>';
+						html += '<li>';
+						html += '<i class="ion ' + statusIcon + ' ' + statusCor + '"></i>';
+						html += '<div class="timeline-item">';
+						html += '<span class="time"><i class="fa fa-clock-o"></i> ' + horario[1] + '</span>';
+						html += '<h3 class="timeline-header">Compra de ' + qtd + ' MSGs</h3>';
+						html += '<div class="timeline-body">';
+						html += '<p>Realizada por: ' + usuario + '</p>';
+						html += '<p>Valor: ' + valor + '</p>';
+
+						if (codStatus != '0') {
+							html += '<p>Data do Pagamento: ' + dataPag + '</p>';
+						}
+
+						html += '<small class="label ' + statusCor + '">' + status + '</small>' + botaoNota;
+						html += '</div>';
+						if (codStatus == '1') {
+							html += '<div class="timeline-footer">';
+							html += 'Expira em: ' + dataExp;
+							html += '</div>';
+						}
+						html += '</div>';
+						html += '</li>';
+					}
+					html += '</ul>';
+
+				} else {
+					html += '<div class="callout callout-info">';
+					html += '<h4>Você ainda não possui nenhum histórico de compra.</h4>';
+					html += '<p>Clique em "Comprar Créditos WhatsApp" para efetuar uma compra de créditos WhatsApp.</p>';
+					html += '</div>';
+				}
+				$("#timelineWhats").html(html);
+			}
+		});
+	}
+
+	//** Pagamento Online ** //
+	$scope.buscaSaldoCarteira = function () {
+		$(".valor").maskMoney({
+			prefix: 'R$ ',
+			allowZero: true,
+			thousands: '.',
+			decimal: ','
+		});
+		$scope.buscaDetalhesConta();
+		$.ajax({
+			dataType: "json",
+			url: '/php/pagarme/BuscaSaldo.php',
+			success: function (data) {
+
+				if (typeof (data.erro) != "undefined") {
+					$("#pagOnlineBloqueado").show();
+					$("#semCarteira").hide();
+					$("#divCarteira").hide();
+				} else {
+					if (typeof (data.waiting_funds) == "undefined") {
+						$("#semCarteira").show();
+						$("#divCarteira").hide();
+						$("#pagOnlineBloqueado").hide();
+					} else {
+						$("#semCarteira").hide();
+						$("#divCarteira").show();
+						$("#pagOnlineBloqueado").hide();
+						var waiting_funds = data.waiting_funds.amount;
+						var transferred = data.transferred.amount;
+						var available = data.available.amount;
+
+						if (available > 0) {
+							$("#btnResgatar").show();
+							$("#btnResgatarSld").hide();
+						} else {
+							$("#btnResgatar").hide();
+							$("#btnResgatarSld").show();
+						}
+
+						if (waiting_funds > 0) {
+							$("#btnAntecipar").show();
+							$("#btnAnteciparSld").hide();
+						} else {
+							$("#btnResgatar").show();
+							$("#btnAnteciparSld").hide();
+						}
+
+						$scope.valorDisponivel = available / 100;
+						$scope.valorMaxTransf = $scope.valorDisponivel - $scope.taxaTransferencia;
+						$("#saldoTransf").html(formataDinheiro(transferred));
+						$("#saldoDisp").html(formataDinheiro(available));
+						$("#saldoWait").html(formataDinheiro(waiting_funds));
+						$("#lblValorMax").html(formataDinheiro(($scope.valorMaxTransf * 100)));
+					}
+				}
+			}
+		});
+	}
+
+	$scope.buscaDetalhesConta = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/php/pagarme/buscaDadosRecebedor.php',
+			success: function (data) {
+				var mAgencia, mConta, mTransferAutomatic;
+				if (data.bank_account.agencia_dv == null || data.bank_account.agencia_dv == "") {
+					mAgencia = data.bank_account.agencia;
+				} else {
+					mAgencia = data.bank_account.agencia + "-" + data.bank_account.agencia_dv;
+				}
+
+				if (data.bank_account.conta_dv == null || data.bank_account.conta_dv == "") {
+					mConta = data.bank_account.conta;
+				} else {
+					mConta = data.bank_account.conta + "-" + data.bank_account.conta_dv;
+				}
+
+				$("#lblNomeConta").html(data.bank_account.legal_name);
+				$("#lblNomeContaPag").html(data.bank_account.legal_name);
+				$.ajax({
+					dataType: "json",
+					url: '/php/arrayBancos.php?format=json',
+					success: function (banks) {
+						$("#lblBancoConta").html(banks[data.bank_account.bank_code] + " (" + data.bank_account.bank_code + ")");
+						$("#lblBancoContaPag").html(banks[data.bank_account.bank_code] + " (" + data.bank_account.bank_code + ")");
+					}
+				});
+
+				$("#lblCpfConta").html(data.bank_account.document_number);
+				$("#lblCpfContaPag").html(data.bank_account.document_number);
+				$("#lblAgenciaConta").html(mAgencia);
+				$("#lblAgenciaContaPag").html(mAgencia);
+				$("#lblNumeroConta").html(mConta);
+				$("#lblNumeroContaPag").html(mConta);
+
+				if (data.transfer_enabled) {
+					mTransferAutomatic = "Habilitado";
+					$("#automaticTransfer").val("1");
+				} else {
+					mTransferAutomatic = "Desabilitado";
+					$("#automaticTransfer").val("0");
+				}
+
+				$("#lblTransferenciaAutomatica").html(mTransferAutomatic);
+
+				$("#lblDiaTransferencia").html(data.transfer_day);
+				$("#dayForTransfer").val(data.transfer_day);
+
+				$("#bank_code_id").val(data.bank_account.id);
+
+			}
+		});
+	}
+
+	$scope.buscaSaldoDetalhes = function (tipo) {
+		$("#overlayDetalhes").show();
+		$.ajax({
+			dataType: "json",
+			url: '/php/pagarme/buscaSaldoDetalhes.php',
+			method: "POST",
+			data: {
+				tipo: tipo
+			},
+			success: function (data) {
+				if (tipo == 1) {
+					$("#boxResumoMovimentacao").removeClass("box-warning");
+					$("#boxResumoMovimentacao").removeClass("box-info");
+					$("#boxResumoMovimentacao").addClass("box-success");
+				} else if (tipo == 2) {
+					$("#boxResumoMovimentacao").removeClass("box-success");
+					$("#boxResumoMovimentacao").removeClass("box-info");
+					$("#boxResumoMovimentacao").addClass("box-warning");
+				} else if (tipo == 3) {
+					$("#boxResumoMovimentacao").removeClass("box-success");
+					$("#boxResumoMovimentacao").removeClass("box-warning");
+					$("#boxResumoMovimentacao").addClass("box-info");
+				}
+
+				$("#boxResumoMovimentacao").show();
+				if (data.length > 0) {
+					$(".btnPgSaldo").unbind("click");
+					if (tipo == 3) {
+						var html = '<table id="tbSaldoDetalhes" class="table table-striped">';
+						html += "<thead><th>Data</th><th>Valor</th><th>Tipo</th><th>Status</th><th>Transferência</th></thead>";
+						html += "<tbody>";
+
+						for (var i = 0; i < data.length; i++) {
+							var valor = data[i].amount;
+							var type = data[i].type;
+							var status = data[i].status;
+							var dataCriado = data[i].date_created;
+							var dataPag = data[i].funding_estimated_date;
+
+							mDataCriado = moment(dataCriado).locale("pt-br").format("DD/MM/YYYY HH:mm");
+							mDataPag = moment(dataPag).locale("pt-br").format("L");
+
+							if (status == "pending_transfer") {
+								mStatus = "Pendente";
+								mStatusColor = "bg-yellow";
+
+							} else if (status == "transferred") {
+								mStatus = "Transferido";
+								mStatusColor = "bg-green";
+							} else if (status == "failed") {
+								mStatus = "Falhou";
+								mStatusColor = "bg-red";
+							} else if (status == "processing") {
+								mStatus = "Processando";
+								mStatusColor = "bg-blue";
+							} else if (status == "canceled") {
+								mStatus = "Cancelado";
+								mStatusColor = "bg-red";
+							} else {
+								mStatus = "Desconhecido";
+								mStatusColor = "bg-red";
+							}
+							lblStatus = '<small class="label ' + mStatusColor + '">' + mStatus + '</small>';
+							mType = type;
+							html += "<tr>";
+							html += "<td>" + mDataCriado + "</td>";
+							html += "<td>" + formataDinheiro(valor) + "</td>";
+							html += "<td>" + mType + "</td>";
+							html += "<td>" + lblStatus + "</td>";
+							html += "<td>" + mDataPag + "</td>";
+							html += "</tr>";
+						}
+
+						html += "</tbody>";
+						html += "</table>";
+					} else {
+						var html = '<table id="tbSaldoDetalhes" class="table table-striped">';
+						html += "<thead><th>Data</th><th>Valor</th><th>Tipo</th><th>Status</th></thead>";
+						html += "<tbody>";
+
+						for (var i = 0; i < data.length; i++) {
+							var valor = data[i].amount;
+							var type = data[i].type;
+							var status = data[i].status;
+							var dataPag = data[i].payment_date;
+
+							mDataPag = moment(dataPag).locale("pt-br").format("L");
+
+							if (status == "paid") {
+								mStatus = "Pago";
+							} else {
+								mStatus = "Aguardando Pagamento";
+							}
+
+							if (type == "credit") {
+								mType = "Crédito";
+							} else if (type == "refund") {
+								mType = "Estorno";
+							} else {
+								mType = "Outro";
+							}
+
+							html += "<tr>";
+							html += "<td>" + mDataPag + "</td>";
+							html += "<td>" + formataDinheiro(valor) + "</td>";
+							html += "<td>" + mType + "</td>";
+							html += "<td>" + mStatus + "</td>";
+							html += "</tr>";
+						}
+
+						html += "</tbody>";
+						html += "</table>";
+					}
+
+					$("#divDetalhesSaldo").html(html);
+
+					$("#tbSaldoDetalhes").dataTable({
+						"ordering": false,
+						"language": {
+							"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+						}
+					});
+					$compile($('#tbSaldoDetalhes'))($scope);
+					$("#overlayDetalhes").hide();
+				} else {
+					var html = "<label>Nenhuma Movimentação</label>";
+					$("#divDetalhesSaldo").html(html);
+					$("#overlayDetalhes").hide();
+				}
+			},
+			error: function () {
+				$("#overlayDetalhes").hide();
+			}
+		});
+	}
+
+	$scope.abreModalRestagar = function () {
+		$("#resgatarDisponivel-modal").modal();
+	}
+
+
+	function formataDinheiro(n2) {
+		var n = n2 / 100;
+		return "R$ " + n.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+\,)/g, "$1.");
+	}
+
+	$("#btnDetalhesDisp").click(function () {
+		$scope.buscaSaldoDetalhes(1);
+	});
+
+	$("#btnDetalhesWait").click(function () {
+		$scope.buscaSaldoDetalhes(2);
+	});
+
+	$("#btnDetalhesTransfer").click(function () {
+		$scope.buscaSaldoDetalhes(3);
+	});
+
+	$('#valorTransferir').keyup(function () {
+		var valor = $('#valorTransferir').maskMoney('unmasked')[0];
+		var valorDeSaida = (valor + $scope.taxaTransferencia) * 100;
+
+		$("#lblATransferir").html(this.value);
+		$("#lblValorSaida").html(formataDinheiro(valorDeSaida));
+	});
+	$("#carteiraDocumento").mask("000.000.000-00");
+
+	$("#tipoConta").change(function () {
+		$("#carteiraDocumento").val("");
+		if (this.value == 1) {
+			$("#carteiraDocumento").mask("000.000.000-00");
+		} else {
+			$("#carteiraDocumento").mask("00.000.000/0000-00");
+		}
+	});
+
+	$("#transferirAutomatico").change(function () {
+
+		if (this.value == "1") {
+			$("#carteiraDia").prop("disabled", false);
+			$("#carteiraDia").prop("required", true);
+		} else {
+			$("#carteiraDia").prop("disabled", true);
+			$("#carteiraDia").prop("required", false);
+		}
+	});
+
+	$scope.confirmaResgate = function () {
+		var amount = ($('#valorTransferir').maskMoney('unmasked')[0] * 100);
+
+		$.ajax({
+			dataType: "json",
+			url: '/php/pagarme/efetuaResgate.php',
+			method: "POST",
+			data: {
+				amount: amount
+			},
+			success: function (data) {
+				if (data.errors === undefined) {
+					toastr.success("Transferência criada com sucesso.");
+					$("#valorTransferir").val("");
+					$scope.buscaSaldoCarteira();
+					$("#btnDetalhesTransfer").click();
+				} else {
+					toastr.error(data.errors[0].message);
+				}
+			}
+		});
+	}
+
+	$scope.mostraDetalhesTransaction = function (id) {
+
+		$.ajax({
+			dataType: "json",
+			url: '/php/pagarme/buscaTransaction.php',
+			method: "POST",
+			data: {
+				transaction: id
+			},
+			success: function (data) {
+				if (data.object == "transaction") {
+					$("#lblValorTransaction").html(formataDinheiro(data.paid_amount));
+					$("#lblBandeiraCardTransaciton").html(data.card_brand.toUpperCase());
+					$("#lblNomeCardTransaciton").html(data.card_holder_name);
+					var card_first = data.card_first_digits;
+					var card_last = data.card_last_digits;
+					$("#lblNumeroCardTransaciton").html(card_first + "****" + card_last);
+					if (data.status == "paid") {
+						var status = "Pago";
+					}
+
+					$("#lblStatusTransaction").html(status);
+					$("#dadosTransacao-modal").modal();
+
+				}
+
+			}
+		});
+	}
+
+	//** Fim Pagamento Online ** //
+
+	$scope.editarPerfil = function () {
+		$('#perNome').val($scope.dadosPerfil.nome);
+		$('#perCpf').val($scope.dadosPerfil.cpf);
+		$('#perRg').val($scope.dadosPerfil.rg);
+		$('#perEmail').val($scope.dadosPerfil.email);
+		$('#perCelular').val($scope.dadosPerfil.celular);
+		$('#perTelefone').val($scope.dadosPerfil.telefone);
+		$('#perSexo').val($scope.dadosPerfil.sexo);
+		$('#perDataNascimento').val($scope.dadosPerfil.data_nascimento);
+		$('#perEndereco').val($scope.dadosPerfil.endereco);
+		$('#perBairro').val($scope.dadosPerfil.bairro);
+
+		$('#perEstado').val($scope.dadosPerfil.estcodigo);
+		$('#perCep').val($scope.dadosPerfil.cep);
+
+		$("#perCidade").empty();
+		$.ajax({
+			dataType: "html",
+			url: '/pages/cadastros/buscaCidades.php',
+			method: "POST",
+			data: {
+				estCodigo: $scope.dadosPerfil.estcodigo
+			},
+			success: function (data) {
+				$("#perCidade").append(data);
+				$("#perCidade").attr("disabled", false);
+				$('#perCidade').val($scope.dadosPerfil.cidcodigo);
+			}
+		});
+	}
+
+	$("#hfDiaSemana").multiselect({
+		checkboxName: 'hfDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return 'Dia da Semana';
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$("#hfAltDiaSemana").multiselect({
+		checkboxName: 'hfAltDiaSemana[]',
+		buttonText: function (options, select) {
+			if (options.length === 0) {
+				return 'Dia da Semana';
+			} else {
+				var labels = [];
+				options.each(function () {
+					if ($(this).attr('label') !== undefined) {
+						labels.push($(this).attr('label'));
+					} else {
+						labels.push($(this).html());
+					}
+				});
+				return labels.join(', ') + '';
+			}
+		}
+	});
+
+	$("#btnWidgetModalSite").on('click', () => {
+		$scope.buscaCodigoSite(1);
+	});
+
+	$("#btnWidgetModalFacebook").on('click', () => {
+		$scope.buscaCodigoSite(2);
+	});
+
+	$("#btnWidgetModalInstagram").on('click', () => {
+		$scope.buscaCodigoSite(3);
+	});
+
+	$("#btnWidgetModalLinkAgendamento").on('click', () => {
+		$scope.buscaCodigoSite(4);
+	});
+
+	$("#perCep").on('keyup',function () {
+		buscaCEP(this.value);
+	});
+
+	$("#empEstado").change(function () {
+		var estado = this.value;
+		$("#empCidade").empty();
+		if (estado === -1) {
+			$("#empCidade").attr("disabled", true);
+		} else if (estado == "") {
+			$("#empCidade").attr("disabled", true);
+		} else {
+			$.ajax({
+				dataType: "html",
+				url: '/pages/cadastros/buscaCidades.php',
+				method: "POST",
+				data: {
+					estCodigo: estado
+				},
+				success: function (data) {
+
+					if (data.includes('option') == true) {
+						$("#empCidade").append(data);
+						$("#empCidade").attr("disabled", false);
+					} else {
+						toastr.warning('Nenhuma cidade disponível para esse estado no momento');
+						$("#empEstado").val("")
+						$("#empCidade").attr("disabled", true);
+					}
+				}
+			});
+		}
+	});
+
+	$scope.buscaLatLong = function () {
+		var Endereco = $("#empEndereco").val();
+		var Cidade = $("#empCidade option:selected").text();
+		var Estado = $("#empEstado option:selected").text();
+		var Bairro = $("#empBairro").val();
+		var Numero = $("#empNumero").val();
+
+		var url = "https://maps.googleapis.com/maps/api/geocode/json?";
+		url += "key=AIzaSyCK6WvkAL7bqWyh5cElIZ8WZpE9fLwodgE";
+		url += "&address=" + Endereco + "," + Numero + "," + Bairro + "," + Cidade + "," + Estado;
+
+		$.ajax({
+			type: "GET",
+			url: url,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.results.length > 0) {
+					var latitude = result.results[0].geometry.location.lat;
+					var longitude = result.results[0].geometry.location.lng;
+					var titulo = $("#empNomeFant").val();
+					$("#empLat").val(latitude);
+					$("#empLong").val(longitude);
+					$("#mapaEdt").show();
+					carregaMapa(latitude, longitude, titulo, document.getElementById('mapaEdt'), true);
+				} else {
+					if (result.status == "ZERO_RESULTS") {
+						swal("Sem resultado", "Nenhum resultado para este endereço no google maps. Favor verificar os dados.", "error");
+					} else {
+						swal("Erro", "Erro ao buscar este endereço no google maps.", "error");
+					}
+
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+	}
+
+	function getLambdaErrorMessage(result) {
+		if (!result) {
+			return "Erro ao enviar o arquivo.";
+		}
+
+		var resp = result.lambdaResponse;
+		if (!resp) {
+			return "Erro ao enviar o arquivo.";
+		}
+
+		if (typeof resp === "string") {
+			return resp;
+		}
+
+		if (resp.errorMessage) {
+			return resp.errorMessage;
+		}
+
+		if (resp.body) {
+			var body = resp.body;
+			if (typeof body === "string") {
+				try {
+					body = JSON.parse(body);
+				} catch (e) {
+					return resp.body;
+				}
+			}
+			if (body && (body.error || body.message)) {
+				return body.error || body.message;
+			}
+		}
+
+		if (resp.statusCode && resp.statusCode >= 400) {
+			return resp.message || resp.error || "Erro ao processar o arquivo.";
+		}
+
+		return "Erro ao enviar o arquivo.";
+	}
+
+	function resetImportForm() {
+		$("#tipoImportDocument").val(null);
+		$('#fileImportDocument').fileinput('reset');
+		$("#editarEmpresa-modal").modal("hide");
+	}
+
+	$scope.abrirTicketZoho = function (dados, tipoImport) {
+		$.ajax({
+			type: "POST",
+			url: "/pages/zoho/createTicket.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (tipoImport === "1") {
+					const lambdaStatusCode = result && result.lambdaResponse ? result.lambdaResponse.statusCode : null;
+					const respostaSucesso = result && result.success;
+					const lambdaComErro = lambdaStatusCode && lambdaStatusCode >= 400;
+					const importacaoProcessadaComSucesso = respostaSucesso && !lambdaComErro;
+
+					if (importacaoProcessadaComSucesso) {
+					    swal("Chamado criado com sucesso. Você será avisado por e-mail assim que a equipe finalizar a importação dos seus dados.", "", "success");
+						resetImportForm();
+						showLoader(false);
+						return;
+					}
+
+					var errorMessage = getLambdaErrorMessage(result);
+					swal("Erro ao enviar o arquivo.", errorMessage, "error");
+					showLoader(false);
+					return;
+				}
+
+				const ticketFoiCriado = result && result.data && result.data.ticket && result.data.ticket.id;
+
+				if (ticketFoiCriado) {
+					swal("Chamado criado com sucesso. Você será avisado por e-mail assim que a equipe finalizar a importação dos seus dados.", "", "success");
+					resetImportForm();
+					showLoader(false);
+					return;
+				} 
+					
+				swal("Erro ao criar o ticket.", "", "error");
+				showLoader(false);
+				
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.validaCamposImportacao = function () {
+		if ($("#tipoImportDocument").val() == "") {
+			toastr.error("Informe o tipo de importação.");
+			return false;
+		}
+		if ($('#fileImportDocument').fileinput('getFilesCount') == 0) {
+			toastr.error("Insira o arquivo para importação.");
+			return false;
+		}
+
+		return true;
+	}
+
+	$scope.appendData = function (tipoImportacao, formEl) {
+		var importacaoNome = {
+			"1": "Clientes",
+			"2": "Serviços",
+			"3": "Produtos"
+		};
+
+		const dados = new FormData(formEl);
+
+		const email = $("#empEmail").val() || $scope.dadosPerfil.email;
+		const pescodigo = $_CONFIG.CODESTABELECIMENTO;
+		const empresa = $("#empNomeFant").val();
+		const baseDescription = 'Envio do arquivo de importacao de ' + importacaoNome[tipoImportacao].toLowerCase() + ' da empresa ' + empresa + " - " + pescodigo + "\n";
+		const name = empresa + " - " + pescodigo;
+
+		dados.append('email', email);
+		dados.append('subject', 'Importação de ' + importacaoNome[tipoImportacao]);
+		dados.append('status', 'Open');
+		dados.append('channel', 'Sistema');
+		dados.append('category', 'Importação');
+		dados.append('department_id', '880207000000006907');
+		dados.append('type_import', tipoImportacao);
+		dados.append('name', name);
+
+		if (tipoImportacao == "1") {
+			dados.append('description', baseDescription + "✅ Arquivo passou por limpeza e está disponível na aba de anexos.");
+		}
+		
+		if (dados.has('fileImportDocument')) {
+			var fileList = document.getElementById('fileImportDocument').files;
+			if (fileList.length > 0) {
+				dados.delete('fileImportDocument');
+				dados.append('attachment', fileList[0]);
+			}
+		}
+
+		return {
+			dados: dados,
+			baseDescription: baseDescription
+		};
+	}
+
+	$('#formDocsImport').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+
+		if (!$scope.validaCamposImportacao()) {
+			showLoader(false);
+			return;
+		}
+		var tipoImportacao = $("#tipoImportDocument").val();
+		const importPayload = $scope.appendData(tipoImportacao, event.currentTarget);
+		const dados = importPayload.dados;
+		const baseDescription = importPayload.baseDescription;
+
+		if (tipoImportacao === "1"){
+			$scope.abrirTicketZoho(dados, tipoImportacao);
+			return;
+		}
+
+		if (tipoImportacao === "2" || tipoImportacao === "3") {
+			const uploadData = new FormData();
+			var fileList = document.getElementById('fileImportDocument').files;
+			if (fileList.length === 0) {
+				swal("Insira o arquivo para importacao.", "", "error");
+				showLoader(false);
+				return;
+			}
+
+			uploadData.append('type_import', tipoImportacao);
+			uploadData.append('attachment', fileList[0]);
+
+			$.ajax({
+				type: "POST",
+				url: "/pages/zoho/uploadImportFile.php",
+				data: uploadData,
+				dataType: "json",
+				processData: false,
+				contentType: false,
+				success: function (uploadResult) {
+					if (uploadResult && uploadResult.success && uploadResult.url) {
+						dados.append('description', baseDescription + "\n\n<a href=\"" + uploadResult.url + "\" target=\"_blank\">Baixar arquivo</a>");
+						dados.delete('attachment');
+						$scope.abrirTicketZoho(dados, tipoImportacao);
+						return;
+					} 
+
+					swal("Erro ao enviar o arquivo.", "", "error");
+					showLoader(false);
+					return;
+					
+				},
+				error: function (result) {
+					swal("Falha na conexão.", "", "error");
+					showLoader(false);
+					return;
+				}
+			});
+		} 
+	});
+
+	$('#formEditarPerfil').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraPerfil.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.alteraPerfil[0].erro == "0") {
+					swal(result.alteraPerfil[0].resultado, "", "success");
+					$("#editarPerfil-modal").modal("hide");
+					buscaPerfil();
+				} else {
+					swal(result.alteraPerfil[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formEmpresaDados').submit(function (event) {
+		event.preventDefault();
+
+		if (validarEmail($('#empEmail').val())) {
+			showLoader(true);
+			var dados = new FormData(this);
+			dados.append("blob", mBlob);
+			$.ajax({
+				type: "POST",
+				url: "/pages/cadastros/alteraEmpresaDadosv3.php",
+				data: dados,
+				dataType: "json",
+				processData: false,
+				contentType: false,
+				success: function (result) {
+					if (result.data[0].erro == "0") {
+                    	$scope.mostrarMensagemSucessoPerfil();
+						$("#atualizaInfo").click()
+					} else {
+						toastr.error(result.data[0].resultado, "", "error");
+					}
+					showLoader(false);
+				},
+				error: function (result) {
+					toastr.error("Falha na conexão.", "", "error");
+					showLoader(false);
+				}
+			});
+
+			return true;
+		} else {
+			$('#empEmail').focus();
+			toastr.error("Favor inserir um email válido");
+			return false;
+		}
+
+	});
+
+	$('#formAlteraRedeSocial').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraEmpresaSocial.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+                    $scope.mostrarMensagemSucessoPerfil();
+					$("#atualizaInfo").click()
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formEmpresaEndereco').submit(function (event) {
+		event.preventDefault();
+
+		var cep = $('#empCEP').val();
+		var cepSemHifen = cep.replace(/[-\s]/g, '');
+
+		if ($_CONFIG.PAIS == "1") {
+			if (!/^\d{8}$/.test(cepSemHifen)) {
+				toastr.error('CEP deve conter exatamente 8 números');
+				return false;
+			}
+		} else if (!/^\d{1,12}$/.test(cepSemHifen)) {
+			toastr.error('CEP deve conter no máximo 12 números');
+			return false;
+		}
+		
+		showLoader(true);
+		var dados = new FormData(this);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraEmpresaEndereco.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+                    $scope.mostrarMensagemSucessoPerfil();
+					$("#atualizaInfo").click()
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formInsereHorarioFuncinamento').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var data = new FormData(this);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/insereHorarioFuncionamento.php",
+			data: data,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+					$scope.mostrarMensagemSucessoPerfil();
+					tabelaHorarioFuncionamento.api().ajax.reload();
+					$("#hfDiaSemana").multiselect("deselectAll", false);
+					$("#hfDiaSemana").multiselect("refresh");
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formAlteraHorarioFuncionamento').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var data = new FormData(this);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraHorarioFuncionamento.php",
+			data: data,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+					$scope.mostrarMensagemSucessoPerfil();
+					tabelaHorarioFuncionamento.api().ajax.reload();
+					$("#alteraHorarioFuncionamento-modal").modal("hide");
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		return true;
+	});
+
+	$('#formInsereCarteira').submit(function (event) {
+		event.preventDefault();
+		var data = new FormData(this);
+		swal({
+				title: "Confirmação",
+				text: "Confirma a habilitação do Pagamento Online?",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: sSistemaCor,
+				confirmButtonText: "Sim",
+				cancelButtonText: "Não",
+				closeOnConfirm: true,
+				closeOnCancel: true
+			},
+			function (isConfirm) {
+				if (isConfirm) {
+					showLoader(true);
+					$.ajax({
+						type: "POST",
+						url: "/pages/cadastros/insereCarteira.php",
+						data: data,
+						dataType: "json",
+						processData: false,
+						contentType: false,
+						success: function (result) {
+
+							if (result.result[0].erro == "0") {
+								toastr.success(result.result[0].resultado);
+								$("#divCarteira").show();
+								$("#semCarteira").hide();
+								mCodigoRecebedor = true;
+								$scope.buscaSaldoCarteira();
+							} else {
+								swal(result.result[0].resultado, "", "error");
+							}
+							showLoader(false);
+						},
+						error: function (result) {
+							showLoader(false);
+						}
+					});
+				}
+			});
+		return true;
+	});
+
+	$("#btnRelatorioSMS").click(function (event) {
+
+		carregaDadosSms();
+		$("#relatorioSMS-modal").modal();
+
+	});
+
+	$("#btnRelatorioWhats").click(() => {
+
+		carregaDadosWhats();
+		$("#relatorioWhats-modal").modal();
+
+	});
+
+	$("#btnRelatorioApiExterna").click(function () {
+		relatorioApiExternaNextCursor = null;
+		relatorioApiExternaCursorAtual = null;
+		relatorioApiExternaHistorico = [];
+		relatorioApiExternaPagina = 1;
+		renderizaLoadingRelatorioApiExterna();
+		$("#relatorioApiExterna-modal").modal();
+		carregaRelatorioApiExterna(null, false);
+	});
+
+	$(".btnRelatorioApiExternaProxima").click(function () {
+		if (relatorioApiExternaNextCursor) {
+			carregaRelatorioApiExterna(relatorioApiExternaNextCursor, true);
+		}
+	});
+
+	$(".btnRelatorioApiExternaAnterior").click(function () {
+		if (relatorioApiExternaHistorico.length > 0) {
+			var cursorAnterior = relatorioApiExternaHistorico.pop();
+			relatorioApiExternaPagina = Math.max(1, relatorioApiExternaPagina - 1);
+			carregaRelatorioApiExterna(cursorAnterior, false);
+		}
+	});
+
+	$scope.buscaDadosRetencao = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaDadosRetencao.php",
+			dataType: "json",
+			success: function (data) {
+				const apiResponse = data.data || data;
+				if (!apiResponse.error && apiResponse.reports && apiResponse.reports.length > 0) {
+					const report = apiResponse.reports[0];
+					const html = `
+							<div style="padding: 10px 0 0 0;">
+
+								<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+
+									<div style="background: #f7f9fc; border-radius: 10px; padding: 15px;">
+										<div style="font-size: 22px;">👥</div>
+										<div style="font-size: 22px; font-weight: bold; color: #2c3e50;">${report.total_clients}</div>
+										<div style="font-size: 13px; color: #7f8c8d;">Clientes atendidos</div>
+									</div>
+
+									<div style="background: #f7f9fc; border-radius: 10px; padding: 15px;">
+										<div style="font-size: 22px;"> ⭐ </div>
+										<div style="font-size: 22px; font-weight: bold; color: #2c3e50;">${report.avarage_rating}</div>
+										<div style="font-size: 13px; color: #7f8c8d;">Avaliação média dos seus clientes</div>
+									</div>
+
+									<div style="background: #f7f9fc; border-radius: 10px; padding: 15px;">
+										<div style="font-size: 22px;">📅</div>
+										<div style="font-size: 22px; font-weight: bold; color: #2c3e50;">${report.total_services}</div>
+										<div style="font-size: 13px; color: #7f8c8d;">Agendamentos realizados</div>
+									</div>
+
+									<div style="background: #f7f9fc; border-radius: 10px; padding: 15px;">
+										<div style="font-size: 22px;">💰</div>
+										<div style="font-size: 22px; font-weight: bold; color: #27ae60;">${report.total_service_value}</div>
+										<div style="font-size: 13px; color: #7f8c8d;">Faturamento de serviços</div>
+									</div>
+
+								</div>
+
+								<div style="margin-top: 20px; background: #fff4e5; border-radius: 10px; padding: 15px; text-align: center;">
+									<div style="font-size: 20px;" > ✨ </div>
+									<div style="font-size: 26px; font-weight: bold; color: #f39c12;">${report.new_clients} </div>
+									<div style = "font-size: 13px; color: #7f8c8d;"> Novos clientes atendidos </div>
+								</div>
+
+								<div style="margin-top: 20px; text-align: center; font-size: 14px; color: #555;">
+									Você construiu tudo isso com a gente. Tem certeza que quer prosseguir com o cancelamento?
+								</div>
+
+							</div>
+							`;
+					$("#retencaoCliente-conteudo").html(html);
+				} else {
+					$("#retencaoCliente-conteudo").html('<p>Não foi possível carregar os dados. Tente novamente.</p>');
+				}
+			},
+			error: function () {
+				$("#retencaoCliente-conteudo").html('<p>Erro ao carregar dados de retenção.</p>');
+			}
+		});
+	};
+
+	$('#retencaoCliente-modal').on('show.bs.modal', function () {
+		$scope.buscaDadosRetencao();
+	});
+
+	$('#btnContinuarCancelamento').on('click', function () {
+		$('#retencaoCliente-modal').modal('hide');
+		setTimeout(function() {
+			$("#cancelaPlano-modal").modal('show');
+			// Limpa os campos do modal de cancelamento
+			$("#ConfirmaCancelamento").val("");
+			$("#motivoCancelamento").val("");
+		}, 300);
+	});
+
+	$("#cancelaPlano").click(() => {
+		showLoader(true);
+		if ($("#ConfirmaCancelamento").val().trim() == "") {
+			showLoader(false);
+			swal("Informe a senha do usuário.", "", "error");
+		} else if ($("#motivoCancelamento").val().trim() != "" && $("#motivoCancelamento").val().trim().length < 20) {
+			swal("O motivo precisa ter no mínimo de 20 caracteres.", "", "error");
+		} else if ($("#motivoCancelamento").val().trim() != "" && $("#motivoCancelamento").val().trim().includes("@")) {
+			swal("Não é possível informar o e-mail no motivo", "", "error");
+		} else if ($("#motivoCancelamento").val().trim() != "" && $("#ConfirmaCancelamento").val().trim() != "") {
+			var idPagarme = "";
+			var tipoPlan = "";
+			if (tabelaDadosConta.fnGetData(0) != null) {
+				idPagarme = tabelaDadosConta.fnGetData(0).IDPM;
+				tipoPlan = tabelaDadosConta.fnGetData(0).TipoAssinatura;
+			}
+
+			var cancelouPlano = false;
+
+			$.ajax({
+				type: "POST",
+				url: "/php/cancelarPagarme.php",
+				data: {
+					idpm: idPagarme,
+					tipoPlan: tipoPlan,
+					senhausuario: $("#ConfirmaCancelamento").val()
+				},
+				dataType: "json",
+				success: function (result) {
+
+					if (result.erro == "0") {
+						cancelouPlano = true;
+					} else if (result.erro == "2") {
+						swal("Senha inválida.", "", "error");
+						showLoader(false);
+						cancelouPlano = false;
+						// encerra a função e não prossegue
+						return;
+					} else {
+						cancelouPlano = false;
+					}
+
+					if (cancelouPlano) {
+						var pescodigo = mPesCodigo;
+						$.ajax({
+							type: "POST",
+							url: "/pages/cadastros/atualizaPessoaFinanceiro.php",
+							data: {
+								pescodigo: pescodigo,
+								motivo: $("#motivoCancelamento").val()
+							},
+							dataType: "json",
+							success: function (result) {
+								if (result.result.length == 0) {
+									if (result.erro == "0") {
+										$("#cancelaPlano-modal").modal("hide");
+										showLoader(false);
+
+										$.ajax({
+											type: "POST",
+											url: "/php/logout.php",
+											success: function (result) {
+												document.write(result);
+											}
+										});
+									} else {
+										swal("", result.resultado, "error");
+										showLoader(false);
+									}
+								}
+								else{
+									if(result.result[0].erro == 0){
+										$("#cancelaPlano-modal").modal("hide");
+										showLoader(false);
+
+										$.ajax({
+											type: "POST",
+											url: "/php/logout.php",
+											success: function (result) {
+												document.write(result);
+											}
+										});
+									}else{
+										swal("", result.result[0].resultado, "error");
+										showLoader(false);
+									}
+								}
+							},
+							error: function (result) {
+								swal("Falha na conexão.", "", "error");
+								showLoader(false);
+							}
+						});
+					}else{
+						showLoader(false);
+						swal("Ocorreu um erro inesperado ao cancelar o seu plano, entre em contato com o suporte técnico.", "", "error");
+					}
+				},
+				error: function (result) {
+					cancelouPlano = false;
+					swal("Falha na conexão.", "", "error");
+					showLoader(false);
+				}
+			});
+
+
+
+		} else {
+			showLoader(false);
+			swal("Informe o motivo.", "", "error");
+		}
+
+	});
+
+	$("#btnPesquisarSMS").on("click", () => {
+		carregaDadosSms();
+	});
+
+	$("#btnPesquisarWhats").on("click", () => {
+		carregaDadosWhats();
+	});
+
+	function carregaDadosSms() {
+		if (typeof (tableRelatorioSMS) != "undefined") {
+			tableRelatorioSMS.destroy();
+		}
+
+		tableRelatorioSMS = $('#tbRelatorioSMS').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/buscaDadosSMS.php",
+				"method": "POST",
+				"data": function (d) {
+					d.tipo = 3;
+					d.dataini = $("#DataIni").val();
+					d.datafim = $("#DataFim").val();
+				}
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			"columns": [
+				{ "data": "PSD_Detalhes" },
+				{ "data": "PSD_Numero" },
+				{ "data": "PSD_Dat_Envio" },
+				{ "data": "Cliente" },
+				{ "data": "StatusEnvio" },
+				{ "data": "Mensagem" },
+				{ "data": "TipoEnvio" }
+			],
+			dom: 'Bfrtip',
+			buttons: [{
+				extend: "excelHtml5",
+				title: sSistema + ' - Relatório SMS',
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: sSistema + ' - Relatório SMS',
+				orientation: 'landscape',
+				footer: true,
+				exportOptions: {
+					columns: ':visible'
+				}
+
+			}],
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+	}
+
+	function carregaDadosWhats() {
+		if (typeof (tableRelatorioWhats) != "undefined") {
+			tableRelatorioWhats.destroy();
+		}
+
+		tableRelatorioWhats = $('#tbRelatorioWhats').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/buscaDadosWhats.php",
+				"method": "POST",
+				"data": function (d) {
+					d.tipo = 3;
+					d.dataini = $("#DataIniWhats").val();
+					d.datafim = $("#DataFimWhats").val();
+				}
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			"columns": [
+				{ "data": "PWD_Detalhes" },
+				{ "data": "PWD_Numero" },
+				{ "data": "PWD_Dat_Envio" },
+				{ "data": "Cliente" },
+				{ "data": "StatusEnvio" },
+				{ "data": "TipoEnvio" }
+			],
+			dom: 'Bfrtip',
+			buttons: [{
+				extend: "excelHtml5",
+				title: sSistema + ' - Relatório WhatsApp',
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: sSistema + ' - Relatório WhatsApp',
+				orientation: 'landscape',
+				footer: true,
+				exportOptions: {
+					columns: ':visible'
+				}
+
+			}],
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+	}
+
+	function buscaCEP(cep) {
+		if (cep && cep.length >= 9) {
+			cep = cep.replace("-", "");
+
+			$.ajax({
+				dataType: "json",
+				url: "http://cep.correiocontrol.com.br/" + cep + ".json",
+				method: "GET",
+				success: function (data) {
+					$(".loader").show();
+
+					$("#perEstado").val(1);
+					$("#perEstado").val($("#" + data.uf + "").val())
+					$("#perCidade").empty();
+					$.ajax({
+						dataType: "html",
+						url: '/pages/cadastros/buscaCidades.php',
+						method: "POST",
+						data: {
+							estCodigo: $("#" + data.uf + "").val(),
+							cidNome: data.localidade
+						},
+						success: function (data) {
+							$("#perCidade").append(data);
+							$("#perCidade").attr("disabled", false);
+						}
+					});
+					$("#perBairro").val(data.bairro);
+					$("#perEndereco").val(data.logradouro);
+					$("#perCidade").val(data.localidade);
+				}
+			});
+			$(".loader").hide();
+		}
+	};
+
+	$('#formInsereImagem').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+		dados.append("blob", mBlob);
+		dados.delete("pimimagem");
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/inserePessoaImagem.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+                    $scope.mostrarMensagemSucessoPerfil();
+					$("#atualizaInfo").click()
+					$("#divimg").html("");
+					$("#imagemCutAll").cropper("destroy");
+					$scope.buscapessoaimagem();
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#pimimagem').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Adicionar",
+		removeLabel: "Remover",
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ["png", "jpg", "jpeg"],
+		showUpload: false
+	});
+	$('#pimimagem').on('fileloaded', function (event, file, previewId, index, reader) {
+
+	});
+
+	$('#primeImagem').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar Imagem",
+		removeLabel: "Remover",
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ["png", "jpg", "jpeg"],
+		showUpload: false
+	});
+
+	$scope.alteraPessoaImagem = function (codigo) {
+		$("#imagem-modal").modal();
+		$("#codAlteraImg").val(codigo);
+
+	}
+	$scope.alterarImagem = function (codigo) {
+		$("#imgPesAlter").click();
+
+	}
+	$scope.excluirImagem = function (codigo) {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/removePessoaImagem.php",
+			data: {
+				pimcodigo: $("#codAlteraImg").val()
+			},
+			dataType: "json",
+
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+					$("#imagem-modal").modal('hide');
+					$("#divimg").html("");
+
+					$scope.buscapessoaimagem();
+
+				} else {
+
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	$("#formAlteraImagem").submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		dataAltera = new FormData(this);
+		dataAltera.append("blob", mBlob);
+		dataAltera.delete('imgPesAlter')
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/alteraPessoaImagem.php",
+			data: dataAltera,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.result[0].erro == "0") {
+					$("#imagem-modal").modal('hide');
+					$("#divimg").html("");
+					$("#imagemCutAll").cropper("destroy");
+					$scope.buscapessoaimagem();
+					$("#imgPesAlter").val('');
+				} else {
+					swal(result.result[0].resultado, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	});
+
+	$('#cortaImagemAll-modal').on('hidden.bs.modal', function (e) {
+		$("#imgPesAlter").val('')
+	})
+
+	$scope.buscapessoaimagem = function () {
+
+		var htmlimg = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaPessoaImagem.php",
+			data: {
+				tipo: "1"
+			},
+			dataType: "json",
+			success: function (result) {
+				for (var i = 0; i < result.result.length; i++) {
+					htmlimg += "<div class='col-sm-2 margin'  ng-click='alteraPessoaImagem(" + result.result[i].PIm_Codigo + ")' ><img  src='" + result.result[i].PIm_Imagem + "'  name=" + result.result[i].PIm_Codigo + "  id=" + result.result[i].PIm_Codigo + "  width='80' style='cursor:pointer;'></div>";
+				}
+				$("#divimg").html(htmlimg);
+				$compile($('#divimg'))($scope);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.visualizarAplicativo = function () {
+		var htmlimg = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaPessoaImagem.php",
+			data: {
+				tipo: "1"
+			},
+			dataType: "json",
+			success: function (result) {
+				htmlimg += result.result[0].PIm_Imagem;
+				$("#background").css("background-image", "url(" + htmlimg + ")");
+				$compile($("#background"))($scope);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+		$("#verAplicativo").modal();
+	}
+
+	$scope.abreModalPixMonthly = function () {
+		$("#btnGeraPixMonthly").unbind('click');
+		const valor = tabelaDadosConta.fnGetData(0).Valor;
+		const plano = tabelaDadosConta.fnGetData(0).Plano;
+		$("#txtValorPIXMonthly").html(valor);
+		$("#txtPlanoPIXMonthly").html(plano);
+
+		$("#btnGeraPixMonthly").on('click', () => {
+			$scope.geraPixMonthly();
+		});
+
+		$("#pixMonthly-modal").modal();
+
+	}
+
+
+	$scope.geraPixMonthly = function () {
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/php/plans/geraPixMonthly.php",
+			data: {
+				id: $_CONFIG.ID,
+				pescodigo: tabelaDadosConta.fnGetData(0).Codigo,
+				idplan: tabelaDadosConta.fnGetData(0).IDPM
+			},
+			dataType: "json",
+			success: function (result) {
+				showLoader(false);
+				if (result.erro == "0") {
+					var valor = result.valor;
+					var qrcode = result.resultado;
+					var codexterno = result.codexterno;
+					$App.showPIXModal(valor, qrcode, 3, codexterno);
+				} else {
+					swal("Ops!", result.resultado, "error");
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	$scope.validaRenovar = function () {
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaValidacaoPlano.php",
+			data: {
+				tipo: "1"
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].Erro == "0") {
+					$state.go('renovacao');
+				} else {
+					swal("Ops!", result.data[0].resultado, "error");
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+	}
+	$scope.validaPlano = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/buscaValidacaoPlano.php",
+			data: {
+				tipo: "2",
+				placodigo: $("input[name=cbPlano]:checked").val()
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data[0].Erro == "1") {
+					swal("Ops!", result.data[0].resultado, "error");
+					$("#btnNovoRenovarPlano").prop("disabled", true);
+				} else {
+					$("#btnNovoRenovarPlano").prop("disabled", false);
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+
+	$("#btnNovoRenovarPlano").click(function () {
+
+		if ($("input[name=cbPlano]:checked").length > 0) {
+			var planoSelecionado = $("input[name=cbPlano]:checked").get(0);
+			$("#resDescrRenovar").html(planoSelecionado.dataset.sistema);
+			$("#resQtdProfRenovar").html(planoSelecionado.dataset.numprof);
+			$("#resPlanoRenovar").html(planoSelecionado.dataset.periodo);
+			$("#resValorRenovar").html(planoSelecionado.dataset.valor);
+			$("#resDiasRenovar").html(planoSelecionado.dataset.dias);
+			$("#resTokenRenovar").html($("#edtToken").val());
+			$("#renovar-modal").modal("hide");
+
+			valor = planoSelecionado.dataset.valor.replace(",", ".");
+			var htmlParcelas = "";
+			var numeroDeParcelas = 1;
+			var hasPixOptions = false;
+
+			if (planoSelecionado.dataset.periodo == "Semestral") {
+				numeroDeParcelas = 6;
+				hasPixOptions = true;
+			} else if (planoSelecionado.dataset.periodo == "Anual") {
+				numeroDeParcelas = 12;
+				hasPixOptions = true;
+			}
+
+			for (var i = 1; i <= numeroDeParcelas; i++) {
+				var valorparcela = valor / i;
+				var valorparcelatext = parseFloat(valorparcela).formatMoney().replace(".", ",");
+				var option = "<option value='" + i + "'>" + i + "x de R$ " + valorparcelatext + "</option>";
+				htmlParcelas += option;
+			}
+			$("#numParcelasRenovar").html(htmlParcelas);
+
+			if (hasPixOptions){
+				$("#checkboxPIXRenovar").hide();
+				$("#hrCheckboxPIXRenovar").hide();
+			} else {
+				$("#checkboxPIXRenovar").hide();
+				$("#hrCheckboxPIRenovar").hide();
+			}
+
+			$("#confirmaRenovar-modal").modal();
+		} else {
+			swal("Selecione um Plano.", "", "error");
+		}
+	});
+
+	$("#btnVoltarPlanoRenovar").click(function () {
+		$("#confirmaRenovar-modal").modal("hide");
+		$("#renovar-modal").modal("show");
+	});
+
+	$("#btnFecharRenovar").click(function () {
+		$("input[name=cbPlano]").iCheck('uncheck');
+	});
+
+	$("#btnEfetuaPagamentoRenovar").click(function () {
+
+		if ($_CONFIG.PAIS == "1") {
+			var cpfcnpjText = $("#document_number_empresaRenovar").val().replaceAll(".", "").replaceAll("-", "").replaceAll("/", "");
+		}
+
+		if ($("input[name=tipoPgtoRenovar]:checked").get(0) == null) {
+			swal("Insira um Método de Pagamento", "", "error");
+		} else if ($_CONFIG.PAIS == "1" && cpfcnpjText == "") {
+			swal("Informe o CPF ou o CNPJ", "", "error");
+		} else if (($_CONFIG.PAIS == "1") && (cpfcnpjText.length != 14) && (cpfcnpjText.length != 11)) {
+			swal("Informe um CPF ou o CNPJ válido", "", "error");
+		} else if (($_CONFIG.PAIS == "1") && (cpfcnpjText.length == 14) && (!validarCNPJ(cpfcnpjText))) {
+			swal("Informe um CNPJ válido", "", "error");
+		} else if (($_CONFIG.PAIS == "1") && (cpfcnpjText.length == 11) && (!validarCPF(cpfcnpjText))) {
+			swal("Informe um CPF válido", "", "error");
+		} else if (!$("#condusoRenovar").get(0).checked) {
+			swal("Você precisa aceitar o termo de condição de uso", "", "error");
+		} else {
+
+			var card_number = "";
+			var card_holder_name = "";
+			var card_expiration_month = "";
+			var card_expiration_year = "";
+			var card_cvv = "";
+			var mCardHash = "";
+
+			var planoSelecionado = $("input[name=cbPlano]:checked").get(0);
+			var tipoPagSelecionado = $("input[name=tipoPgtoRenovar]:checked").get(0);
+
+			var tipoPgto = "";
+
+			if ($_CONFIG.PAIS == "1") {
+				var cpfcnpj = cpfcnpjText;
+			} else {
+				var cpfcnpj = "";
+			}
+
+			if (tipoPagSelecionado.value == "1") {
+				tipoPgto = "Boleto";
+			} else if (tipoPagSelecionado.value == "2") {
+				tipoPgto = "Cartão de Crédito";
+
+				card_number = $("#card_numberRenovar").val();
+				card_holder_name = $("#card_holder_nameRenovar").val();
+				card_expiration_month = $("#card_expiration_monthRenovar").val();
+				card_expiration_year = $("#card_expiration_yearRenovar").val();
+				card_cvv = $("#card_cvvRenovar").val();
+
+				var form = $("#payment_formRenovar");
+
+				PagarMe.encryption_key = "ek_live_tOKDSJzPURbYjTNd3CAGwQD1nTL0wV";
+
+				var creditCard = new PagarMe.creditCard();
+				creditCard.cardHolderName = card_holder_name;
+				creditCard.cardExpirationMonth = card_expiration_month;
+				creditCard.cardExpirationYear = card_expiration_year;
+				creditCard.cardNumber = card_number;
+				creditCard.cardCVV = card_cvv;
+
+				// pega os erros de validação nos campos do form
+				var fieldErrors = creditCard.fieldErrors();
+
+				//Verifica se há erros
+				var hasErrors = false;
+				for (var field in fieldErrors) {
+					hasErrors = true;
+					break;
+				}
+
+				if (hasErrors) {
+
+					if (fieldErrors.card_number) {
+						swal("Erro no Cartão", fieldErrors.card_number, "error");
+					}else if (fieldErrors.card_holder_name) {
+						swal("Erro no Cartão", fieldErrors.card_holder_name, "error");
+					}else if (fieldErrors.card_expiration_month) {
+						swal("Erro no Cartão", fieldErrors.card_expiration_month, "error");
+					}else if (fieldErrors.card_expiration_year) {
+						swal("Erro no Cartão", fieldErrors.card_expiration_year, "error");
+					}else if (fieldErrors.card_cvv) {
+						swal("Erro no Cartão", fieldErrors.card_cvv, "error");
+					}else{
+						swal("Erro no Cartão", "Entre em contato com a equipe de suporte","error")
+					}
+
+				} else {
+					// se não há erros, gera o card_hash...
+					creditCard.generateHash(function (cardHash) {
+						mCardHash = cardHash;
+
+						form.append($('<input type="hidden" id="card_hashRenovar" name="card_hashRenovar">').val(cardHash));
+					});
+				}
+			} else if (tipoPagSelecionado.value == "3" && planoSelecionado.dataset.periodo == "Mensal"){
+				toastr.error("Não é possível pagamento do plano mensal por PIX. Escolha outra forma de pagamento.")
+				var hasErrors = true;
+			}  else if (tipoPagSelecionado.value == "3"){
+				tipoPgto = "Pix";
+				var hasErrors = false;
+			}
+
+			if (!hasErrors) {
+				$.ajax({
+					dataType: "json",
+					method: "GET",
+					url: host,
+					data: {
+						metodo: "buscaPessoa",
+						tipo: "2",
+						id: $scope.idCliente
+					},
+					success: function (data) {
+						if (data.buscaPessoa.length > 0) {
+							var html = '<table class="table table-condensed table-hover">';
+							html += '<tr height="5"><th style="width:30%"><h5>Plano:</h5></th><td><h5>' + planoSelecionado.dataset.sistema + '</h5></td></tr>';
+							html += '<tr height="5"><th><h5>N. Profissionais:</h5></th><td><h5>' + planoSelecionado.dataset.numprof + '</h5></td></tr>';
+							html += '<tr height="5"><th><h5>Período:</h5></th><td><h5>' + planoSelecionado.dataset.periodo + '</h5></td></tr>';
+							html += '<tr height="5"><th><h5>Valor:</h5></th><td><h5>' + planoSelecionado.dataset.valor + '</h5></td></tr>';
+							html += '<tr height="5"><th><h5>Tipo Pagamento:</h5></th><td><h5>' + tipoPgto + '</h5></td></tr>';
+							if (planoSelecionado.dataset.parcelado == "1") {
+								html += '<tr height="5"><th><h5>N° Parcelas:</h5></th><td><h5>' + $("#numParcelasRenovar option:selected").text() + '</h5></td></tr>';
+							}
+							html += '</table>';
+							console.log('');
+							swal({
+									title: "",
+									text: html,
+									html: true,
+									showCancelButton: true,
+									confirmButtonColor: "#00796B",
+									confirmButtonText: "Confirmar",
+									cancelButtonText: "Cancelar",
+									closeOnConfirm: true,
+									closeOnCancel: true
+								},
+								function (isConfirmed) {
+									if (isConfirmed) {
+										showLoader(true);
+										$.ajax({
+											dataType: "json",
+											method: "POST",
+											url: "/php/alterarPagamentoPM.php",
+											data: {
+												descricao: planoSelecionado.dataset.sistema,
+												numProf: planoSelecionado.dataset.numprof,
+												plano: planoSelecionado.dataset.periodo,
+												valor: planoSelecionado.dataset.valor,
+												placodigo: planoSelecionado.value,
+												token: $("#tokenPlano").val(),
+												dias: $("#resDiasRenovar").val(),
+												IDPM: $("#resIDPMRenovar").val(),
+												codExterno: $("#codigoexterno").val(),
+												id: $("#id").val(),
+												nomeempresa: data.buscaPessoa[0].Nome,
+												email: data.buscaPessoa[0].Email,
+												telefone: data.buscaPessoa[0].Telefone,
+												cnpj: cpfcnpj,
+												tipoPgto: tipoPagSelecionado.value,
+												planoPM: planoSelecionado.dataset.plano,
+												numParcelas: $("#numParcelasRenovar option:selected").val(),
+												parcelado: planoSelecionado.dataset.parcelado,
+												cardHash: mCardHash,
+												codigo: $("#resCodigoRenovar").val(),
+												tipoAssinatura: $("#resTipoAssinaturaRenovar").val(),
+												tipoPagamento: $("#resTipoPagamentoRenovar").val()
+											},
+											success: function (data) {
+												if (data.erro == 1) {
+													swal("", data.resultado, "error");
+												} else {
+													if (tipoPagSelecionado.value == "3"){
+
+														$App.showPIXModal(planoSelecionado.dataset.valor, data.resultado, 2, data.codexterno);
+
+													} else {
+														swal({
+															title: "",
+															text: data.resultado,
+															html: true,
+															type: "success"
+														},
+														function () {
+															window.location.assign("/index.php");
+														});
+													}
+
+												}
+												showLoader(false);
+											},
+											error: function (data) {
+												showLoader(false);
+
+											}
+										});
+									}
+								});
+						} else {
+							swal("Falha ao buscar dados da Empresa. Preencha o Perfil.", "", "error");
+						}
+					}
+				});
+			}
+		}
+	});
+
+	function showLoader(show) {
+		if (show) {
+			$("#loader").show();
+			loaderDiv = new ajaxLoader($('body'));
+		} else {
+			loaderDiv.remove();
+		}
+	}
+
+	function ajaxLoader(el, options) {
+		var defaults = {
+			bgColor: '#fff',
+			duration: 800,
+			opacity: 0.7,
+			classOveride: false
+		}
+		this.options = jQuery.extend(defaults, options);
+		this.container = $(el);
+
+		this.init = function () {
+			var container = this.container;
+			this.remove();
+			var overlay = $('<div></div>').css({
+				'background-color': this.options.bgColor,
+				'opacity': this.options.opacity,
+				'width': container.width(),
+				'height': container.height(),
+				'position': 'absolute',
+				'top': '0px',
+				'left': '0px',
+				'z-index': 99999
+			}).addClass('ajax_overlay');
+			if (this.options.classOveride) {
+				overlay.addClass(this.options.classOveride);
+			}
+			container.append(
+				overlay.append(
+					$('<div></div>').addClass('ajax_loader')
+				).fadeIn(this.options.duration)
+			);
+		};
+
+		this.remove = function () {
+			var overlay = this.container.children(".ajax_overlay");
+			if (overlay.length) {
+				overlay.fadeOut(this.options.classOveride, function () {
+					overlay.remove();
+				});
+			}
+		}
+		this.init();
+	}
+
+	$(function () {
+		$.fn.modal.Constructor.prototype.enforceFocus = function () {};
+
+		$('#loader').hide();
+		$('#tbBusca').dataTable({
+			"bPaginate": true,
+			"bLengthChange": false,
+			"bFilter": true,
+			"bSort": true,
+			"bInfo": true,
+			"bAutoWidth": false
+		});
+
+		$('input:radio[name=iCheckPag]').iCheck({
+			checkboxClass: 'icheckbox_square',
+			radioClass: 'iradio_square-green',
+			increaseArea: '20%'
+		}).on('ifClicked', function (event) {
+			if (this.dataset.text == "Token") {
+				$("#divTokenPag").show();
+				$("#divValorPag").hide();
+			} else {
+				$("#divTokenPag").hide();
+				$("#divValorPag").show();
+			}
+			if (this.dataset.cartao == "1") {
+				$("#divBandeiraPag").show();
+
+			} else {
+				$("#divBandeiraPag").hide();
+
+			}
+		});
+
+		$("input[name=tipoPgtoRenovar]").iCheck({
+			checkboxClass: 'icheckbox_square',
+			radioClass: 'iradio_square-green',
+			increaseArea: '20%'
+		}).on('ifClicked', function (event) {
+			if (this.value == "1") {
+				$("#divBoletoRenovar").show();
+				$("#divCreditCardRenovar").hide();
+				$("#divPIXRenovar").hide();
+				$("#numParcelasRenovar").val(1);
+			} else if (this.value == "3") {
+				$("#divBoleto").hide();
+				$("#divCreditCard").hide();
+				$("#numParcelasRenovar").val(1);
+				$("#divPIXRenovar").show();
+			}  else {
+				$("#divBoletoRenovar").hide();
+				$("#divCreditCardRenovar").show();
+				$("#divPIXRenovar").hide();
+			}
+		});
+
+		$('[data-toggle="tooltip"]').tooltip();
+
+	});
+
+	$scope.buscaCodigoSite = function (tipo) {
+
+		$.ajax({
+			method: "POST",
+			dataType: "html",
+			url: '/pages/cadastros/buscaCodigoWidgetNewSites.php',
+			data: {
+				tipo: tipo,
+				tipometodo: "1"
+			},
+			success: function (data) {
+				if (tipo == '1') {
+					$("#divCodigoSite").html(data);
+				} else if (tipo == '2') {
+					data = data + ' <button class="btn btn-xs btn-primary btnClipFacebook" data-clipboard-text="' + data + '" ><i class="fa fa-copy" alt="Copiar"></i> Copiar</button>';
+					$("#divCodigoFacebook").html(data);
+					var clipboard = new ClipboardJS('.btnClipFacebook');
+					clipboard.on('success', function (e) {
+						toastr.success("Copiado!");
+					});
+				} else if (tipo == '3') {
+					data = data + ' <button class="btn btn-xs btn-primary btnClipInstagram" data-clipboard-text="' + data + '" ><i class="fa fa-copy" alt="Copiar"></i> Copiar</button>';
+					$("#divCodigoInstagram").html(data);
+					var clipboard = new ClipboardJS('.btnClipInstagram');
+					clipboard.on('success', function (e) {
+						toastr.success("Copiado!");
+					});
+				}  else if (tipo == '4') {
+
+					var download = '';
+					if (qrcode != undefined){
+						qrcode.clear();
+						qrcode.makeCode(data);
+						document.getElementById("qrcode-agendamento").getElementsByTagName('img')[0].style.display = '';
+					} else {
+
+						qrcode = new QRCode(document.getElementById("qrcode-agendamento"), {
+							text: data,
+							width: 200,
+							height: 200,
+							colorDark : "#000000",
+							colorLight : "#FFFFFF",
+							correctLevel : QRCode.CorrectLevel.H
+						});
+
+						qrcode._oDrawing._fSuccess = function (){
+
+							qrcode._el.getElementsByTagName('img')[0].style.display = '';
+							 download = '<a href="'+ qrcode._el.getElementsByTagName('canvas')[0].toDataURL("image/png") +'" target="_blank" download="QRCodeAgendamento" class="btn btn-success btn-xs"><i class="fa fa-download" aria-hidden="true"></i> Baixar QRCode</a>';
+							 $("#btnBaixarImagemQRCode").html(download);
+							}
+
+
+						}
+						download = '<a href="'+ document.getElementById("qrcode-agendamento").getElementsByTagName('canvas')[0].toDataURL("image/png") +'" target="_blank" download="QRCodeAgendamento" class="btn btn-success btn-xs"><i class="fa fa-download" aria-hidden="true"></i> Baixar QRCode</a>';
+						$("#btnBaixarImagemQRCode").html(download);
+
+					var htmlData = '<a href="'+ data +'" target="_blank">' + data + '</a> <button class="btn btn-xs btn-primary btnClipLinkAgendamento" data-clipboard-text="' + data + '" ><i class="fa fa-copy" alt="Copiar"></i> Copiar</button>';
+
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/geraShortLinkAWS.php',
+						method: "POST",
+						data: {
+							longlink: data,
+							pesCodigo: $_CONFIG.CODESTABELECIMENTO,
+							type: 2
+						},
+                  
+						success: function (data) {
+							var datahtmlshort = '<a href="'+ data.shortLink +'" target="_blank">' + data.shortLink + '</a> <button class="btn btn-xs btn-primary btnClipLinkAgendamento" data-clipboard-text="' + data.shortLink + '" ><i class="fa fa-copy" alt="Copiar"></i> Copiar</button>';
+							$("#link-encurtado").html(datahtmlshort);
+						}
+					});
+
+					$("#link-agendamento").html(htmlData);
+					var clipboard = new ClipboardJS('.btnClipLinkAgendamento');
+					clipboard.on('success', function (e) {
+						toastr.success("Copiado!");
+					});
+				}
+
+			}
+		});
+	}
+
+	////////////////////////////////////////////////////////////////////////////////////
+
+	$("#carteiraDia").keyup(function () {
+		var valorDia = parseInt(this.value);
+		if (valorDia < 1) {
+			this.value = 1;
+		} else if (valorDia > 30) {
+			this.value = 30;
+		}
+	});
+
+	var delayTimerToken;
+	var nomeRevendaToken = "";
+
+	function doTokenSearch(text) {
+		clearTimeout(delayTimerToken);
+		delayTimerToken = setTimeout(function () {
+			if (text.length > 0) {
+				$http.get(localStorage.getItem("host") + '?metodo=buscaTokenRevendedor&token=' + text + '&id=' + $scope.idCliente).
+				success(function (data, status, headers, config) {
+					if (data.result[0].erro == "0") {
+						nomeRevendaToken = data.result[0].Nome;
+						$("#msgTokenRevendaError").html(data.result[0].resultado);
+						$("#tokenRevenda").parent().addClass("has-success");
+						$("#msgTokenRevendaError").show();
+					} else {
+						$("#msgTokenRevendaError").html(data.result[0].resultado);
+						$("#tokenRevenda").parent().addClass("has-error");
+						$("#msgTokenRevendaError").show();
+					}
+				});
+			}
+		}, 500);
+	}
+
+	$("#tokenRevenda").keyup(function () {
+		$("#msgTokenRevendaError").html("");
+		$("#tokenRevenda").parent().removeClass("has-error");
+		$("#tokenRevenda").parent().removeClass("has-success");
+		$("#msgTokenRevendaError").hide();
+		doTokenSearch(this.value);
+	});
+
+	$("#formTokenRevenda").submit(function (e) {
+		e.preventDefault();
+		if ($("#tokenRevenda").parent().hasClass("has-success")) {
+			$http.get(localStorage.getItem("host") + '?metodo=insereTokenRevendedor&token=' + $("#tokenRevenda").val() + '&id=' + $scope.idCliente).
+			success(function (data, status, headers, config) {
+				if (data.result[0].erro == "0") {
+					toastr.success(data.result[0].resultado);
+					$("#txtNomeRevendedor").html(nomeRevendaToken);
+					$("#txtTokenRevendedor").html($("#tokenRevenda").val());
+
+					$("#msgTokenRevendaError").html("");
+					$("#tokenRevenda").parent().removeClass("has-error");
+					$("#msgTokenRevendaError").hide();
+					$("#tokenRevenda").val("");
+
+					$("#formTokenRevenda").hide();
+					$("#divRevendedor").show();
+
+				} else {
+					swal(data.result[0].resultado, "", "error");
+				}
+			});
+		} else {
+			if ($("#tokenRevenda").val().length == 0) {
+				$("#msgTokenRevendaError").html("Insira um token válido.");
+				$("#tokenRevenda").parent().addClass("has-error");
+				$("#msgTokenRevendaError").show();
+			}
+		}
+	});
+
+
+
+	if (isGestor) {
+		carregaDados();
+		$scope.carregaDados();
+		$scope.validaAbaApi();
+		$scope.validaAbaCadastrarFilial();
+		$scope.buscaSaldoSMS();
+		$scope.buscaSaldoWhats();
+
+		$scope.buscaHistoricoSMS();
+		$scope.buscaHistoricoWhats();
+		$scope.buscapessoaimagem();
+		if (mCodigoRecebedor == "0") {
+			$scope.buscaSaldoCarteira();
+		} else {
+			if (mCodigoRecebedor == "2") {
+				$("#pagOnlineBloqueado").show();
+				$("#semCarteira").hide();
+				$("#divCarteira").hide();
+			} else {
+				$("#pagOnlineBloqueado").hide();
+				$("#semCarteira").show();
+				$("#divCarteira").hide();
+			}
+		}
+	}
+
+	buscaPerfil();
+	buscaPlanos(sisCodigo, "",2,'#tbPlanosRenovar');
+
+	$("#btnValidaPlanoRenovar").click(function () {
+
+		buscaPlanos(sisCodigo, $("#tokenPlano").val(),2,'#tbPlanosRenovar');
+	});
+
+	$scope.changeCpfCnpjEdtConta = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFEdtConta").val(1)
+			$("#btnCpfCnpjEdtConta").html("CPF");
+			$("#empCNPJ").val('');
+			$("#empCNPJ").attr('maxlength', '14')
+			$("#empCNPJ").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFEdtConta").val(2)
+			$("#btnCpfCnpjEdtConta").html("CNPJ")
+			$("#empCNPJ").val('');
+			$("#empCNPJ").attr('placeholder', 'CNPJ')
+			$("#empCNPJ").attr('maxlength', '18')
+		}
+	}
+
+	$("#empCNPJ").keypress(function () {
+		if ($("#tipocampoCPFEdtConta").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$scope.changeCpfCnpjRenovar = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFRenovar").val(1)
+			$("#btnCpfCnpjRenovar").html("CPF");
+			$("#document_number_empresaRenovar").val('');
+			$("#document_number_empresaRenovar").attr('maxlength', '14')
+			$("#document_number_empresaRenovar").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFRenovar").val(2)
+			$("#btnCpfCnpjRenovar").html("CNPJ")
+			$("#document_number_empresaRenovar").val('');
+			$("#document_number_empresaRenovar").attr('placeholder', 'CNPJ')
+			$("#document_number_empresaRenovar").attr('maxlength', '18')
+		}
+	}
+
+
+	$("#document_number_empresaRenovar").keypress(function () {
+		if ($("#tipocampoCPFRenovar").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$scope.changeCpfCnpjFilial = function (tipo) {
+
+		if (tipo == 1) {
+
+			$("#tipocampoCPFFilial").val(1)
+			$("#btnCpfCnpjFilial").html("CPF");
+			$("#filDocumentNumber").val('');
+			$("#filDocumentNumber").attr('maxlength', '14')
+			$("#filDocumentNumber").attr('placeholder', 'CPF')
+		} else {
+
+			$("#tipocampoCPFFilial").val(2)
+			$("#btnCpfCnpjFilial").html("CNPJ")
+			$("#filDocumentNumber").val('');
+			$("#filDocumentNumber").attr('placeholder', 'CNPJ')
+			$("#filDocumentNumber").attr('maxlength', '18')
+		}
+	}
+
+	$("#filDocumentNumber").keypress(function () {
+		if ($("#tipocampoCPFFilial").val() == '1') {
+			mascara(this, soCpf);
+		} else {
+			mascara(this, soCnpj)
+		}
+	})
+
+	$('#formCadastrarFilial').submit(function (event) {
+		event.preventDefault();
+
+		if (!validarEmail($('#filEmail').val())) {
+			$('#filEmail').focus();
+			toastr.error("Favor inserir um email válido");
+			return false;
+		}
+
+		showLoader(true);
+		var dados = new FormData(this);
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/FILIAL_Insere.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				showLoader(false);
+				if (result.data && result.data.error === false) {
+					toastr.success(result.data.message || "Filial cadastrada com sucesso!");
+					$('#formCadastrarFilial').trigger('reset');
+					var cnpjAtual = $scope.empresa.CNPJ.replaceAll('.', '').replaceAll('-', '').replaceAll('/', '');
+					chageCNPJFilialInit(cnpjAtual.length == 14 ? 2 : 1, cnpjAtual);
+					$("#filEmail").val($scope.empresa.Email);
+
+					var novaFilial = result.data.branches_establishment && result.data.branches_establishment[0];
+					if (novaFilial && novaFilial.user_id && novaFilial.user_hash && novaFilial.establishment_code) {
+						swal({
+							title: "Filial cadastrada com sucesso!",
+							text: "Deseja acessar a nova unidade agora?",
+							type: "success",
+							showCancelButton: true,
+							confirmButtonColor: "#378049",
+							confirmButtonText: "Acessar nova unidade",
+							cancelButtonText: "Continuar aqui",
+							closeOnConfirm: false
+						}, function (confirmado) {
+							if (confirmado) {
+								var url = "https://sistema.appbarber.com.br/php/authmobile.php?id=" + novaFilial.user_id + "&h=" + novaFilial.user_hash + "&p=" + novaFilial.establishment_code;
+								window.location.replace(url);
+							}
+						});
+					}
+				} else {
+					toastr.error((result.data && result.data.message) || "Não foi possível cadastrar a filial.");
+				}
+			},
+			error: function () {
+				showLoader(false);
+				toastr.error("Falha na conexão.");
+			}
+		});
+
+		return true;
+	});
+
+	function formattingValueAntecipacao(n) {
+		return n.toFixed(2);
+	}
+
+	$("#btnCriaAntecipacao").click(() => {
+		var valorAntecipacao = document.getElementById('antecipa_slider').value;
+		var transferenciaAutomatica = document.getElementById('antecipaTransferenciaAutomatica').checked;
+		var pwdAntecipa = document.getElementById('pwdAntecipa').value;
+
+		if (pwdAntecipa === "") {
+
+			toastr.error("Informe a sua senha.");
+
+		} else {
+
+			var params = new FormData();
+			params.append("bulk_anticipation_id", $scope.antecipacao.bulk_anticipation_id);
+			params.append("senha", pwdAntecipa);
+			$(".loading-antecipa").show();
+			fetch('./php/pagarme/confirmaAntecipacaoBulk.php', {
+					method: "POST",
+					body: params
+				})
+				.then(data => data.json())
+				.then((data) => {
+					$(".loading-antecipa").hide();
+					if (data.errors == undefined) {
+						$("#antecipacao-modal").modal('hide');
+						swal("Antecipação criada com sucesso", "O valor estará disponível dia " + moment(data.payment_date).locale("pt-br").format("L"), "success");
+						$scope.buscaAntecipacoesCriadas();
+					} else {
+						toastr.error(data.errors[0].message);
+					}
+				});
+		}
+
+	});
+
+
+	var dataini = moment(dataAntecipa).locale("pt-br").format("L");
+	$('.date.dateAntecipa').datepicker('setStartDate', dataini);
+	$('.date.dateAntecipa').datepicker('update', dataini);
+
+	$('.date.dateAntecipa').datepicker().on('changeDate', function (d, i) {
+		newDate = moment();
+		newDate.month(d.date.getMonth());
+		newDate.year(d.date.getFullYear());
+		newDate.date(d.date.getDate());
+		$scope.antecipacao.payment_date = newDate.valueOf();
+		verificaAntecipacao();
+	});
+
+	$('#antecipaTransferenciaAutomatica').change(() => {
+		$scope.antecipacao.automatic_transfer = document.getElementById('antecipaTransferenciaAutomatica').checked;
+		verificaAntecipacao();
+	});
+
+	$scope.buscaDadosAntecipacao = function () {
+		buscaLimitesAntecipacao($scope.antecipacao.payment_date);
+	}
+
+	function buscaLimitesAntecipacao(payment_date) {
+
+		$("#antecipacao-modal").modal();
+		$scope.antecipacao.automatic_transfer = true;
+		// var payment_date = moment().add(1, 'days').valueOf();
+		fetch('./php/pagarme/buscaLimitesAntecipacao.php?paymentdate=' + payment_date + '')
+			.then(data => data.json())
+			.then((data) => {
+				if (data.errors != undefined) {
+					toastr.error(data.errors[0].message);
+				} else {
+					var maxAntecipacao = data.maximum;
+					var minAntecipacao = data.minimum;
+
+					$scope.antecipacao.amount = maxAntecipacao.amount;
+
+					verificaAntecipacao();
+					document.getElementById('txtTotalReceber').innerHTML = (maxAntecipacao.amount / 100).toString().formatMoney();
+					$("#antecipa_slider").show();
+					$("#antecipa_slider").ionRangeSlider({
+						min: minAntecipacao.amount / 100,
+						max: maxAntecipacao.amount / 100,
+						from: maxAntecipacao.amount / 100,
+						skin: "modern",
+						prefix: "R$ ",
+						step: 0.5,
+						prettify: formattingValueAntecipacao,
+						onFinish: function (data) {
+							$scope.antecipacao.amount = data.from * 100;
+							verificaAntecipacao();
+						}
+					});
+				}
+
+
+			});
+	};
+
+	function verificaAntecipacao() {
+		$(".loading-antecipa").show();
+
+		if ($scope.antecipacao.bulk_anticipation_id != "") {
+			fetch('./php/pagarme/cancelaAntecipacaoBulk.php?bulk_anticipation_id=' + $scope.antecipacao.bulk_anticipation_id)
+				.then(data => data.json())
+				.then((data) => {
+					if (data.errors != undefined) {
+						toastr.error(data.errors[0].message);
+					} else {
+						criaAntecipacaoBulk();
+					}
+				})
+		} else {
+			criaAntecipacaoBulk();
+		}
+	}
+
+	function criaAntecipacaoBulk() {
+
+		var dataForm = new FormData();
+		dataForm.append("paymentdate", $scope.antecipacao.payment_date)
+		dataForm.append("requested_amount", $scope.antecipacao.amount)
+		dataForm.append("automatic_transfer", $scope.antecipacao.automatic_transfer)
+
+		fetch('./php/pagarme/criaAntecipacaoBulk.php', {
+				method: "POST",
+				body: dataForm
+			})
+			.then(data => data.json())
+			.then((data) => {
+				if (data.errors != undefined) {
+					toastr.error(data.errors[0].message);
+					$("#valorTotalAntecipa").html("R$ 0,00");
+					$("#taxaAntecipa").html("R$ 0,00");
+					$("#valorRecebidoAntecipa").html("R$ 0,00");
+				} else {
+					$scope.antecipacao.bulk_anticipation_id = data.id;
+					$("#valorTotalAntecipa").html((data.amount / 100).toString().formatMoney2());
+					$("#taxaAntecipa").html((data.anticipation_fee / 100).toString().formatMoney2());
+					$("#valorRecebidoAntecipa").html(((data.amount - data.anticipation_fee) / 100).toString().formatMoney2());
+				}
+
+				$(".loading-antecipa").hide();
+
+			});
+	}
+
+	$scope.buscaAntecipacoesCriadas = function () {
+		$("#lista-antecipacoes-modal").modal();
+		fetch('./php/pagarme/buscaAntecipacoesBulk.php')
+			.then(data => data.json())
+			.then((data) => {
+				var dadosTable = [];
+				if (data.length > 0) {
+
+					data.forEach(element => {
+						var status = "";
+						if (element.status != "building") {
+							if (element.status === "pending") {
+								status = "<span class='badge bg-yellow'>Pendente</span>";
+							} else if (element.status === "approved") {
+								status = "<span class='badge bg-green'>Aprovado</span>";
+							} else if (element.status === "refused") {
+								status = "<span class='badge bg-red'>Recusado</span>";
+							} else if (element.status === "canceled") {
+								status = "<span class='badge bg-black'>Cancelado</span>";
+							} else {
+								status = "<span class='badge badge bg-grey'>Desconhecido</span>";
+							}
+							var el = {
+								'valor': (element.amount / 100).toString().formatMoney2(),
+								// 'taxa': (element.anticipation_fee / 100).toString().formatMoney2(),
+								'status': status,
+								'data_pagamento': moment(element.payment_date).locale("pt-br").format("L"),
+							}
+							dadosTable.push(el);
+						}
+
+					});
+				}
+
+				$("#tbListaAntecipacoes").bootstrapTable('refreshOptions', {
+					data: dadosTable
+				});
+				$(".loading-list-antecipa").hide();
+
+			});
+	}
+
+	$("#btnSaveTransferOptions").click((e) => {
+		var automaticTransfer = $("#automaticTransfer").val();
+		var dayForTransfer = $("#dayForTransfer").val();
+		var dataForm = new FormData();
+		dataForm.append("automaticTransfer", automaticTransfer);
+		dataForm.append("dayForTransfer", dayForTransfer);
+		showLoader(true);
+		fetch('./php/pagarme/alteraInformacoesTransferencia.php', {
+				method: "POST",
+				body: dataForm
+			})
+			.then(data => data.json())
+			.then((data) => {
+				if (data.transfer_enabled) {
+					mTransferAutomatic = "Habilitado";
+				} else {
+					mTransferAutomatic = "Desabilitado";
+				}
+
+				$("#lblTransferenciaAutomatica").html(mTransferAutomatic);
+
+				$("#lblDiaTransferencia").html(data.transfer_day);
+
+				showLoader(false);
+				$("#editTransferOptions-modal").modal('hide');
+			});
+	});
+
+	function buscaCEPEmpresa(cep) {
+
+		if ($_CONFIG.PAIS != "1") {
+			return;
+		}
+
+		mCep = cep;
+		if (cep && cep.length >= parseInt($_CONFIG.language.mascaras.max_cep)) {
+			cep = cep.replace("-", "");
+			showLoader(true);
+			var pais = $_CONFIG.language.mascaras.lang;
+			$.ajax({
+				dataType: "json",
+				method: 'POST',
+				url: '/pages/cadastros/buscaPostalCode.php',
+				data: {
+					code: cep,
+					pais: pais
+				},
+				success: function (data) {
+					var estado = "";
+					if (pais == "pt") {
+						estado = $("#" + data.estado.replace(" ", "").toLowerCase() + "").val();
+					} else {
+						estado = $("#" + data.estado + "").val();
+					}
+					$("#empEstado").val(estado);
+					$("#empCidade").empty();
+
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/buscaCidadesWizard.php',
+						method: "POST",
+						data: {
+							estCodigo: estado,
+							cidNome: data.cidade
+						},
+						success: function (result) {
+							$("#empCidade").append(result.cidades);
+							$("#empCidade").attr("disabled", false);
+							setTimeout(function () {
+								$("#empCidade").val(result.cidcodigo);
+							}, 10);
+							showLoader(false);
+							$("#empBairro").val(data.bairro);
+							$("#empEndereco").val(data.endereco);
+							setTimeout(function(){
+								$scope.buscaLatLong();
+							},1000)
+						}
+					});
+					showLoader(false);
+				},
+				error: function () {
+					showLoader(false);
+					toastr.error($_CONFIG.language.mensagens.falha_cep, $_CONFIG.language.mensagens.falha_consulta);
+				}
+			});
+		}
+	}
+
+
+	$("#empCEP").keyup(function (i) {
+		buscaCEPEmpresa(this.value);
+	});
+
+	$("#empBairro").on('change',function(){
+		$scope.buscaLatLong()
+	});
+
+	$("#empEndereco").on('change',function(){
+		$scope.buscaLatLong()
+	});
+
+	$scope.buscaLatLong()
+
+	var htmfiscalpreenchido = `<p>Você já preencheu o formulário para utilização fiscal, aguarde a finalização da sua configuração para emitir notas.</p>`;
+	var htmfiscalativo = `<p>Você tem o módulo fiscal ativo. Você já pode emitir notas fiscais!</p>`;
+	var htmlfislcalpendente = `<a class="btn btn-primary" href="https://${location.hostname}/dadosnf"> <i class="fa fa-clipboard" aria-hidden="true"></i> Preencher dados para o módulo fiscal</a>`;
+	$.ajax({
+		dataType: "json",
+		url: '/pages/cadastros/buscaStatusFiscal.php',
+		method: "POST",
+		success: function (data) {
+			if (data.data.length > 0) {
+				$("#boletoFiscalFatura").hide()
+				if (data.data[0].PAJ_Status_Fiscal == '') {
+					$("#moduloFiscal").hide()
+					$("#contentFiscal").html('')
+				} else if (data.data[0].PAJ_Status_Fiscal == 2 || data.data[0].PAJ_Status_Fiscal == 3 ) {
+					$("#moduloFiscal").show()
+					$("#contentFiscal").html(htmfiscalpreenchido)
+				} else if (data.data[0].PAJ_Status_Fiscal == 1) {
+					$("#moduloFiscal").show()
+					$("#contentFiscal").html(htmlfislcalpendente)
+				}else{
+					$("#moduloFiscal").show()
+					$("#contentFiscal").html(htmfiscalativo)
+					$("#contentFiscal").hide()
+					$scope.buscaBoletoNF();
+					$("#boletoFiscalFatura").show()
+
+				}
+			} else {
+				$("#hasFiscal").html(mosession)
+			}
+		}
+	});
+
+
+	$.ajax({
+		dataType: 'json',
+		url: localStorage.getItem('host'),
+		async: false,
+		data: {
+			metodo: 'buscaParametro',
+			id: $scope.idCliente,
+			parcodigo: 120
+		},
+		success: function (data) {
+			if (data.result.length > 0) {
+				if (data.result[0].PVa_Vlr_Principal == '') {
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/buscaStatusPessoaContaDigital.php',
+						method: "POST",
+						success: function (data) {
+							if (data.data.length > 0) {
+								if (data.data[0].CDI_Status == 1) {
+									$("#contaDigital").show()
+									$("#formContaDigital").show()
+									$("#nextContaDigital").hide()
+									$("#waitContaDigital").hide()
+								}else if (data.data[0].CDI_Status == 0){
+									$("#contaDigital").show()
+									$("#waitContaDigital").show()
+									$("#nextContaDigital").hide()
+									$("#formContaDigital").hide()
+								}else{
+									$("#contaDigital").show()
+									$("#formContaDigital").hide()
+									$("#nextContaDigital").show()
+									$("#waitContaDigital").hide()
+								}
+							} else {
+								$("#contaDigital").remove()
+							}
+						}
+					});
+				}
+				else if (data.result[0].PVa_Vlr_Principal == 1) {
+					$("#contaDigital").show()
+					$("#doneContaDigital").show()
+					$("#outContaDigital").remove()
+					$("#nextContaDigital").remove()
+					$("#formContaDigital").remove()
+					$("#waitContaDigital").remove()
+				} else  {
+					$("#contaDigital").show()
+					$("#outContaDigital").show()
+					$("#doneContaDigital").remove()
+					$("#nextContaDigital").remove()
+					$("#formContaDigital").remove()
+					$("#waitContaDigital").remove()
+				}
+			} else {
+				$.ajax({
+					dataType: "json",
+					url: '/pages/cadastros/buscaStatusPessoaContaDigital.php',
+					method: "POST",
+					success: function (data) {
+						if (data.data.length > 0) {
+							if (data.data[0].CDI_Status == 1) {
+								$("#contaDigital").show()
+								$("#formContaDigital").show()
+								$("#nextContaDigital").hide()
+								$("#waitContaDigital").hide()
+							}else if(data.data[0].CDI_Status == 0){
+								$("#contaDigital").show()
+								$("#waitContaDigital").show()
+								$("#nextContaDigital").hide()
+								$("#formContaDigital").hide()
+							}else{
+								$("#contaDigital").show()
+								$("#formContaDigital").hide()
+								$("#waitContaDigital").hide()
+								$("#nextContaDigital").show()
+							}
+						} else {
+							$("#contaDigital").remove()
+						}
+					}
+				});
+			
+			}
+		}
+	});
+
+	$.ajax({
+		dataType: 'json',
+		url: localStorage.getItem('host'),
+		async: false,
+		data: {
+			metodo: 'buscaParametro',
+			id: $scope.idCliente,
+			parcodigo: 120
+		},
+		success: function (data) {
+			if (data.result.length > 0) {
+				if (data.result[0].PVa_Vlr_Principal == 1) {
+					$.ajax({
+						dataType: "json",
+						url: '/pages/cadastros/buscaPessoaZoop.php',
+						method: "POST",
+						success: function (data) {
+							if (data.data.length > 0) {
+								if (data.data[0].PZo_Status == 0) {
+									$("#trocaContaDigital").show()
+									$("#formTrocaContaDigital").show()
+									$("#nextTrocaContaDigital").hide()
+								}else if (data.data[0].PZo_Status == 1){
+									$("#trocaContaDigital").show()
+									$("#nextTrocaContaDigital").show()
+									$("#formTrocaContaDigital").hide()
+								}else{
+									$("#trocaContaDigital").remove()
+								}
+							} else {
+								$("#trocaContaDigital").remove()
+							}
+						}
+					});
+				}
+				
+			}
+		}
+	});
+
+
+
+	var delayTimerSearchSite;
+	function searchSite(abreviatura) {
+		clearTimeout(delayTimerSearchSite);
+
+		delayTimerSearchSite = setTimeout(function() {
+
+			$("#showLoadingSearchSite").html('<i class="fa fa-spinner fa-spin"></i>');
+			$("#showLoadingSearchSite").show();
+
+			fetch(`${localStorage.getItem("host")}?metodo=buscaAbreviatura&abreviatura=${abreviatura}`)
+			.then(data => data.json())
+			.then(data => {
+				if (data.result && data.result[0].erro == "0"){
+					$("#showLoadingSearchSite").html('<i class="fa fa-check text-green"></i>');
+					$("#msgLinkSiteError").html(data.result[0].resultado);
+					$("#msgLinkSiteError").addClass("text-green");
+					$("#btnAlterarAbreviaturaSite").prop("disabled", false);
+					$("#btnAlterarAbreviaturaSite").on("click", function(){
+						saveNewLinkSite(abreviatura);
+					});
+				} else {
+					$("#showLoadingSearchSite").html('<i class="fa fa-times text-red"></i>');
+					$("#msgLinkSiteError").html(data.result[0].resultado);
+					$("#msgLinkSiteError").addClass("text-red");
+				}
+			});
+		}, 1000); // Will do the ajax stuff after 1000 ms, or 1 s
+	}
+
+	$("#btnAlterarSitePixel").on("click", function(){
+		saveTagTerceiros($scope.empresa.pixel, 1);
+	});
+
+	$("#btnAlterarSiteGtag").on("click", function(){
+		saveTagTerceiros($scope.empresa.gtag, 2);
+	});
+
+	$("#btnAlterarSitePixelApp").on("click", function(){
+		saveTagTerceiros($scope.empresa.PAJ_Pixel_App, 3);
+	});
+
+	function saveNewLinkSite(link){
+
+		var dataForm = new FormData();
+		dataForm.append("abreviatura", link);
+
+		showLoader(true);
+		fetch('./pages/cadastros/alteraAbreviatura.php', {
+				method: "POST",
+				body: dataForm
+			})
+			.then(data => data.json())
+			.then((data) => {
+
+				if (data.result && data.result[0].erro == "0"){
+					toastr.success(data.result[0].resultado);
+
+					var urlSite = `https://sites.${sSistema.toLowerCase()}.com.br/${link}`;
+
+					$("#msgTokenRevendaError").removeClass("text-red");
+					$("#msgTokenRevendaError").removeClass("text-green");
+					$("#btnAlterarAbreviaturaSite").unbind('click');
+					$("#btnAlterarAbreviaturaSite").prop("disabled", true);
+					$("#msgTokenRevendaError").html('');
+					$("#showLoadingSearchSite").html('<i class="fa fa-spinner fa-spin"></i>');
+					$("#showLoadingSearchSite").hide();
+
+					$("#pesSiteApp").children().prop('href', urlSite);
+					$("#pesSiteApp").children().html(urlSite);
+
+					$("#editarEmpresa-modal").modal('hide');
+					$('#editarEmpresa-modal a[data-toggle="tab"]:first').click();
+				} else {
+					toastr.error(data.result[0].resultado);
+				}
+
+				showLoader(false);
+			});
+	}
+
+	function saveTagTerceiros(tag, tipo){
+
+		var dataForm = new FormData();
+		dataForm.append("tag", tag);
+		dataForm.append("tipo", tipo);
+
+		showLoader(true);
+		fetch('./pages/cadastros/alteraTagTerceiros.php', {
+				method: "POST",
+				body: dataForm
+			})
+			.then(data => data.json())
+			.then((data) => {
+
+				if (data.result && data.result[0].erro == "0"){
+                    $scope.mostrarMensagemSucessoPerfil();
+				} else {
+					toastr.error(data.result[0].resultado);
+				}
+
+				showLoader(false);
+			});
+	}
+
+	$("#edtNovoLinkSite").on('keyup', function() {
+		this.value = this.value.replace(/[^a-zA-Z0-9-]/g, '');
+		$("#msgLinkSiteError").removeClass("text-red");
+		$("#msgLinkSiteError").removeClass("text-green");
+		$("#btnAlterarAbreviaturaSite").unbind('click');
+		$("#btnAlterarAbreviaturaSite").prop("disabled", true);
+		$("#msgLinkSiteError").html('');
+		$("#showLoadingSearchSite").hide();
+		if (this.value.length > 0){
+			searchSite(this.value);
+		}
+	});
+
+	$scope.buscaBoletoNF = function(){
+		if (typeof (optTabelaRelatorioBoleto) != "undefined") {
+			$('#tbFaturaBoletosNf tbody').unbind('click')
+			optTabelaRelatorioBoleto.destroy();
+		}
+
+		optTabelaRelatorioBoleto = $('#tbFaturaBoletosNf').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/buscaBoletosNF.php",
+				"method": "POST",
+				"data": function (d) {
+					d.tipo = 5;
+					d.pescodigo =mPesCodigo;
+
+				}
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			"initComplete": function (e, records, f) {
+				resizeContent()
+			},
+			"columns": [
+				{
+					"data": "Descricao",
+					"title": "Data de geração dos boletos",
+					"width": "95%"
+				},
+				{
+					"class": 'verboletos',
+					"width": "5%",
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-primary btn-xs" >Ver Boletos <i class="fa fa-document"></i></button>',
+				},
+			],
+			dom: 'Bfrtip',
+			buttons: [{
+				extend: "excelHtml5",
+				title: sSistema + ' - Relatório WhatsApp',
+				text: "Excel",
+				exportOptions: {
+					columns: ':visible'
+				},
+				footer: "true"
+			}, {
+				extend: 'pdfHtml5',
+				title: sSistema + ' - Relatório WhatsApp',
+				orientation: 'landscape',
+				footer: true,
+				exportOptions: {
+					columns: ':visible'
+				}
+
+			}],
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+
+		$('#tbFaturaBoletosNf tbody').on('click', 'td.verboletos', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelaRelatorioBoleto.row(tr);
+			var data = row.data();
+			$scope.buscaListaBoletosNF(data.Pes_Codigo,data.BNF_Num_Emissao);
+		});
+		setTimeout(function () {
+
+			$.ajax({
+				method: "POST",
+				url: "/pages/cadastros/consultaEmpresaNF.php",
+				dataType: "json",
+				data:{
+					idEmpresa: $scope.codigoEmpresaNF
+				},
+				success: function (result) {
+
+					if(result.data.certificadoDigital != undefined && result.data.certificadoDigital != ""){
+						$("#vencimentoCertificadoDigital").html(result.data.certificadoDigital.dataVencimento);
+					}else{
+
+						$("#divCertificadoDigital").hide();
+					}
+				},
+				error: function (result) {
+					$("#divCertificadoDigital").hide();
+					
+				}
+			});
+		},3000)
+		
+
+	}
+
+
+	$scope.buscaListaNotasEmpresa = function(){
+		if (typeof (optTabelaListaNota) != "undefined") {
+			$('#tbListaNotasEmpresa tbody').unbind('click')
+			optTabelaListaNota.destroy();
+		}
+
+		optTabelaListaNota = $('#tbListaNotasEmpresa').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/buscaEmpresaNotas.php",
+				"method": "POST",
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+			"initComplete": function (e, records, f) {
+				resizeContent()
+			},
+			"columns": [
+				{
+					"data": "TipoNota",
+					"title": "Nota",
+					"width": "50%"
+				},
+				{
+					"data": "PNo_Dat_Criacao",
+					"title": "Data da Nota",
+					"width": "40%"
+				},
+				{
+					"class": 'notaXML',
+					"width": "5%",
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-dafault btn-xs" >XML <i class="fa fa-document"></i></button>',
+				},
+				{
+					"class": 'notaPDF',
+					"width": "5%",
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-danger btn-xs" >PDF <i class="fa fa-document"></i></button>',
+				},
+			],
+			dom: 'frtip',
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+
+		$('#tbListaNotasEmpresa tbody').on('click', 'td.notaXML', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelaListaNota.row(tr);
+			var data = row.data();
+			window.open(data.PNo_Link_XML, '_blank')
+		});
+
+		$('#tbListaNotasEmpresa tbody').on('click', 'td.notaPDF', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelaListaNota.row(tr);
+			var data = row.data();
+			window.open(data.PNo_Link_PDF, '_blank')
+		});
+	}
+	$scope.buscaListaNotasEmpresa();
+
+
+	function getCheckoutUrl(hash) {
+		var system = "appbarber";
+		if (typeof $Options !== "undefined" && $Options.sistema) {
+			system = $Options.sistema;
+		} else if (typeof sSistema !== "undefined" && sSistema) {
+			system = sSistema;
+		}
+
+		return "https://checkout." + system.toLowerCase() + ".com.br/?hash=" + hash;
+	}
+
+	function showCheckoutLink(link) {
+		swal({
+			title: "<strong>Link de Pagamento</strong>",
+			text: '\
+				Acesse o <b>link de pagamento</b> para concluir o pagamento via PIX.<br><br>\
+				<a id="btnOpenCheckout" target="_blank" href="' + link + '" autofocus>' + link + '</a><br><br>\
+				',
+			type: "info",
+			showCancelButton: true,
+			cancelButtonColor: "#d33",
+			confirmButtonColor: "#00796B",
+			confirmButtonText: "Abrir Checkout",
+			cancelButtonText: "Fechar",
+			closeOnConfirm: false,
+			closeOnCancel: true,
+			html: true,
+			animation: "slide-from-top"
+		},
+		function (isConfirm) {
+			if (isConfirm) {
+				var linkElement = document.createElement("a");
+				linkElement.href = link;
+				linkElement.target = "_blank";
+				linkElement.rel = "noopener noreferrer";
+				document.body.appendChild(linkElement);
+				linkElement.click();
+				document.body.removeChild(linkElement);
+			}
+		});
+	}
+
+	$scope.geraCheckoutPixBoletoNF = function(data) {
+		var valorCentavos = data.PNF_Valor;
+		var codigoProduto = data.CodigoProduto;
+		var tipoProduto = data.TipoProduto;
+
+		if (!valorCentavos || !codigoProduto || !tipoProduto || !data.Pes_Codigo || !data.PNC_Codigo) {
+			swal("Ops!", "Dados insuficientes para gerar o checkout PIX.", "error");
+			return;
+		}
+
+		var metadata = {
+			slip_type: "1",
+			slip_descrption: "fiscal_payment",
+			establishment_code: data.Pes_Codigo,
+			external_code: data.PNC_Codigo,
+			type: "pix",
+			pescodigo: data.Pes_Codigo,
+			sessionid: "",
+			pix_monthly: false,
+			pagarme_invoice: "",
+			migration: false,
+			needNextBoleto: false
+		};
+
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/CHECKOUT_Create.php",
+			dataType: "json",
+			data: {
+				type: 9,
+				establishment: data.Pes_Codigo,
+				value: valorCentavos,
+				installments: 1,
+				payment_type: "pix",
+				product_code: codigoProduto,
+				product_type: tipoProduto,
+				plan: "",
+				origin: 2,
+				metadata: JSON.stringify(metadata)
+			},
+			success: function (result) {
+				showLoader(false);
+				var checkout = result && result.data && result.data.checkout && result.data.checkout[0] ? result.data.checkout[0] : null;
+
+				if (result && result.data && result.data.error === true) {
+					toastr.error(result.data.message || "Falha ao gerar checkout PIX.");
+					return;
+				}
+
+				if (!checkout || checkout.error != 0 || !checkout.hash_code) {
+					toastr.error((checkout && checkout.result) ? checkout.result : "Falha ao gerar checkout PIX.");
+					return;
+				}
+
+				showCheckoutLink(getCheckoutUrl(checkout.hash_code));
+			},
+			error: function () {
+				showLoader(false);
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+	}
+
+	$scope.buscaListaBoletosNF = function(pescodigo,numboletos){
+		if (typeof (optTabelalistaBoletoNF) != "undefined") {
+			$('#tbBoletosNF tbody').unbind('click')
+			optTabelalistaBoletoNF.destroy();
+		}
+
+		optTabelalistaBoletoNF = $('#tbBoletosNF').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/buscaBoletosNF.php",
+				"method": "POST",
+				"data": function (d) {
+					d.tipo = 6;
+					d.pescodigo = pescodigo,
+					d.numboletos = numboletos
+				}
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			"columns": [
+				{
+					"data": "BNF_Data_Boleto",
+					"title": "Data do boleto",
+					"width": "70%"
+				},
+
+				{
+					"class": 'verboletos',
+					"width": "12%",
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-success btn-xs" title="Ver boleto"><i class="fa fa-barcode"></i> Boleto</button>',
+				},
+				{
+					"class": 'verpix',
+					"width": "8%",
+					"orderable": false,
+					"data": null,
+					"render": function (data, type, row) {
+						if (row.BNF_Pago == 1 || row.BNF_Pago == "1") {
+							return "";
+						}
+
+						return '<button class="btn btn-primary btn-xs" title="Pagar com PIX"><i class="fa fa-qrcode"></i> Pix</button>';
+					}
+				},
+				{
+                    "data": "BNF_Pago",
+                    "title": "Pago",
+					"width": "5%",
+                    "render": function (data, type, row) {
+						if(data == 1){
+							return `<i class="fa fa-check-circle" style="color:green"></i>`
+						}else{
+							return ``
+						}
+                    }
+                },
+			],
+
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+
+		$('#tbBoletosNF tbody').on('click', 'td.verboletos', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelalistaBoletoNF.row(tr);
+			var data = row.data();
+			window.open(data.url, '_blank').focus();
+		});
+
+		$('#tbBoletosNF tbody').on('click', 'td.verpix', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelalistaBoletoNF.row(tr);
+			var data = row.data();
+			$scope.geraCheckoutPixBoletoNF(data);
+		});
+		resizeContent()
+
+		$("#boletosNF-modal").modal()
+	}
+
+	$scope.geraQRCodeAppCli = function(link){
+		
+		link = `${$scope.siteSistema}/${link}`;
+
+		var download = '';
+		if (qrcode != undefined){
+			qrcode.clear();
+			qrcode.makeCode(link);
+			document.getElementById("qrcode-app").getElementsByTagName('img')[0].style.display = '';
+		} else {
+
+			qrcode = new QRCode(document.getElementById("qrcode-app"), {
+				text: link,
+				width: 200,
+				height: 200,
+				colorDark : "#000000",
+				colorLight : "#FFFFFF",
+				correctLevel : QRCode.CorrectLevel.H
+			});
+
+			qrcode._oDrawing._fSuccess = function (){
+
+				qrcode._el.getElementsByTagName('img')[0].style.display = '';
+					download = '<a href="'+ qrcode._el.getElementsByTagName('canvas')[0].toDataURL("image/png") +'" target="_blank" download="QRCodeApp" class="btn btn-success btn-xs"><i class="fa fa-download" aria-hidden="true"></i> Baixar QRCode</a>';
+					$("#btnBaixarImagemQRCodeApp").html(download);
+				}
+			}
+			download = '<a href="'+ document.getElementById("qrcode-app").getElementsByTagName('canvas')[0].toDataURL("image/png") +'" target="_blank" download="QRCodeApp" class="btn btn-success btn-xs"><i class="fa fa-download" aria-hidden="true"></i> Baixar QRCode</a>';
+			$("#btnBaixarImagemQRCodeApp").html(download);
+			$("#widget-qrcodigoapp-modal").modal()
+	}
+
+	$scope.buscaPessoaImagemPrime = function () {
+
+		var htmlimg = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/IMAGEM_PRIME_Busca.php",
+			data: {
+				tipo: "1"
+			},
+			dataType: "json",
+			success: function (result) {
+				if(result.data.error == false){
+					for (var i = 0; i < result.data.prime_image.length; i++) {
+						htmlimg += `<div class='col-sm-2 margin'><img ng-click="openImagePrime('${result.data.prime_image[i].prime_image_link}',${result.data.prime_image[i].prime_image_code})" src='${result.data.prime_image[i].prime_image_link}'  name='${result.data.prime_image[i].prime_image_code}'  id="${result.data.prime_image[i].prime_image_code}"  width='80' style='cursor:pointer;'></div>`;
+					}
+					$("#divimgPrime").html(htmlimg);
+					$compile($('#divimgPrime'))($scope);
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaPessoaImagemPrime();
+
+	$('#formInsereImagePrime').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+		dados.append("blob", mBlob);
+		dados.delete("primeImagem");
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/IMAGEM_PRIME_Insere.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.data.error == false) {
+					swal(result.data.message, "", "success");
+					$("#divimgPrime").html("");
+					$("#imagemCutAll").cropper("destroy");
+					$scope.buscaPessoaImagemPrime();
+				} else {
+					swal(result.data.message, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$scope.openImagePrime = function(link,code){
+
+		$("#codigoImagemPrime").val(code)
+		$("#imagemPrimeShow").attr('src',link)
+		$("#showImagePrime-modal").modal()
+
+	}
+
+	$scope.removePessoaImagemPrime = function () {
+
+		var codigoImagem = $("#codigoImagemPrime").val();
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/IMAGEM_PRIME_Remove.php",
+			data: {
+				image_code: codigoImagem
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data.error == false) {
+					swal(result.data.message, "", "success");
+					$("#divimgPrime").html("");
+					$("#showImagePrime-modal").modal('hide')
+					$("#imagemCutAll").cropper("destroy");
+					$scope.buscaPessoaImagemPrime();
+				} else {
+					swal(result.data.message, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+
+
+	$scope.buscaSaldoLift = function () {
+		$.ajax({
+			dataType: 'json',
+			url: localStorage.getItem('host'),
+			async: false,
+			data: {
+				metodo: 'buscaParametro',
+				id: $scope.idCliente,
+				parcodigo: 168
+			},
+			success: function (data) {
+				if (data.result.length > 0) {
+					if (data.result[0].PVa_Vlr_Principal != '' && data.result[0].PVa_Vlr_Principal != undefined) {
+/*------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+						$.ajax({
+							type: "POST",
+							url: "/pages/cadastros/buscaCreditosBot_Lift.php",
+							data: {
+								idlift:data.result[0].PVa_Vlr_Principal
+							},
+							dataType: "json",
+							success: function (result) {
+								if (result.data.botId != '' && result.data.botId != undefined) {
+									$("#lblSaldoWhatsBot").html(result.data.passiveSessions);
+									$("#lblSaldoWhatsBot2").html(result.data.marketingSessions);
+									$scope.buscaHistoricoBot()
+								}else{
+									$("#lblSaldoWhatsBot").html('0')
+									$("#lblSaldoWhatsBot2").html('0')
+								}
+							},
+							error: function (result) {
+								$("#lblSaldoWhatsBot").html('0')
+								$("#lblSaldoWhatsBot2").html('0')
+							}
+						});
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+						
+					} else {
+						$("#tabshowbot").remove()
+					}
+				} else {
+					
+				}
+			}
+		});
+	}
+
+	
+	$scope.buscaHistoricoBot = function () {
+		$.ajax({
+			dataType: "json",
+			url: '/pages/cadastros/buscaPessoaBot.php',
+			method: "POST",
+			data: {
+				tipo:1,
+				dataini:'',
+				datafim:'',
+				fornecedor:''
+			},
+			success: function (data) {
+
+				var html = "";
+				if (data.data.length > 0) {
+					html += '<ul class="timeline">';
+					for (var i = 0; i < data.data.length; i++) {
+
+						valores = data.data[i];
+
+						var horario = valores.PBF_Dat_Compra.split(" ");
+						var usuario = valores.Usu_Nome;
+						var valor = valores.PBF_Valor;
+						var status = valores.BotStatus;
+						var dataExp = valores.PBF_Dat_Expiracao;
+						var dataPag = valores.PBF_Dat_Pagamento;
+						var qtd = valores.PBF_Qtd_Compra;
+						var codStatus = valores.PBF_Status;
+						var linkNota = ''; // valores.PNo_Link_PDF;
+						var botaoNota= '';
+						if(linkNota != ''){
+							botaoNota = `<a class="btn btn-xs btn-warning" href="${linkNota}" target="_blank" style="margin-left:10px;"> <i class="fa fa-file-pdf-o" aria-hidden="true"></i> Nota</a>`
+						}
+
+
+						if (codStatus == '1') {
+							statusCor = 'bg-green';
+							statusIcon = 'ion ion-checkmark-round';
+						} else if (codStatus == '0') {
+							statusCor = 'bg-blue';
+							statusIcon = 'ion ion-clock';
+						} else {
+							statusCor = 'bg-red';
+							statusIcon = 'ion ion-close-round';
+						}
+
+						html += '<li class="time-label">';
+						html += '<span class="' + statusCor + '">';
+						html += horario[0];
+						html += '</span></li>';
+						html += '<li>';
+						html += '<i class="ion ' + statusIcon + ' ' + statusCor + '"></i>';
+						html += '<div class="timeline-item">';
+						html += '<span class="time"><i class="fa fa-clock-o"></i> ' + horario[1] + '</span>';
+						html += '<h3 class="timeline-header">Compra de ' + qtd + ' Sessõe(s)</h3>';
+						html += '<div class="timeline-body">';
+						html += '<p>Realizada por: ' + usuario + '</p>';
+						html += '<p>Valor: ' + valor + '</p>';
+
+						if (codStatus != '0') {
+							html += '<p>Data do Pagamento: ' + dataPag + '</p>';
+						}
+
+						html += '<small class="label ' + statusCor + '">' + status + '</small>' + botaoNota;
+						html += '</div>';
+						if (codStatus == '1') {
+							html += '<div class="timeline-footer">';
+							html += 'Expira em: ' + dataExp;
+							html += '</div>';
+						}
+						html += '</div>';
+						html += '</li>';
+					}
+					html += '</ul>';
+
+				} else {
+					html += '<div class="callout callout-info">';
+					html += '<h4>Você ainda não possui nenhum histórico de compra.</h4>';
+					html += '<p>Clique em "Comprar Créditos do ChatBot" para efetuar uma compra de créditos.</p>';
+					html += '</div>';
+				}
+				$("#timelineBot").html(html);
+			}
+		});
+	}
+
+	$scope.buscaSaldoLift();
+
+	$scope.geraLinkPrime = function () {
+
+		var codigo = $_CONFIG.CODESTABELECIMENTO;
+		var html = '';
+		var link = '';
+		if (sSistema == "AppBarber") {
+			html = `<a href="https://appbarber.com.br/download/prime?cod=${codigo}" target="_blank">https://appbarber.com.br/download/prime?cod=${codigo}</a>`
+			link = `https://appbarber.com.br/download/prime?cod=${codigo}`
+
+		} else {
+			html=  `<a href="https://appbeleza.com.br/download/prime?cod=${codigo}" target="_blank">https://appbeleza.com.br/download/prime?cod=${codigo}</a>`
+			link = `https://appbelezacom.br/download/prime?cod=${codigo}`
+
+		}
+
+		$("#linkDownloadPrime").html(html);
+
+
+		$('#img_qrcode').html("");
+
+		$('#img_qrcode').qrcode({
+			text: link,
+			width: 256,
+			height: 256
+		});
+		$("#div-qrcode").append(`<div class="text-center" id="divBtnBaixar"><a href=${document.getElementById('img_qrcode').children[0].toDataURL("image/png")} target="_blank" download="QRCodeAplicativo_${$_CONFIG.ESTABELECIMENTO}.png" class="btn btn-xs btn-primary text-center"><i class="fa fa-download"> Baixar</i></a></div>`);
+	
+	
+	}
+
+	$scope.geraLinkPrime();
+
+	$scope.buscaAbas= function(){
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/ABA_PERSONALIZADA_Busca.php",
+			data: {},
+			dataType: "json",
+			success: function (result) {
+				if(result.data.error === false){
+					const tabs = result.data.tabs[0];
+		
+					// Marca as checkboxes de acordo com o valor retornado (1 = marcado)
+					if (tabs.PAP_Pacote == 1) {
+						$('input[name="pacotes"][value="1"]').prop('checked', true);
+					}
+					if (tabs.PAP_Assinatura == 1) {
+						$('input[name="assinaturas"][value="1"]').prop('checked', true);
+					}
+					if (tabs.PAP_Produto == 1) {
+						$('input[name="produtos"][value="1"]').prop('checked', true);
+					}
+					if (tabs.PAP_Fidelidade == 1) {
+						$('input[name="fidelidade"][value="1"]').prop('checked', true);
+					}
+				}
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaAbas();
+
+	$('#formPersonalizaAbas').on('submit', function (e) {
+		e.preventDefault();
+	
+		const data = {
+			subscription: $('input[name="assinaturas"][value="1"]').is(':checked') ? 1 : 0,
+			product: $('input[name="produtos"][value="1"]').is(':checked') ? 1 : 0,
+			bundle: $('input[name="pacotes"][value="1"]').is(':checked') ? 1 : 0,
+			loyalty: $('input[name="fidelidade"][value="1"]').is(':checked') ? 1 : 0
+		};
+	
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/ABA_PERSONALIZADA_Atualiza.php",
+			data: data,
+			dataType: "json",
+			success: function (result) {
+				if (result.data.error === false) {
+					swal("Sucesso!", "As abas foram atualizadas.", "success");
+				} else {
+					swal("Erro!", result.data.message || "Não foi possível atualizar.", "error");
+				}
+			},
+			error: function () {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+
+		$scope.buscaAbas();
+	});
+	$('#formPersonalizaAbasCliente').on('submit', function (e) {
+		e.preventDefault();
+	
+		const data = {
+			subscription: $('input[name="assinaturas"][value="1"]').is(':checked') ? 1 : 0,
+			product: $('input[name="produtos"][value="1"]').is(':checked') ? 1 : 0,
+			bundle: $('input[name="pacotes"][value="1"]').is(':checked') ? 1 : 0,
+			loyalty: $('input[name="fidelidade"][value="1"]').is(':checked') ? 1 : 0
+		};
+	
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/ABA_PERSONALIZADA_Atualiza.php",
+			data: data,
+			dataType: "json",
+			success: function (result) {
+				if (result.data.error === false) {
+                    $scope.mostrarMensagemSucessoPerfil();
+				} else {
+					swal("Erro!", result.data.message || "Não foi possível atualizar.", "error");
+				}
+			},
+			error: function () {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+
+		$scope.buscaAbas();
+	});
+
+
+	$('#totemImagem').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar ",
+		removeLabel: "Remover",
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ["png", "jpg", "jpeg"],
+		showUpload: false
+	});
+
+	$('#video').fileinput({
+		maxFilesNum: 1,
+		showPreview: false,
+		browseLabel: "Procurar",
+		removeLabel: "Remover",
+		browseIcon: '',
+		language: "pt-BR",
+		allowedFileExtensions: ["mp4"],
+		showUpload: false
+	}).on('change', function (event) {
+		const file = this.files[0];
+		if (file) {
+			const videoUrl = URL.createObjectURL(file);
+			const videoElement = document.getElementById('previewVideo');
+			videoElement.src = videoUrl;
+			videoElement.style.display = 'block';
+		}
+	}).on('fileclear', function () {
+		limparCamposVideoModal(); // 
+	});
+
+	$('#video').on('change', function (e) {
+		const file = e.target.files[0];
+		if (file && file.type === 'video/mp4') {
+			const videoURL = URL.createObjectURL(file);
+			const video = $('#previewVideo');
+			video.find('source').attr('src', videoURL);
+			video[0].load(); 
+			video.show();
+		} else {
+			$('#previewVideo').hide();
+		}
+	});
+
+	function limparCamposVideoModal() {
+		const videoElement = $('#previewVideo')[0];
+		const sourceElement = $('#previewVideo source');
+	
+		// Revoga URL anterior para evitar vazamento de memória
+		if (sourceElement.attr('src')) {
+			URL.revokeObjectURL(sourceElement.attr('src'));
+		}
+	
+		$('#formInsereVideosPrime')[0].reset(); // limpa inputs
+		sourceElement.attr('src', ''); // limpa source
+		videoElement.load(); // recarrega player vazio
+		$(videoElement).hide(); // esconde player
+	}
+	
+
+	function limparCamposImagemTotem() {
+		$('#formInsereImagemTotem')[0].reset(); // limpa o campo input file
+		$('#divImgTotem').empty(); // limpa a pré-visualização, se houver
+	}
+	
+
+	$('#videoTotem-modal').on('hidden.bs.modal', function () {
+		limparCamposVideoModal();
+	});
+	
+	$scope.buscaPessoaImagemTotem = function () {
+		var htmlimg = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/TOTEM_Busca_Imagem.php", 
+			data: {},
+			dataType: "json",
+			success: function (result) {
+				if(result.data.error === false){
+					var imgLink = result.data.totem_image[0].totem_image_link;
+	
+					htmlimg = '<img src="' + imgLink + '" alt="Imagem do Totem" class="img-responsive img-thumbnail" style="max-height: 200px;">';
+					$('#divImgTotem').html(htmlimg);
+
+				} 
+			},
+			error: function () {
+				showLoader(false);
+			}
+		});
+	}
+
+	$scope.buscaPessoaVideoTotem = function () {
+		var htmlVideos = "";
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/TOTEM_Busca_Video.php",
+			data: {},
+			dataType: "json",
+			success: function (result) {
+				if (result.data.error === false) {
+					var videos = result.data.totem_video;
+					
+					if (videos.length > 0) {
+						videos.forEach(function (video) {
+							htmlVideos += `
+							<div class="col-md-4" style="margin-bottom: 20px;">
+								<div class="panel panel-default" style="border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); overflow: hidden;">
+								<div class="panel-body" style="padding: 10px;">
+									<video width="100%" height="auto" controls preload="metadata" style="border-radius: 4px; max-height: 240px;">
+									<source src="${video.totem_video_link}" type="video/mp4">
+									Seu navegador não suporta a tag de vídeo.
+									</video>
+									<div class="d-flex justify-content-between align-items-center" style="margin-top: 10px; display: flex;">
+									<p style="margin: 0; font-size: 14px; flex: 1; text-align: left;">
+										<strong>Descrição:</strong> ${video.totem_video_description}
+									</p>
+									<button class="btn btn-danger btn-sm" style="margin-left: 10px;" title="Remover vídeo"
+										onclick="angular.element(this).scope().removeVideoTotem(${video.totem_video_code});">
+										<i class="fa fa-trash"></i>
+									</button>
+									</div>
+								</div>
+								</div>
+							</div>
+							`;
+						});
+					} 
+	
+					$('#divVideosTotem').html(htmlVideos);
+	
+				} 
+			},
+			error: function () {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+	};
+	
+	$.ajax({
+		dataType: 'json',
+		url: localStorage.getItem('host'),
+		async: false,
+		data: {
+			metodo: 'buscaParametro',
+			id: $scope.idCliente,
+			parcodigo: 162
+		},
+		success: function (data) {
+			if (data.result.length > 0) {
+				if (data.result[0].PVa_Vlr_Principal == 1) {
+					$("#totem").show()
+					$scope.buscaPessoaImagemTotem();
+					$scope.buscaPessoaVideoTotem();
+				}
+				
+			}
+		}
+	});
+
+	$('#formInsereImagemTotem').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+		dados.append("blob", mBlob);
+		dados.delete("totemImagem");
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/TOTEM_Insere_Imagem.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.data.error == false) {
+					swal(result.data.message, "", "success");
+					$("#divImgTotem").html("");
+					$("#imagemCutAll").cropper("destroy");
+					$scope.buscaPessoaImagemTotem();
+					limparCamposImagemTotem();
+
+				} else {
+					swal(result.data.message, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+		return true;
+	});
+
+	$('#formInsereVideosPrime').submit(function (event) {
+		event.preventDefault();
+		showLoader(true);
+		var dados = new FormData(this);
+	
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/TOTEM_Insere_Video.php",
+			data: dados,
+			dataType: "json",
+			processData: false,
+			contentType: false,
+			success: function (result) {
+				if (result.data.error === false) {
+					swal(result.data.message || "Vídeo inserido com sucesso.", "", "success");
+					$scope.buscaPessoaVideoTotem();
+					limparCamposVideoModal();
+					$('#videoTotem-modal').modal('hide');
+	
+				} else {
+					let errorMessage = result.data.message || "Erro ao inserir vídeo.";
+	
+					if (errorMessage === "Informe o Link") {
+						errorMessage = "Tamanho máximo do arquivo excedido. O vídeo precisa ter menos que 5MB.";
+					}
+	
+					if (Array.isArray(result.data.totem_video)) {
+						const detalhes = result.data.totem_video.map(e => e.result).filter(Boolean);
+						if (detalhes.length > 0) {
+							errorMessage = detalhes.join("\n");
+						}
+					}
+	
+					swal(errorMessage, "", "error");
+				}
+				showLoader(false);
+			},
+			error: function () {
+				swal("Falha na conexão", "", "error");
+				showLoader(false);
+			}
+		});
+	
+		return true;
+	});	
+
+	$scope.removeVideoTotem = function (codigo) {
+        swal({
+                title: 'Excluir',
+                text: 'Deseja realmente remover o vídeo?',
+                type: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#DD6B55',
+                confirmButtonText: 'Sim',
+                cancelButtonText: 'Não',
+                closeOnConfirm: true
+            },
+            function () {
+                $.ajax({
+                    type: "POST",
+                    url: "/pages/cadastros/TOTEM_Remove_Video.php",
+                    data: {
+                        totem_video_code: codigo
+
+                    },
+                    dataType: "json",
+                    success: function (result) {
+
+                        if (result.data.error === true || result.data.totem_video[0].error != 0) {
+							const errorMsg = result.data.totem_video[0].result || "Ocorreu um erro ao excluir o vídeo.";
+							toastr.error(errorMsg);
+						} else {
+						const successMsg = result.data.totem_video[0].result || "Vídeo atualizado com sucesso.";
+						toastr.success(successMsg);
+						$scope.buscaPessoaVideoTotem();
+						}
+
+						showLoader(false);
+
+                    },
+
+                    error: function (result) {
+						swal("Falha na conexão", "", "error");
+						showLoader(false);
+                    }
+                });
+            });
+    }
+
+	$scope.buscaFiliais = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/FILIAIS_Busca.php",
+			dataType: "json",
+			success: function ({
+				data
+			}) {
+				const filiais = data?.organization || [];
+				const $select = $("#selectFiliaisApi");
+
+				$select
+					.empty()
+					.append('<option value="">Selecione uma filial</option>');
+
+				filiais.forEach(({
+					establishment_code,
+					establishment_name,
+					establishment_commercial_name
+				}) => {
+					$select.append(
+						$("<option>", {
+							value: establishment_code || "",
+							text: establishment_name || establishment_commercial_name || "Sem nome"
+						})
+					);
+				});
+
+				$select.trigger("change");
+			},
+			error: handleAjaxError
+		});
+	};
+
+	function handleAjaxError() {
+		swal("Falha na conexão.", "", "error");
+		showLoader(false);
+	}
+
+	$scope.buscaFiliais();
+
+	$scope.mostrarMensagemSucessoPerfil = function() {
+		toastr.success('Dados atualizados! As alterações poderão levar até 10 minutos para aparecer.', 'Sucesso!', {
+			timeOut: 8000,
+			progressBar: true,
+			closeButton: true
+		});
+	};
+	$("#btnSalvarNIF").click(function() {
+		var nif = $("#empNIF").val();
+		
+		if (!nif) {
+			toastr.error("Por favor, insira um valor para o NIF", "", "error");
+			return false;
+		}
+		
+		showLoader(true);
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/atualizaCodigoNIF.php",
+			data: {
+				nif: nif
+			},
+			dataType: "json",
+			success: function (result) {
+				showLoader(false);
+				if (!result.data.error) {
+					toastr.success(result.data.message || "NIF atualizado com sucesso!");
+				} else {
+					toastr.error(result.data.message || "Erro ao atualizar NIF", "", "error");
+				}
+			},
+			error: function (result) {
+				showLoader(false);
+				toastr.error("Falha na conexão ao salvar NIF", "", "error");
+			}
+		});
+	});
+
+	function mostraFormularioApi() {
+		mostraAbaApi();
+		$("#formApiExterna").show();
+	}
+
+	function mostraAguardandoContratoApi() {
+		mostraAbaApi();
+		$("#aguardarContratoApi").show();
+	}
+
+	function mostraAguardandoPagamentoApi() {
+		mostraAbaApi();
+		$("#pagamentoApi").show();
+
+		const link = $scope.gerarCheckoutApiExterna();
+
+		if (link) {
+			$("#btnPagarPixApiExterna").attr("href", link)
+		}
+	}
+
+	function mostraAguardandoIpFixo() {
+		mostraAbaApi();
+		$("#enviarIpFixoApi").show();
+	}
+
+	function escondeTelasApi() {
+		$("#menuApiExterna").hide();
+
+		$("#formApiExterna").hide();
+		$("#aguardarContratoApi").hide();
+		$("#pagamentoApi").hide();
+		$("#enviarIpFixoApi").hide();
+		$("#gerenciarApi").hide();
+	}
+
+	function mostraAbaApi() {
+		$("#menuApiExterna").show();
+	}
+
+	$scope.gerarCheckoutApiExterna = function () {
+		let checkoutURL = null;
+		const valorCentavos = 100 * 100; 
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/CHECKOUT_Insere.php",
+			data: {
+				type: 6,
+				establishment: $_CONFIG.CODESTABELECIMENTO,
+				value: valorCentavos,
+				installments: 1,
+				payment_type: "pix",
+				product_code: 28,
+				product_type: 13
+			},
+			dataType: "json",
+			async: false,
+			success: function (data) {
+				const hash = data?.data?.checkout?.[0]?.hash_code;
+
+				if (hash) {
+					checkoutURL = `https://checkout.appbarber.com.br/?hash=${hash}`;
+				}
+			},
+			error: function () {
+				swal("Falha na conexão.", "", "error");
+			}
+		});
+
+		return checkoutURL;
+	};
+
+	function atualizaResumoApiExterna() {
+		var totalCreditos = apiExternaAtivas * 5000;
+		var totalValor = apiExternaAtivas * 100;
+		var statusClass = apiExternaStatus === "ACTIVE" ? "badge bg-green" : "badge bg-red";
+		var statusText = apiExternaStatus === "ACTIVE" ? "Ativa" : (apiExternaStatus ? "Desativada" : "");
+		$("#lblSaldoApiExterna").html(apiExternaBalance === null ? "" : formatNumberBr(apiExternaBalance));
+		$("#lblStatusApiExterna").html(statusText ? '<span style="padding:6px !important;" class="' + statusClass + '">' + statusText + '</span>' : "");
+		$("#lblUpdateApiExterna").html(apiExternaUpdatedAt ? "Última atualização: " + formataDataApiExterna(apiExternaUpdatedAt) : "");
+		$("#txtApiExternaCreditos").html(formatNumberBr(totalCreditos));
+		$("#txtApiExternaFiliais").html(apiExternaAtivas);
+		$("#txtApiExternaValor").html(formatMoneyBr(totalValor));
+	}
+
+	function carregaTelaGerenciamentoApi() {
+		mostraAbaApi();
+		$("#gerenciarApi").show();
+
+		if (tabelaApiExterna) {
+			tabelaApiExterna.api().ajax.reload();
+			return;
+		}
+
+		$("#btnComprarApiExternaCreditos").prop("disabled", true);
+		apiExternaAtivas = 0;
+		apiExternaBalance = null;
+		apiExternaStatus = "";
+		apiExternaUpdatedAt = "";
+		apiExternaIp = "";
+		apiExternaLastIpChange = "";
+		atualizaResumoApiExterna();
+
+		tabelaApiExterna = $("#tbApiExterna").dataTable({
+			ajax: {
+				url: "/pages/cadastros/buscaApiExterna.php",
+				dataSrc: function (json) {
+					var rows = (json && json.data) ? json.data : [];
+					apiExternaAtivas = calculaApiExternaAtivas(rows);
+					apiExternaBalance = null;
+					if (json && json.balance !== undefined && json.balance !== null) {
+						apiExternaBalance = Number(json.balance);
+					}
+					apiExternaStatus = json && json.apiStatus ? json.apiStatus : "";
+					apiExternaUpdatedAt = json && json.updatedAt ? json.updatedAt : "";
+					apiExternaIp = json && json.ipAddress ? json.ipAddress : "";
+					apiExternaLastIpChange = json && json.lastIpAddressChange ? json.lastIpAddressChange : "";
+					$("#btnComprarApiExternaCreditos").prop("disabled", false);
+					atualizaResumoApiExterna();
+					return rows;
+				}
+			},
+			columnDefs: [{
+				targets: [3],
+				visible: false,
+				searchable: false
+			}],
+			columns: [{
+					data: "Empresa"
+				},
+				{
+					data: "Status"
+				},
+				{
+					class: "remover-control",
+					orderable: false,
+					data: null,
+					defaultContent: '<button class="btn btn-danger btn-xs" align="center"><i class="fa fa-trash"></i></button>',
+				},
+				{
+					data: "CodigoErro"
+				}
+			],
+			order: [
+				[0, "asc"]
+			]
+		});
+
+		$("#tbApiExterna tbody").on(
+			"click",
+			"td.remover-control",
+			function () {
+				var tr = $(this).closest("tr");
+				var idx = tr[0]._DT_RowIndex;
+				var registroTabela = tabelaApiExterna.fnGetData(idx);
+				$scope.removeEmpresaApi(registroTabela.establishment_api_code);
+			}
+		);
+
+		$('#apiExternaCreditos-modal').on('shown.bs.modal', function () {
+			atualizaResumoApiExterna();
+		});
+		$("#btnPagarApiExterna").off("click").on("click", function () {
+			var totalCreditos = apiExternaAtivas * 5000;
+			var totalValor = apiExternaAtivas * 100;
+
+			if (apiExternaAtivas <= 0) {
+				swal("Ops!", "Nenhuma filial ativa para comprar creditos.", "error");
+				return;
+			}
+
+			showLoader(true);
+			$.ajax({
+				type: "POST",
+				url: "/php/createPaymentPixAPI.php",
+				data: {
+					centavos: totalValor * 100,
+					valor: totalValor,
+					qtd: totalCreditos,
+					tipoPgto: 3,
+					cardHash: ""
+				},
+				dataType: "json",
+				success: function (result) {
+					showLoader(false);
+					if (result.erro == "0") {
+						$("#apiExternaCreditos-modal").modal("hide");
+						$App.showPIXModal(result.valor, result.resultado, 3, result.codexterno);
+					} else {
+						swal("Ops!", result.resultado, "error");
+					}
+				},
+				error: function () {
+					swal("Falha na conexao.", "", "error");
+					showLoader(false);
+				}
+			});
+		});
+	}
+
+	function escapeHtmlApiExterna(value) {
+		return String(value === null || value === undefined ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#039;");
+	}
+
+	function formataDataApiExterna(value) {
+		if (!value) {
+			return "";
+		}
+		var data = moment(value);
+		return data.isValid() ? data.format("DD/MM/YYYY HH:mm:ss") : value;
+	}
+
+	function formataDuracaoApiExterna(value) {
+		if (value === null || value === undefined || value === "") {
+			return "-";
+		}
+		return value + " ms";
+	}
+
+	function valorRelatorioApiExterna(value) {
+		if (value === null || value === undefined || value === "") {
+			return "-";
+		}
+		return value;
+	}
+
+	function formataStatusApiExterna(value) {
+		if (value === null || value === undefined || value === "") {
+			return "-";
+		}
+
+		var status = Number(value);
+		var classe = "label-default";
+		if (status >= 200 && status < 300) {
+			classe = "label-success";
+		} else if (status >= 400 && status < 500) {
+			classe = "label-warning";
+		} else if (status >= 500) {
+			classe = "label-danger";
+		}
+
+		return '<span class="label ' + classe + '">' + escapeHtmlApiExterna(value) + '</span>';
+	}
+
+	function atualizaBotoesRelatorioApiExterna() {
+		$("#lblRelatorioApiExternaPagina").text("Página " + relatorioApiExternaPagina);
+		$("#lblRelatorioApiExternaPaginaBottom").text("Página " + relatorioApiExternaPagina);
+		$(".btnRelatorioApiExternaAnterior").prop("disabled", relatorioApiExternaHistorico.length === 0);
+		$(".btnRelatorioApiExternaProxima").prop("disabled", !relatorioApiExternaNextCursor);
+	}
+
+	function renderizaRelatorioApiExterna(items) {
+		var html = "";
+		if (!items || items.length === 0) {
+			html = '<tr><td colspan="9" class="text-center text-muted">Nenhum registro encontrado.</td></tr>';
+		} else {
+			for (var i = 0; i < items.length; i++) {
+				var item = items[i] || {};
+				html += "<tr>";
+				html += '<td class="text-nowrap">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.method)) + "</td>";
+				html += '<td class="text-center">' + formataStatusApiExterna(item.status_code) + "</td>";
+				html += '<td style="word-break:break-all; min-width:260px;">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.url)) + "</td>";
+				html += '<td class="text-nowrap">' + escapeHtmlApiExterna(formataDuracaoApiExterna(item.duration_ms)) + "</td>";
+				html += '<td class="text-nowrap">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.ip)) + "</td>";
+				html += '<td style="word-break:break-all; min-width:220px;">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.user_agent)) + "</td>";
+				html += '<td style="word-break:break-all; min-width:220px;">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.request_id)) + "</td>";
+				html += '<td style="word-break:break-all; min-width:160px;">' + escapeHtmlApiExterna(valorRelatorioApiExterna(item.error_message)) + "</td>";
+				html += '<td class="text-nowrap">' + escapeHtmlApiExterna(valorRelatorioApiExterna(formataDataApiExterna(item.created_at))) + "</td>";
+				html += "</tr>";
+			}
+		}
+		$("#tbRelatorioApiExterna tbody").html(html);
+	}
+
+	function renderizaLoadingRelatorioApiExterna() {
+		$("#tbRelatorioApiExterna tbody").html('<tr><td colspan="9" class="text-center text-muted"><i class="fa fa-refresh fa-spin"></i> Carregando...</td></tr>');
+	}
+
+	function carregaRelatorioApiExterna(cursor, adicionaHistorico) {
+		$(".btnRelatorioApiExternaAnterior, .btnRelatorioApiExternaProxima").prop("disabled", true);
+		renderizaLoadingRelatorioApiExterna();
+
+		$.ajax({
+			type: "GET",
+			url: "/pages/cadastros/buscaRelatorioApiExterna.php",
+			dataType: "json",
+			data: {
+				cursor: cursor || ""
+			},
+			success: function (response) {
+				if (!response || response.success !== true) {
+					var mensagem = response && response.message ? response.message : "Não foi possível carregar o relatório.";
+					renderizaRelatorioApiExterna([]);
+					$("#lblRelatorioApiExternaStatus").html(mensagem);
+					atualizaBotoesRelatorioApiExterna();
+					return;
+				}
+
+				if (adicionaHistorico) {
+					relatorioApiExternaHistorico.push(relatorioApiExternaCursorAtual);
+					relatorioApiExternaPagina++;
+				}
+
+				relatorioApiExternaCursorAtual = cursor || null;
+				relatorioApiExternaNextCursor = response.data && response.data.next_cursor ? response.data.next_cursor : null;
+				renderizaRelatorioApiExterna(response.data && response.data.items ? response.data.items : []);
+				atualizaBotoesRelatorioApiExterna();
+			},
+			error: function () {
+				renderizaRelatorioApiExterna([]);
+				atualizaBotoesRelatorioApiExterna();
+			}
+		});
+	}
+
+	$scope.inserirEmpresaApi = function () {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/API_Insere_Empresa.php",
+			data: {
+				parent_code: $_CONFIG.CODESTABELECIMENTO,
+				branch_code: $("#selectFiliaisApi").val()
+			},
+			dataType: "json",
+			success: function ({
+				data
+			}) {
+				const apiResponse = data?.api?.[0];
+
+				if (!apiResponse) {
+					return swal(
+						"Falha ao inserir",
+						"Ocorreu um erro ao inserir a empresa.",
+						"error"
+					);
+				}
+
+				const {
+					error,
+					result
+				} = apiResponse;
+				const sucesso = error === false || error === 0 || error === "false";
+
+				if (!sucesso) {
+					return swal(
+						"Falha ao inserir",
+						result || "Ocorreu um erro ao inserir a empresa.",
+						"error"
+					);
+				}
+
+				swal(
+					"Sucesso!",
+					result || "Empresa adicionada com sucesso.",
+					"success"
+				);
+
+				carregaTelaGerenciamentoApi();
+				$scope.buscaFiliais();
+
+				$("#selectFiliaisApi")
+					.val("")
+					.trigger("change");
+			},
+			error: handleAjaxError
+		});
+	};
+
+	$scope.removeEmpresaApi = function (codigo) {
+		swal({
+				title: 'Excluir',
+				text: 'Deseja realmente remover essa empresa? Isso irá remover o acesso dessa empresa à API.',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não',
+				closeOnConfirm: true
+			},
+			function () {
+				$.ajax({
+					type: "POST",
+					url: "/pages/cadastros/API_Remove_Empresa.php",
+					data: {
+						organization_establishment_api_code: codigo
+					},
+					dataType: "json",
+					success: function (result) {
+						var apiResponse = result && result.data && result.data.api && result.data.api[0] ? result.data.api[0] : null;
+						var erro = apiResponse ? apiResponse.error : true;
+						var mensagem = apiResponse && apiResponse.result ? apiResponse.result : "Ocorreu um erro ao remover a empresa.";
+
+						if (erro === false || erro === 0 || erro === "false") {
+							swal("Sucesso!", mensagem, "success");
+							carregaTelaGerenciamentoApi();
+							return;
+						}
+
+						swal("Falha ao remover", mensagem, "error");
+						showLoader(false);
+
+					},
+
+					error: function (result) {
+						swal("Falha na conexão", "", "error");
+						showLoader(false);
+					}
+				});
+			});
+	}
+
+	$scope.salvaIpFixo = function (ip) {
+		ip = ip || $("#inputIpFixoApiExterna").val();
+
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/API_IP_Insere.php",
+			data: {
+				ip_address: ip
+			},
+			dataType: "json",
+			success: function (result) {
+				const organizacao = result && result.data && result.data.organization && result.data.organization[0];
+
+				if (organizacao && (organizacao.error === 0 || organizacao.error === "0")) {
+					swal(organizacao.result || "IP salvo com sucesso.", "", "success");
+					escondeTelasApi();
+					carregaTelaGerenciamentoApi();
+				} else {
+					swal("Falha ao salvar o IP.", (organizacao && organizacao.result) || "", "error");
+				}
+
+				showLoader(false);
+			},
+			error: function (result) {
+				swal("Falha na conexão.", "", "error");
+				showLoader(false);
+			}
+		});
+
+	}
+
+	$scope.abrirModalIpApiExterna = function () {
+		var ultimaAlteracao = apiExternaLastIpChange ? moment(apiExternaLastIpChange, "DD/MM/YYYY HH:mm") : null;
+		var bloqueado = !!(ultimaAlteracao && ultimaAlteracao.isValid() && moment().diff(ultimaAlteracao, "hours") < 24);
+
+		$("#lblIpAtualApiExterna").val(apiExternaIp || "-");
+		$("#inputNovoIpApiExterna").val("");
+		$("#avisoIpRecenteApiExterna").toggle(bloqueado);
+		$("#grupoNovoIpApiExterna").toggle(!bloqueado);
+		$("#btnSalvarIpApiExterna").toggle(!bloqueado);
+
+		if (bloqueado) {
+			$("#avisoIpRecenteApiExterna").html("O IP fixo já foi alterado em " + ultimaAlteracao.format("DD/MM/YYYY HH:mm") + ". Aguarde 24 horas após a última alteração para alterá-lo novamente.");
+		}
+
+		$("#editarIpApiExterna-modal").modal("show");
+	}
+
+	// Bloqueia digitacao de qualquer caractere fora de IPv4/IPv6 (inclusive a barra
+	// de CIDR: a Cloudflare aceita faixa, mas o cadastro aqui e de um IP unico).
+	$(document).on("input", ".input-ip-api-externa", function () {
+		var limpo = this.value.replace(/[^0-9a-fA-F.:]/g, "");
+
+		if (limpo !== this.value) {
+			this.value = limpo;
+		}
+	});
+
+	function validaIpApiExterna(ip) {
+		var octeto = "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])";
+		var ipv4 = new RegExp("^" + octeto + "(\\." + octeto + "){3}$");
+		var partes;
+
+		if (ip.indexOf("/") !== -1) {
+			return "Informe apenas o IP, sem a máscara de rede (ex.: 200.150.10.25 e não 200.150.10.25/24).";
+		}
+
+		if (ip.indexOf(":") !== -1) {
+			if (!/^[0-9a-fA-F:]+$/.test(ip) || ip.indexOf(":::") !== -1 || (ip.split("::").length - 1) > 1) {
+				return "IPv6 inválido. Confira o endereço informado.";
+			}
+
+			if (/^(::1|fe80:|fc|fd)/i.test(ip)) {
+				return "Esse é um IPv6 de rede local. Informe o IP público fornecido pelo seu provedor de internet.";
+			}
+
+			return "";
+		}
+
+		if (!ipv4.test(ip)) {
+			return "IP inválido. Informe um IPv4 (ex.: 200.150.10.25) ou um IPv6.";
+		}
+
+		partes = ip.split(".").map(Number);
+
+		if (
+			partes[0] === 10 ||
+			partes[0] === 127 ||
+			(partes[0] === 192 && partes[1] === 168) ||
+			(partes[0] === 172 && partes[1] >= 16 && partes[1] <= 31) ||
+			(partes[0] === 169 && partes[1] === 254) ||
+			(partes[0] === 100 && partes[1] >= 64 && partes[1] <= 127) ||
+			partes[0] === 0
+		) {
+			return "Esse é o IP interno da sua rede, ele não funciona na API. Pesquise por \"meu ip\" no Google ou peça o IP fixo público ao seu provedor de internet.";
+		}
+
+		return "";
+	}
+
+	$scope.salvarNovoIpApiExterna = function () {
+		var ip = ($("#inputNovoIpApiExterna").val() || $("#inputIpFixoApiExterna").val() || "").trim();
+		var erro;
+
+		if (!ip) {
+			swal("Ops!", "Informe o IP Fixo.", "error");
+			return;
+		}
+
+		erro = validaIpApiExterna(ip);
+
+		if (erro) {
+			swal("Ops!", erro, "error");
+			return;
+		}
+
+		showLoader(true);
+		$("#editarIpApiExterna-modal").modal("hide");
+		$scope.salvaIpFixo(ip);
+	}
+	
+
+	$("#btnTrocarCartaoPlano").on('click', function () {
+
+		swal({
+				title: 'Realizar troca de cartão',
+				text: 'Essa operação irá substituir o cartão cadastrado para o pagamento do plano. Deseja continuar?',
+				type: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#DD6B55',
+				confirmButtonText: 'Sim',
+				cancelButtonText: 'Não',
+				closeOnConfirm: true
+			},
+			function () {
+				showLoader(true);
+				$.ajax({
+					type: "POST",
+					url: "/pages/cadastros/CHECKOUT_Create.php",
+					dataType: "json",
+					data: {
+						type: 3,
+						establishment: $_CONFIG.CODESTABELECIMENTO,
+						value: 0,
+						installments: 1,
+						payment_type: "credit_card",
+						product_code: '',
+						product_type: '',
+						plan: "",
+						origin: 2,
+						metadata: ''
+					},
+					success: function (result) {
+						showLoader(false);
+						var checkout = result && result.data && result.data.checkout && result.data.checkout[0] ? result.data.checkout[0] : null;
+
+						if (result && result.data && result.data.error === true) {
+							toastr.error(result.data.message || "Falha ao gerar checkout.");
+							return;
+						}
+
+						if (!checkout || checkout.error != 0 || !checkout.hash_code) {
+							toastr.error((checkout && checkout.result) ? checkout.result : "Falha ao gerar checkout .");
+							return;
+						}
+
+						showCheckoutLinkCard(getCheckoutUrl(checkout.hash_code));
+					},
+					error: function () {
+						showLoader(false);
+						swal("Falha na conexão.", "", "error");
+					}
+				});
+			});
+	})
+
+	function showCheckoutLinkCard(link) {
+		swal({
+			title: "<strong>Troca de cartão</strong>",
+			text: '\
+				Acesse o <b>link de troca de cartão</b> para concluir o processo.<br><br>\
+				<a id="btnOpenCheckout" target="_blank" href="' + link + '" autofocus>' + link + '</a><br><br>\
+				',
+			type: "info",
+			showCancelButton: true,
+			cancelButtonColor: "#d33",
+			confirmButtonColor: "#00796B",
+			confirmButtonText: "Abrir Checkout",
+			cancelButtonText: "Fechar",
+			closeOnConfirm: false,
+			closeOnCancel: true,
+			html: true,
+			animation: "slide-from-top"
+		},
+		function (isConfirm) {
+			if (isConfirm) {
+				var linkElement = document.createElement("a");
+				linkElement.href = link;
+				linkElement.target = "_blank";
+				linkElement.rel = "noopener noreferrer";
+				document.body.appendChild(linkElement);
+				linkElement.click();
+				document.body.removeChild(linkElement);
+			}
+		});
+	}
+
+	$scope.buscaModuloEmpresa = function (tipo) {
+		$.ajax({
+			type: "POST",
+			url: "/pages/cadastros/EMPRESA_MODULO_Busca.php",
+			data: {
+				type: tipo
+			},
+			dataType: "json",
+			success: function (result) {
+				if (result.data.error == false) {
+					if(result.data.modules.length > 0){
+						if(result.data.modules[0].chatbot_code != undefined && result.data.modules[0].chatbot_code != null && result.data.modules[0].chatbot_code != ""){
+							$("#abaChatbot").show();
+							$scope.buscaBoletoChatbot()
+						}else{
+							$("#abaChatbot").hide();
+						}
+					}else{
+						$("#abaChatbot").hide();
+					}
+				
+				} else {
+					$("#abaChatbot").hide();
+				}
+				
+			},
+			error: function (result) {
+				
+				
+			}
+		});
+	}
+
+	$scope.buscaBoletoChatbot = function (tipo) {
+		if (typeof (optTabelalistaBoletoChatBot) != "undefined") {
+			$('#tbBoletosChatbot tbody').unbind('click')
+			optTabelalistaBoletoChatBot.destroy();
+		}
+
+		optTabelalistaBoletoChatBot = $('#tbBoletosChatbot').DataTable({
+			"dom": 'T<"clear">lfrtip',
+			"ajax": {
+				"url": "/pages/cadastros/BOLETO_Busca.php",
+				"method": "POST",
+				"data": function (d) {
+					d.type = 1;
+				}
+			},
+
+			stateSaveCallback: function (settings, data) {
+				data.order = [];
+				localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
+			},
+			stateLoadCallback: function (settings) {
+				return JSON.parse(localStorage.getItem('DataTables_' + settings.sInstance))
+			},
+			"stateSave": true,
+
+			"columns": [
+				{
+					"data": "boleto_date",
+					"title": "Data do boleto",
+					"width": "70%"
+				},
+
+				{
+					"class": 'verboletos',
+					"width": "12%",
+					"orderable": false,
+					"data": null,
+					"defaultContent": '<button class="btn btn-success btn-xs" title="Ver boleto"><i class="fa fa-barcode"></i> Boleto</button>',
+				},
+				{
+                    "data": "is_payed",
+                    "title": "Pago",
+					"width": "5%",
+                    "render": function (data, type, row) {
+						if(data == 1){
+							return `<i class="fa fa-check-circle" style="color:green"></i>`
+						}else{
+							return ``
+						}
+                    }
+                },
+			],
+
+			"ordering": false,
+
+			"language": {
+				"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Portuguese-Brasil.json"
+			}
+		});
+
+		$('#tbBoletosChatbot tbody').on('click', 'td.verboletos', function () {
+			var tr = $(this).closest('tr');
+			var row = optTabelalistaBoletoChatBot.row(tr);
+			var data = row.data();
+			window.open(data.boleto_link, '_blank').focus();
+		});
+		resizeContent()
+
+	}
+
+
+	$scope.buscaModuloEmpresa(1)
+});
+
