@@ -1,0 +1,13 @@
+{
+  "name": "alcatei-mvp",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MVP unificado: /cliente e /admin em um unico npm run dev",
+  "scripts": {
+    "dev": "node dev.mjs",
+    "dev:admin": "npm --prefix Admin run dev",
+    "dev:cliente": "npm --prefix Cliente run dev",
+    "build": "node build-deploy.mjs"
+  }
+}

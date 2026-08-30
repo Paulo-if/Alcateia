@@ -77,6 +77,65 @@ export const DEV_BUMP: BumpOffer = {
   },
 };
 
+// Ofertas de Order Bump (dev). Estruturalmente um array para o carrossel de até
+// 3 produtos — pronto para receber a lista real do Supabase (`produtos` ativos).
+export const DEV_BUMP_OFFERS: BumpOffer[] = [
+  {
+    type: 'product',
+    name: 'Pomada Modeladora',
+    description: 'Fixação leve para acabamento impecável.',
+    price: 25,
+    originalPrice: 45,
+    additionalMinutes: 0,
+    imageUrl: null,
+    product: {
+      id: 'dev-pomada',
+      nome: 'Pomada Modeladora',
+      descricao: 'Fixação leve para acabamento impecável.',
+      preco_original: 45,
+      preco_bump: 25,
+      imagem_url: null,
+      ativo: true,
+    },
+  },
+  {
+    type: 'product',
+    name: 'Óleo pós-barba',
+    description: 'Hidrata e acalma a pele após a barba.',
+    price: 35,
+    originalPrice: 60,
+    additionalMinutes: 0,
+    imageUrl: null,
+    product: {
+      id: 'dev-oleo',
+      nome: 'Óleo pós-barba',
+      descricao: 'Hidrata e acalma a pele após a barba.',
+      preco_original: 60,
+      preco_bump: 35,
+      imagem_url: null,
+      ativo: true,
+    },
+  },
+  {
+    type: 'product',
+    name: 'Kit Hydra Boost',
+    description: 'Shampoo + finalizador para manter o corte em casa.',
+    price: 50,
+    originalPrice: 90,
+    additionalMinutes: 0,
+    imageUrl: null,
+    product: {
+      id: 'dev-kit',
+      nome: 'Kit Hydra Boost',
+      descricao: 'Shampoo + finalizador para manter o corte em casa.',
+      preco_original: 90,
+      preco_bump: 50,
+      imagem_url: null,
+      ativo: true,
+    },
+  },
+];
+
 export const DEV_UPSELL: UpsellOffer[] = [
   {
     id: 'dev-upsell-1',

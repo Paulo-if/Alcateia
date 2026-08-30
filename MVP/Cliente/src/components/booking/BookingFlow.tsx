@@ -15,7 +15,7 @@ import { ConfirmationCard } from './ConfirmationCard';
 
 import { fetchProfessionals } from '../../services/professionalsService';
 import { fetchServices } from '../../services/servicesService';
-import { fetchBumpProduct } from '../../services/productsService';
+import { fetchBumpProducts } from '../../services/productsService';
 import { findOrCreateCustomer } from '../../services/customersService';
 import { createBooking, addUpsellSale } from '../../services/bookingsService';
 import { createOnlineCheckout } from '../../services/paymentService';
@@ -79,7 +79,8 @@ export function BookingFlow() {
   const [services, setServices] = useState<Service[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [bump, setBump] = useState<BumpOffer | null>(null);
+  const [bumps, setBumps] = useState<BumpOffer[]>([]);
+  const [selectedBump, setSelectedBump] = useState<BumpOffer | null>(null);
   const [settings, setSettings] = useState<PublicSettings>(defaultPublicSettings);
 
   const [upsellOffers, setUpsellOffers] = useState<UpsellOffer[]>([]);
@@ -97,12 +98,12 @@ export function BookingFlow() {
 
   const prices = useMemo(() => {
     const servicePrice = selection.service?.preco ?? 0;
-    const bumpPrice = selection.bumpSelected && bump ? bump.price : 0;
+    const bumpPrice = selection.bumpSelected && selectedBump ? selectedBump.price : 0;
     return { servicePrice, bumpPrice, total: servicePrice + bumpPrice };
-  }, [selection.service, selection.bumpSelected, bump]);
+  }, [selection.service, selection.bumpSelected, selectedBump]);
 
   const effectiveExtraMinutes =
-    selection.bumpSelected && bump?.type === 'micro_service' ? bump.additionalMinutes : 0;
+    selection.bumpSelected && selectedBump?.type === 'micro_service' ? selectedBump.additionalMinutes : 0;
 
   const { slots, loading: availabilityLoading, error: availabilityError } = useAvailability({
     dateString: selection.date,
@@ -116,28 +117,26 @@ export function BookingFlow() {
     let active = true;
     (async () => {
       try {
-        const [profs, svc, productData, settingsData] = await Promise.all([
+        const [profs, svc, bumpProducts, settingsData] = await Promise.all([
           fetchProfessionals(),
           fetchServices(),
-          fetchBumpProduct().catch(() => null),
+          fetchBumpProducts().catch(() => []),
           fetchSettings(),
         ]);
         if (!active) return;
         setProfessionals(profs);
         setServices(svc);
-        setBump(
-          productData
-            ? {
-                type: 'product',
-                product: productData,
-                name: productData.nome,
-                description: productData.descricao,
-                price: productData.preco_bump,
-                originalPrice: productData.preco_original,
-                additionalMinutes: 0,
-                imageUrl: productData.imagem_url,
-              }
-            : null,
+        setBumps(
+          bumpProducts.map((p) => ({
+            type: 'product',
+            product: p,
+            name: p.nome,
+            description: p.descricao,
+            price: p.preco_bump,
+            originalPrice: p.preco_original,
+            additionalMinutes: 0,
+            imageUrl: p.imagem_url,
+          })),
         );
         setSettings(settingsData);
         setUpsellOffers(DEV_UPSELL);
@@ -276,7 +275,7 @@ export function BookingFlow() {
         dateString: selection.date,
         time: selection.time,
         observations: selection.observations.trim() || null,
-        bump,
+        bump: selection.bumpSelected ? selectedBump : null,
         paymentMethod,
         idempotencyKey,
       });
@@ -364,7 +363,7 @@ export function BookingFlow() {
               time: selection.time,
               total: prices.total,
               customerName: selection.clientName,
-              bumpMinutes: selection.bumpSelected && bump ? bump.additionalMinutes : 0,
+              bumpMinutes: selection.bumpSelected && selectedBump ? selectedBump.additionalMinutes : 0,
               paymentMethod: selection.paymentMethod ?? 'in_person',
               paymentStatus: bookingResult?.paymentStatus ?? 'pending',
               bookingId: bookingResult?.id ?? '',
@@ -375,6 +374,7 @@ export function BookingFlow() {
               flow.reset();
               setBookingResult(null);
               setAssignedProfessional(null);
+              setSelectedBump(null);
               scrollBodyTop();
             }}
           />
@@ -466,12 +466,14 @@ export function BookingFlow() {
 
               {step === 'bump' && (
                 <OrderBumpCard
-                  bump={bump}
-                  onAccept={() => {
+                  offers={bumps}
+                  onAccept={(offer) => {
+                    setSelectedBump(offer);
                     set({ bumpSelected: true });
                     goNext();
                   }}
                   onDecline={() => {
+                    setSelectedBump(null);
                     set({ bumpSelected: false });
                     goNext();
                   }}
@@ -488,8 +490,8 @@ export function BookingFlow() {
                     subtotal={prices.servicePrice}
                     bumpAmount={prices.bumpPrice}
                     bumpMinutes={
-                      selection.bumpSelected && bump && bump.type === 'micro_service'
-                        ? bump.additionalMinutes
+                      selection.bumpSelected && selectedBump && selectedBump.type === 'micro_service'
+                        ? selectedBump.additionalMinutes
                         : 0
                     }
                   />

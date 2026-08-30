@@ -120,3 +120,48 @@ export function overlaps(
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
+
+/** Muda o mês preservando o dia (evita overflow como 31 -> 1 do mês seguinte). */
+export function moveMonth(date: Date, delta: number): Date {
+  const d = new Date(date.getFullYear(), date.getMonth() + delta, 1);
+  return d;
+}
+
+/** Título de mês/ano em pt-BR, ex.: "Setembro de 2026". */
+export function formatMonthYear(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
+}
+
+/**
+ * Gera a matriz de um mês como semanas, cada posição sendo um Date local ou null.
+ * Segunda-feira como primeiro dia da semana.
+ */
+export function getMonthMatrix(year: number, month: number): (Date | null)[][] {
+  const first = new Date(year, month, 1);
+  // 1 = segunda ... 7 = domingo (getDay(): 0=domingo)
+  const firstWeekday = first.getDay() === 0 ? 6 : first.getDay() - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+/** Retorna o rótulo de um dia da semana (SEG, TER, ...) em pt-BR. */
+export function shortWeekdayLabel(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(date).replace('.', '').toUpperCase();
+}
+
+/** Normaliza duas datas de dia para comparação (mesmo dia local). */
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}

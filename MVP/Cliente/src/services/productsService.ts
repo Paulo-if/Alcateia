@@ -1,6 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Product } from '../types';
-import { DEV_BUMP } from '../data/devFallback';
+import { DEV_BUMP_OFFERS } from '../data/devFallback';
 import { friendlyError } from './errors';
 
 /**
@@ -8,8 +8,18 @@ import { friendlyError } from './errors';
  * Ordena pelo mais recente para dar previsibilidade.
  */
 export async function fetchBumpProduct(): Promise<Product | null> {
+  const products = await fetchBumpProducts();
+  return products[0] ?? null;
+}
+
+/**
+ * Retorna os produtos ativos para o carrossel de Order Bump (até 3).
+ * Em modo de demonstração local, retorna ofertas mockadas (estrutura pronta
+ * para receber a lista real do Supabase).
+ */
+export async function fetchBumpProducts(): Promise<Product[]> {
   if (!isSupabaseConfigured()) {
-    return DEV_BUMP.product ?? null;
+    return DEV_BUMP_OFFERS.map((o) => o.product!).filter(Boolean);
   }
 
   const supabase = getSupabase();
@@ -18,8 +28,8 @@ export async function fetchBumpProduct(): Promise<Product | null> {
     .select('*')
     .eq('ativo', true)
     .order('created_at', { ascending: false })
-    .limit(1);
+    .limit(3);
 
-  if (error) throw new Error(friendlyError(error, 'Não foi possível carregar a oferta.'));
-  return (data && data[0]) as Product | null;
+  if (error) throw new Error(friendlyError(error, 'Não foi possível carregar as ofertas.'));
+  return (data ?? []) as Product[];
 }

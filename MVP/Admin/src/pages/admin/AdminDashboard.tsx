@@ -26,9 +26,10 @@ import {
   CheckCircle2,
   Trash2,
   Tag,
+  UserCircle2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Agendamento, Servico, TransacaoFinanceira, Cliente, VendaBump } from '@/types';
+import type { Agendamento, Servico, TransacaoFinanceira, Cliente, VendaBump, Profissional } from '@/types';
 import {
   formatCurrency,
   formatDateTime,
@@ -40,6 +41,7 @@ import {
   cn,
 } from '@/lib/utils';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -85,6 +87,22 @@ export function AdminDashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [bumps, setBumps] = useState<VendaBump[]>([]);
 
+  // Filtro por profissional (somente master — barbeiro vê apenas a própria agenda via RLS)
+  const { isMaster, isBarbeiro, usuario } = useAuth();
+  const [profissionais, setProfissionais] = useState<Profissional[]>([]);
+  const [profissionalFilter, setProfissionalFilter] = useState('');
+
+  useEffect(() => {
+    if (!isMaster) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profissionais')
+        .select('*')
+        .order('name');
+      setProfissionais((data as Profissional[]) ?? []);
+    })();
+  }, [isMaster]);
+
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
 
@@ -94,6 +112,23 @@ export function AdminDashboard() {
 
     const startISO = dateRange.startDate.toISOString();
     const endISO = dateRange.endDate.toISOString();
+
+    // Futuras queries de agendamento com filtro opcional de profissional (master)
+    let periodoQ = supabase
+      .from('agendamentos')
+      .select('*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone)')
+      .gte('data_inicio', startISO)
+      .lte('data_inicio', endISO);
+    let agendaHojeQ = supabase
+      .from('agendamentos')
+      .select('*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email)')
+      .gte('data_inicio', startOfToday.toISOString())
+      .lte('data_inicio', endOfToday.toISOString())
+      .order('data_inicio', { ascending: true });
+    if (isMaster && profissionalFilter) {
+      periodoQ = periodoQ.eq('professional_id', profissionalFilter);
+      agendaHojeQ = agendaHojeQ.eq('professional_id', profissionalFilter);
+    }
 
     const [
       { data: transacoesPeriodo },
@@ -109,19 +144,10 @@ export function AdminDashboard() {
         .gte('created_at', startISO)
         .lte('created_at', endISO),
       // Agendamentos estritamente do período selecionado
-      supabase
-        .from('agendamentos')
-        .select('*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone)')
-        .gte('data_inicio', startISO)
-        .lte('data_inicio', endISO),
+      periodoQ,
       supabase.from('clientes').select('id'),
       // Agenda de HOJE exclusiva para o DayView
-      supabase
-        .from('agendamentos')
-        .select('*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email)')
-        .gte('data_inicio', startOfToday.toISOString())
-        .lte('data_inicio', endOfToday.toISOString())
-        .order('data_inicio', { ascending: true }),
+      agendaHojeQ,
       supabase.from('servicos').select('id, nome'),
     ]);
 
@@ -193,7 +219,7 @@ export function AdminDashboard() {
       agendaHoje: agendaList,
     });
     setLoading(false);
-  }, [dateRange]);
+  }, [dateRange, isMaster, profissionalFilter]);
 
   useEffect(() => {
     fetchDashboard();
@@ -262,10 +288,34 @@ export function AdminDashboard() {
           </h1>
           <p className="text-cream/50 text-sm capitalize">
             {formatWeekday(today)}, {formatDayMonth(today)}
+            {isBarbeiro && usuario?.profissional?.name
+              ? ` • Sua agenda (${usuario.profissional.name})`
+              : ''}
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Filtro por profissional (master) */}
+          {isMaster && profissionais.length > 0 && (
+            <div className="flex bg-[#141414] border border-white/10 rounded-xl px-2.5 py-1 items-center gap-1.5">
+              <UserCircle2 size={15} className="text-cream/40 shrink-0" />
+              <select
+                value={profissionalFilter}
+                onChange={(e) => setProfissionalFilter(e.target.value)}
+                className="bg-transparent text-xs text-cream outline-none py-1.5 cursor-pointer"
+                aria-label="Filtrar por profissional"
+              >
+                <option value="" className="bg-[#141414]">
+                  Todos os profissionais
+                </option>
+                {profissionais.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#141414]">
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <PeriodFilter value={dateRange} onChange={setDateRange} />
           <Link to="/admin/agendamentos">
             <Button className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black hover:opacity-90 shadow-lg shadow-highlight/20 font-semibold">
@@ -482,12 +532,20 @@ export function AdminDashboard() {
               </h3>
               <p className="text-xs text-cream/40 mb-6">Atalhos principais de gestão</p>
               <div className="space-y-3">
-                {[
-                  { to: '/admin/agendamentos', icon: CalendarDays, label: 'Gerenciar Agendamentos', desc: 'Ver calendário completo e agendamentos' },
-                  { to: '/admin/clientes', icon: Users, label: 'Gerenciar Clientes', desc: 'Lista e histórico de clientes' },
-                  { to: '/admin/servicos', icon: Scissors, label: 'Serviços & Produtos', desc: 'Editar catálogo e fotos' },
-                  { to: '/admin/financeiro', icon: Wallet, label: 'Lançar Transação', desc: 'Registrar receitas e despesas da barbearia' },
-                ].map((link) => (
+                {(
+                  isMaster
+                    ? [
+                        { to: '/admin/agendamentos', icon: CalendarDays, label: 'Gerenciar Agendamentos', desc: 'Ver calendário completo e agendamentos' },
+                        { to: '/admin/clientes', icon: Users, label: 'Gerenciar Clientes', desc: 'Lista e histórico de clientes' },
+                        { to: '/admin/servicos', icon: Scissors, label: 'Serviços & Produtos', desc: 'Editar catálogo e fotos' },
+                        { to: '/admin/financeiro', icon: Wallet, label: 'Lançar Transação', desc: 'Registrar receitas e despesas da barbearia' },
+                      ]
+                    : [
+                        { to: '/admin/agendamentos', icon: CalendarDays, label: 'Gerenciar Agendamentos', desc: 'Ver calendário completo e agendamentos' },
+                        { to: '/admin/clientes', icon: Users, label: 'Gerenciar Clientes', desc: 'Lista e histórico de clientes' },
+                        { to: '/admin/financeiro', icon: Wallet, label: 'Minhas Comissões', desc: 'Ver meus atendimentos e vendas' },
+                      ]
+                ).map((link) => (
                   <Link
                     key={link.to}
                     to={link.to}

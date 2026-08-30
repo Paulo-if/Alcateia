@@ -36,7 +36,10 @@ export function BookingSummary({
       <dl className="receipt-rows">
         <div className="receipt-row">
           <dt className="k">Serviço</dt>
-          <dd className="v">{service?.nome ?? '—'}</dd>
+          <dd className="v service-value">
+            <span>{service?.nome ?? '—'}</span>
+            <strong>{service ? formatCurrency(service.preco) : ''}</strong>
+          </dd>
         </div>
         <div className="receipt-row">
           <dt className="k">Profissional</dt>

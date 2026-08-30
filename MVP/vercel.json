@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "installCommand": "npm install && npm install --prefix Admin && npm install --prefix Cliente",
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/admin/(.*)", "destination": "/admin/index.html" },
+    { "source": "/cliente/(.*)", "destination": "/cliente/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

@@ -11,9 +11,10 @@ import {
   Tag,
   AlertTriangle,
   Phone,
+  UserCircle2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Agendamento, Servico, Cliente, VendaBump } from '@/types';
+import type { Agendamento, Servico, Cliente, VendaBump, Profissional } from '@/types';
 import {
   formatCurrency,
   formatDateTime,
@@ -27,6 +28,7 @@ import {
   cn,
 } from '@/lib/utils';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -79,6 +81,22 @@ export function AdminAgendamentos() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Filtro por profissional (somente master — o barbeiro já vê só a própria agenda via RLS)
+  const { isMaster, isBarbeiro, usuario } = useAuth();
+  const [profissionais, setProfissionais] = useState<Profissional[]>([]);
+  const [profissionalFilter, setProfissionalFilter] = useState('');
+
+  useEffect(() => {
+    if (!isMaster) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profissionais')
+        .select('*')
+        .order('name');
+      setProfissionais((data as Profissional[]) ?? []);
+    })();
+  }, [isMaster]);
+
   // Buscar lista de agendamentos para a visão Lista
   const fetchListaAgendamentos = useCallback(async () => {
     setLoading(true);
@@ -92,6 +110,10 @@ export function AdminAgendamentos() {
 
     if (statusFilter !== 'todos') {
       query = query.eq('status', statusFilter);
+    }
+
+    if (isMaster && profissionalFilter) {
+      query = query.eq('professional_id', profissionalFilter);
     }
 
     const { data, count: totalCount } = await query.range(
@@ -114,7 +136,7 @@ export function AdminAgendamentos() {
     setAgendamentos(filtered);
     setCount(totalCount ?? 0);
     setLoading(false);
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, search, isMaster, profissionalFilter]);
 
   // Buscar agendamentos para a visualização de Semana ou Dia
   const fetchPeriodAgendamentos = useCallback(async () => {
@@ -130,7 +152,7 @@ export function AdminAgendamentos() {
       end = getEndOfDay(curDate);
     }
 
-    const { data } = await supabase
+    let q = supabase
       .from('agendamentos')
       .select(
         '*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email)',
@@ -139,8 +161,14 @@ export function AdminAgendamentos() {
       .lte('data_inicio', end.toISOString())
       .order('data_inicio', { ascending: true });
 
+    if (isMaster && profissionalFilter) {
+      q = q.eq('professional_id', profissionalFilter);
+    }
+
+    const { data } = await q;
+
     setPeriodAgendamentos((data as AgendamentoDayItem[]) ?? []);
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, viewMode, isMaster, profissionalFilter]);
 
   useEffect(() => {
     if (viewMode === 'lista') {
@@ -258,12 +286,22 @@ export function AdminAgendamentos() {
       const dataFim = new Date(dataInicio.getTime() + duracaoMs);
 
       // Prevenção estrita de Double-Booking: candidateStart < existingEnd AND candidateEnd > existingStart
-      const { data: conflitos, error: checkError } = await supabase
+      let conflitoQuery = supabase
         .from('agendamentos')
         .select('id, data_inicio, data_fim')
         .neq('status', 'cancelado')
         .lt('data_inicio', dataFim.toISOString())
         .gt('data_fim', dataInicio.toISOString());
+
+      // Escopar a checagem ao profissional que será atribuído (barbeiro ou master com filtro).
+      const profParaChecagem = isBarbeiro
+        ? usuario?.profissional_id
+        : profissionalFilter || null;
+      if (profParaChecagem) {
+        conflitoQuery = conflitoQuery.eq('professional_id', profParaChecagem);
+      }
+
+      const { data: conflitos, error: checkError } = await conflitoQuery;
 
       if (checkError) {
         setCreateError('Erro ao validar disponibilidade de horário.');
@@ -297,11 +335,17 @@ export function AdminAgendamentos() {
       }
 
       // Inserir agendamento (STATUS: 'agendado' — não gera receita antes de concluir!)
+      // Atribui o profissional: barbeiro => ele mesmo; master => filtro selecionado (se houver).
+      const profissionalParaAtribuir = isBarbeiro
+        ? usuario?.profissional_id ?? null
+        : profissionalFilter || null;
+
       const { data: novoAgendamento, error: insertError } = await supabase
         .from('agendamentos')
         .insert({
           cliente_id: clienteId,
           servico_id: newServicoId,
+          professional_id: profissionalParaAtribuir,
           data_inicio: dataInicio.toISOString(),
           data_fim: dataFim.toISOString(),
           status: 'agendado',
@@ -409,6 +453,36 @@ export function AdminAgendamentos() {
               Lista
             </button>
           </div>
+
+          {/* Filtro por profissional (master) */}
+          {isMaster && (
+            <div className="flex bg-[#141414] border border-white/10 rounded-xl px-2.5 py-1 items-center gap-1.5">
+              <UserCircle2 size={15} className="text-cream/40 shrink-0" />
+              <select
+                value={profissionalFilter}
+                onChange={(e) => setProfissionalFilter(e.target.value)}
+                className="bg-transparent text-xs text-cream outline-none py-1.5 cursor-pointer"
+                aria-label="Filtrar por profissional"
+              >
+                <option value="" className="bg-[#141414]">
+                  Todos os profissionais
+                </option>
+                {profissionais.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#141414]">
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Badge de escopo (barbeiro) */}
+          {isBarbeiro && usuario?.profissional?.name && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-highlight bg-highlight/10 border border-highlight/20 px-2.5 py-1.5 rounded-xl">
+              <UserCircle2 size={13} />
+              Sua agenda: {usuario.profissional.name}
+            </span>
+          )}
 
           {/* Botão Novo Agendamento */}
           <Button

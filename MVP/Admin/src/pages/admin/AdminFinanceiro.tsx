@@ -35,10 +35,13 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
+import { useAuth } from '@/hooks/useAuth';
+import { ComissaoBarbeiro } from '@/components/admin/ComissaoBarbeiro';
 
 const categorias = ['servico', 'produto', 'aluguel', 'salario', 'equipamento', 'marketing', 'outros'];
 
 export function AdminFinanceiro() {
+  const { isBarbeiro } = useAuth();
   const [transacoes, setTransacoes] = useState<TransacaoFinanceira[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -184,6 +187,10 @@ export function AdminFinanceiro() {
 
   return (
     <AdminLayout>
+      {isBarbeiro ? (
+        <ComissaoBarbeiro />
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
@@ -564,6 +571,8 @@ export function AdminFinanceiro() {
           </div>
         </div>
       </Modal>
+        </>
+      )}
     </AdminLayout>
   );
 }

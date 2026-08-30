@@ -1,5 +1,7 @@
-import { CalendarCheck, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, CalendarCheck, Clock } from 'lucide-react';
 import { formatDayMonth, formatTodayLong, formatWeekdayShort } from '../../lib/date';
+import { CalendarModal } from './CalendarModal';
 
 interface Props {
   dates: string[];
@@ -11,6 +13,7 @@ interface Props {
 
 export function DateSelector({ dates, selectedDate, todayHasSlots, checkingToday, onSelect }: Props) {
   const today = dates[0];
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const todayHint = () => {
     if (checkingToday) return 'Verificando horários...';
@@ -51,6 +54,24 @@ export function DateSelector({ dates, selectedDate, todayHasSlots, checkingToday
           </button>
         ))}
       </div>
+
+      <div className="more-dates">
+        <button
+          type="button"
+          className="more-dates-btn"
+          onClick={() => setCalendarOpen(true)}
+        >
+          <Calendar size={16} />
+          Mais datas
+        </button>
+      </div>
+
+      <CalendarModal
+        open={calendarOpen}
+        selectedDate={selectedDate}
+        onSelect={onSelect}
+        onClose={() => setCalendarOpen(false)}
+      />
     </div>
   );
 }

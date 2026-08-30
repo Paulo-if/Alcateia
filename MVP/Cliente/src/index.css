@@ -159,19 +159,6 @@ h3 {
   border: 1px solid rgba(245, 29, 29, 0.4);
 }
 
-.dev-banner {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 10px 16px;
-  border-radius: 12px;
-  background: rgba(245, 29, 29, 0.1);
-  border: 1px solid rgba(245, 29, 29, 0.35);
-  color: #ffc2c2;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: center;
-}
-
 .loading-block {
   padding: 32px 0;
   text-align: center;
@@ -620,7 +607,7 @@ h3 {
   justify-content: center;
   width: 50px;
   height: 50px;
-  border-radius: 16px;
+  border-radius: 50%;
   border: 1px solid var(--stroke);
   background: var(--card);
   color: var(--muted);
@@ -1114,6 +1101,187 @@ h3 {
   font-size: 0.98rem;
 }
 
+/* ===================== MAIS DATAS + CALENDÁRIO ===================== */
+
+.more-dates {
+  margin-top: 14px;
+}
+
+.more-dates-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px dashed var(--stroke);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.more-dates-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: rgba(79, 231, 255, 0.06);
+}
+
+.more-dates-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.calendar-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.calendar-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 9, 12, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.calendar-panel {
+  position: relative;
+  width: min(100%, 360px);
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 22px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.calendar-title {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.calendar-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.calendar-nav:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.calendar-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.calendar-cell.empty {
+  cursor: default;
+}
+
+.calendar-cell:hover:not(:disabled):not(.empty) {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.calendar-cell.is-selected,
+.calendar-cell.is-picked {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #08131a;
+  font-weight: 800;
+}
+
+.calendar-cell.is-past {
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.calendar-close:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
 /* ===================== HORÁRIOS ===================== */
 
 .slot-groups {
@@ -1296,6 +1464,19 @@ h3 {
   color: var(--text);
 }
 
+.receipt-row .service-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.receipt-row .service-value strong {
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .receipt-total {
   display: flex;
   align-items: baseline;
@@ -1374,10 +1555,93 @@ h3 {
   opacity: 0.55;
 }
 
+.bump-count {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bump-carousel-wrap {
+  position: relative;
+}
+
+.bump-carousel-track {
+  display: flex;
+  scroll-snap-type: x mandatory;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.bump-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.bump-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 4px;
+  min-width: 0;
+}
+
+.bump-image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  background: rgba(20, 21, 26, 0.6);
+}
+
+.bump-carousel-nav {
+  position: absolute;
+  inset: 40% 0 auto 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.bump-carousel-arrow {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--stroke);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--glow-sm);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.bump-carousel-arrow:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.bump-carousel-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .bump-actions {
   display: grid;
   gap: 10px;
   margin-top: 4px;
+}
+
+.bump-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
 .bump-decline {

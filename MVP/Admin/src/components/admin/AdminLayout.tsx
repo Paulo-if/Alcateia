@@ -1,27 +1,52 @@
 import { type ReactNode, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   CalendarDays,
   Scissors,
   Wallet,
   Users,
+  ShieldCheck,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import type { Papel } from '@/types';
 
-const menuItems = [
+interface MenuItem {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  /** apenas master (null/[] = todas as roles) */
+  roles?: Papel[];
+}
+
+const menuItems: MenuItem[] = [
   { path: '/admin', label: 'Painel', icon: LayoutDashboard },
   { path: '/admin/agendamentos', label: 'Agendamentos', icon: CalendarDays },
   { path: '/admin/clientes', label: 'Clientes', icon: Users },
-  { path: '/admin/servicos', label: 'Serviços & Produtos', icon: Scissors },
+  { path: '/admin/servicos', label: 'Serviços & Produtos', icon: Scissors, roles: ['master'] },
   { path: '/admin/financeiro', label: 'Financeiro', icon: Wallet },
+  { path: '/admin/usuarios', label: 'Usuários', icon: ShieldCheck, roles: ['master'] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { papel } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const visibleMenu = menuItems.filter(
+    (item) => !item.roles || (papel && item.roles.includes(papel)),
+  );
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    navigate('/admin/login', { replace: true });
+  }
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-[#F5F5F5] flex">
@@ -51,7 +76,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
         {/* Links de Navegação */}
         <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
-          {menuItems.map((item) => {
+          {visibleMenu.map((item) => {
             const active =
               location.pathname === item.path ||
               (item.path === '/admin' && location.pathname === '/admin');
@@ -76,6 +101,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        {/* Logout */}
+        <div className="p-3.5 border-t border-white/5">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-red-400/80 hover:text-red-300 hover:bg-red-900/20 border border-transparent transition-all duration-200"
+          >
+            <LogOut size={18} />
+            Sair
+          </button>
+        </div>
       </aside>
 
       {/* Backdrop Mobile */}

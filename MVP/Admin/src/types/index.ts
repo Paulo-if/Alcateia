@@ -63,3 +63,27 @@ export interface AgendamentoWithRelations extends Agendamento {
   servico?: Pick<Servico, 'id' | 'nome' | 'duracao_minutos'>;
   cliente?: Pick<Cliente, 'id' | 'nome' | 'telefone'>;
 }
+
+export type Papel = 'master' | 'barbeiro';
+
+export interface Profissional {
+  id: string;
+  name: string;
+  specialty: string | null;
+  avatar_url: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface Usuario {
+  id: string;
+  barbearia_id: string;
+  auth_user_id: string | null;
+  profissional_id: string | null;
+  nome: string;
+  email: string;
+  papel: Papel;
+  ativo: boolean;
+  created_at: string;
+  profissional?: Pick<Profissional, 'id' | 'name'> | null;
+}
