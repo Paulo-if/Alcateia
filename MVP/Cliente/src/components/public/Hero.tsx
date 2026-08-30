@@ -1,52 +1,42 @@
-import { CalendarCheck, MapPin, Scissors } from 'lucide-react';
 import logo from '../../assets/LogoAlcateia.jpg';
 import { ActionCard } from './ActionCard';
 import { HeroCarousel } from './HeroCarousel';
 
 interface Props {
-  brand: string;
   onOpenBooking: () => void;
   onOpenAbout: () => void;
-  onOpenLocation: () => void;
+  onOpenProducts: () => void;
 }
 
-export function Hero({ brand, onOpenBooking, onOpenAbout, onOpenLocation }: Props) {
+export function Hero({ onOpenBooking, onOpenAbout, onOpenProducts }: Props) {
   return (
     <section className="hero">
       <HeroCarousel />
 
       <div className="hero-logo-wrap">
-        <img className="hero-logo" src={logo} alt="Logo Alcateia Barber" />
+        <img className="hero-logo" src={logo} alt="Logo Alcateia Barbearia" />
       </div>
 
       <div className="hero-inner">
-        <p className="hero-badge">{brand}</p>
+        <h1 className="hero-title">Alcateia Barbearia</h1>
 
-        <h1 className="hero-title">A Arte do Corte Clássico.</h1>
-
-        <p className="hero-sub">
-          Precisão, silêncio e tempo bem gasto. Escolha o serviço, o dia e a hora — sem ligações,
-          sem esperas.
-        </p>
+        <p className="hero-sub">Liberte sua juventude</p>
 
         <div className="action-cards">
           <ActionCard
-            icon={<CalendarCheck size={34} />}
             title="Agendamentos"
             subtitle="Reserve seu horário"
             onClick={onOpenBooking}
           />
           <ActionCard
-            icon={<Scissors size={34} />}
             title="Conheça nossa barbearia"
             subtitle="A história por trás da tesoura"
             onClick={onOpenAbout}
           />
           <ActionCard
-            icon={<MapPin size={34} />}
-            title="Localização"
-            subtitle="Como chegar até nós"
-            onClick={onOpenLocation}
+            title="Produtos"
+            subtitle="Conheça nossos produtos"
+            onClick={onOpenProducts}
           />
         </div>
       </div>

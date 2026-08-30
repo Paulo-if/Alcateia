@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Hero } from './Hero';
-import { LocationMap } from './LocationMap';
 import { PublicFooter } from './PublicFooter';
 import { BookingSheet } from '../booking/BookingSheet';
 import { BookingFlow } from '../booking/BookingFlow';
@@ -28,19 +27,12 @@ export function PublicHome() {
     };
   }, []);
 
-  const scrollToLocation = () => {
-    document.getElementById('localizacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=Alcateia+Barbearia';
-
   return (
     <div className="public-shell">
       <Hero
-        brand={settings.nome}
         onOpenBooking={() => setBookingOpen(true)}
         onOpenAbout={() => navigate('/conheca-a-alcateia')}
-        onOpenLocation={scrollToLocation}
+        onOpenProducts={() => navigate('/produtos')}
       />
 
       <section id="localizacao" className="location-section">
@@ -48,7 +40,16 @@ export function PublicHome() {
           <p className="eyebrow">Localização</p>
           <h2>Venha nos visitar</h2>
         </div>
-        <LocationMap address={settings.endereco} mapsUrl={mapsUrl} />
+        <iframe
+          className="map-frame"
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4318.6965425811695!2d-49.12235538883765!3d-15.335913485180663!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x935cc14a8df8df73%3A0x8e073b50d314c9db!2sAlcat%C3%A9ia%20Barbearia!5e1!3m2!1sen!2sbr!4v1788101818180!5m2!1sen!2sbr"
+          width="400"
+          height="300"
+          title="Alcateia Barbearia no Google Maps"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        />
       </section>
 
       <PublicFooter settings={settings} />

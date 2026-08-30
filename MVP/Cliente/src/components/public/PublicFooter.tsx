@@ -20,8 +20,6 @@ export function PublicFooter({ settings }: Props) {
 
   return (
     <footer className="public-footer">
-      <p className="footer-brand">Alcateia Barber</p>
-
       <div className="social-links">
         {instagramUrl && (
           <a
