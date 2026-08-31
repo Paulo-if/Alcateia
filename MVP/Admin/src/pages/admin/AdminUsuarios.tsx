@@ -12,7 +12,7 @@ import {
   User,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Usuario, Profissional, Papel } from '@/types';
+import type { Usuario, Papel } from '@/types';
 import { cn } from '@/lib/utils';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
@@ -25,7 +25,6 @@ const papelLabel: Record<Papel, string> = {
 
 export function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -36,7 +35,6 @@ export function AdminUsuarios() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [papel, setPapel] = useState<Papel>('barbeiro');
-  const [profissionalId, setProfissionalId] = useState('');
 
   const [confirmDelete, setConfirmDelete] = useState<Usuario | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -51,12 +49,7 @@ export function AdminUsuarios() {
 
   useEffect(() => {
     (async () => {
-      await Promise.all([
-        fetchUsuarios(),
-        supabase.from('profissionais').select('*').order('name').then(({ data }) =>
-          setProfissionais((data as Profissional[]) ?? []),
-        ),
-      ]);
+      await fetchUsuarios();
       setLoading(false);
     })();
   }, [fetchUsuarios]);
@@ -66,7 +59,6 @@ export function AdminUsuarios() {
     setEmail('');
     setPassword('');
     setPapel('barbeiro');
-    setProfissionalId('');
     setCreateError(null);
   };
 
@@ -76,10 +68,6 @@ export function AdminUsuarios() {
 
     if (!nome.trim() || !email.trim() || !password) {
       setCreateError('Preencha nome, e-mail e senha.');
-      return;
-    }
-    if (papel === 'barbeiro' && !profissionalId) {
-      setCreateError('Selecione o profissional vinculado ao barbeiro.');
       return;
     }
 
@@ -105,7 +93,6 @@ export function AdminUsuarios() {
           email: email.trim(),
           password,
           papel,
-          profissional_id: papel === 'barbeiro' ? profissionalId : null,
         }),
       },
     );
@@ -122,16 +109,29 @@ export function AdminUsuarios() {
     await fetchUsuarios();
   };
 
+  // Atualiza o `active` do profissional vinculado para refletir o estado do
+  // barbeiro (ativo/inativo), mantendo o histórico preservado.
+  const syncProfissionalAtivo = async (u: Usuario, active: boolean) => {
+    if (u.papel === 'barbeiro' && u.profissional_id) {
+      await supabase
+        .from('profissionais')
+        .update({ active })
+        .eq('id', u.profissional_id);
+    }
+  };
+
   const handleToggleAtivo = async (u: Usuario) => {
     setActionError(null);
+    const novoAtivo = !u.ativo;
     const { error } = await supabase
       .from('usuarios')
-      .update({ ativo: !u.ativo })
+      .update({ ativo: novoAtivo })
       .eq('id', u.id);
     if (error) {
       setActionError('Não foi possível atualizar o usuário.');
       return;
     }
+    await syncProfissionalAtivo({ ...u, ativo: novoAtivo }, novoAtivo);
     await fetchUsuarios();
   };
 
@@ -145,6 +145,36 @@ export function AdminUsuarios() {
       setActionError('Não foi possível alterar o papel.');
       return;
     }
+    await syncProfissionalAtivo({ ...u, papel: 'master' }, false);
+    await fetchUsuarios();
+  };
+
+  const handleDemote = async (u: Usuario) => {
+    setActionError(null);
+    // Se o usuário não possui profissional (nunca foi barbeiro anteriormente),
+    // cria um automaticamente antes de reativar. Se já possui (reutiliza).
+    let profissionalId = u.profissional_id;
+    if (!profissionalId) {
+      const { data: novo, error: insErr } = await supabase
+        .from('profissionais')
+        .insert({ name: u.nome, active: true })
+        .select('id')
+        .single();
+      if (insErr || !novo) {
+        setActionError('Não foi possível criar o profissional do barbeiro.');
+        return;
+      }
+      profissionalId = (novo as { id: string }).id;
+    }
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ papel: 'barbeiro', profissional_id: profissionalId })
+      .eq('id', u.id);
+    if (error) {
+      setActionError('Não foi possível alterar o papel.');
+      return;
+    }
+    await syncProfissionalAtivo({ ...u, papel: 'barbeiro', profissional_id: profissionalId }, true);
     await fetchUsuarios();
   };
 
@@ -167,6 +197,10 @@ export function AdminUsuarios() {
       setConfirmDelete(null);
       return;
     }
+
+    // Não apaga o profissional (preserva histórico/atribuições). Apenas o
+    // desativa, para não aparecer em novos agendamentos.
+    await syncProfissionalAtivo(confirmDelete, false);
 
     setConfirmDelete(null);
     await fetchUsuarios();
@@ -289,6 +323,12 @@ export function AdminUsuarios() {
                       </Button>
                     </>
                   )}
+                  {isMaster && (
+                    <Button size="sm" variant="outline" onClick={() => handleDemote(u)}>
+                      <Scissors size={15} />
+                      Tornar Barbeiro
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="danger"
@@ -375,26 +415,13 @@ export function AdminUsuarios() {
           </label>
 
           {papel === 'barbeiro' && (
-            <label className="block">
-              <span className="text-xs font-medium text-cream/60 uppercase tracking-wider mb-1.5 block">
-                Profissional vinculado
-              </span>
-              <select
-                value={profissionalId}
-                onChange={(e) => setProfissionalId(e.target.value)}
-                className="w-full rounded-xl bg-[#1a1a1a] border border-white/10 px-4 py-3 text-sm text-cream outline-none transition-colors focus:border-highlight/60"
-              >
-                <option value="">Selecione...</option>
-                {profissionais.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-cream/40 mt-1.5">
-                O barbeiro terá acesso apenas à sua própria agenda.
+            <div className="rounded-xl border border-highlight/20 bg-highlight/5 px-4 py-3">
+              <p className="text-xs text-cream/70">
+                O <b className="text-highlight">profissional</b> deste barbeiro será criado
+                automaticamente com o mesmo nome e passará a aparecer no fluxo de agendamento
+                do Cliente.
               </p>
-            </label>
+            </div>
           )}
 
           <Button

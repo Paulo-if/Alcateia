@@ -13,8 +13,12 @@
 // `usuarios` diretamente (bypassando RLS) com base no auth.uid() do chamador.
 //
 // Endpoint:  POST /functions/v1/criar-usuario
-// Body:      { nome, email, password, papel?: 'master'|'barbeiro',
-//              profissional_id?: uuid }
+// Body:      { nome, email, password, papel?: 'master'|'barbeiro' }
+//
+// OBSERVAÇÃO: quando papel == 'barbeiro', o profissional correspondente é
+// criado AUTOMATICAMENTE (name derivado do nome, active=true, mesma barbearia)
+// e vinculado ao usuário via `usuarios.profissional_id`. NÃO existe mais o
+// campo manual "profissional vinculado".
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -76,8 +80,7 @@ Deno.serve(async (req) => {
     }
 
     // ---------- Validação do payload ----------
-    const { nome, email, password, papel = 'barbeiro', profissional_id = null } =
-      await req.json().catch(() => ({}));
+    const { nome, email, password, papel = 'barbeiro' } = await req.json().catch(() => ({}));
 
     if (!nome || !String(nome).trim()) {
       return json({ error: 'Informe o nome.' }, 400);
@@ -93,30 +96,14 @@ Deno.serve(async (req) => {
     }
 
     const emailNorm = String(email).trim().toLowerCase();
-
-    // Se papel == barbeiro, o profissional_id é obrigatório.
-    let profissionalUuid = null;
-    if (papel === 'barbeiro') {
-      if (!profissional_id) {
-        return json({ error: 'Informe o profissional vinculado (profissional_id).' }, 400);
-      }
-      const { data: prof, error: profErr } = await service
-        .from('profissionais')
-        .select('id')
-        .eq('id', profissional_id)
-        .maybeSingle();
-      if (profErr || !prof) {
-        return json({ error: 'Profissional não encontrado.' }, 400);
-      }
-      profissionalUuid = prof.id;
-    }
+    const nomeTrim = String(nome).trim();
 
     // ---------- Cria a sub-conta no Auth (service_role) ----------
     const { data: authData, error: authError } = await service.auth.admin.createUser({
       email: emailNorm,
       password: String(password),
       email_confirm: true,
-      user_metadata: { nome: String(nome).trim(), papel },
+      user_metadata: { nome: nomeTrim, papel },
     });
 
     if (authError) {
@@ -126,12 +113,34 @@ Deno.serve(async (req) => {
       return json({ error: 'Falha ao criar usuário.' }, 400);
     }
 
+    // ---------- (Barbeiro) Cria o profissional AUTOMATICAMENTE ----------
+    // O profissional nasce com o nome derivado do usuário, active=true e a
+    // mesma barbearia (via DEFAULT do schema). Se a criação falhar, desfaz a
+    // sub-conta do Auth para não deixar órfão.
+    let profissionalUuid: string | null = null;
+    if (papel === 'barbeiro') {
+      const { data: prof, error: profInsertErr } = await service
+        .from('profissionais')
+        .insert({ name: nomeTrim, active: true })
+        .select('id')
+        .single();
+
+      if (profInsertErr || !prof) {
+        await service.auth.admin.deleteUser(authData.user.id);
+        return json(
+          { error: `Falha ao criar o profissional: ${profInsertErr?.message ?? 'erro'}` },
+          400,
+        );
+      }
+      profissionalUuid = prof.id;
+    }
+
     // ---------- Cria o perfil em `usuarios` vinculado ao auth_user_id ----------
     const { data: perfil, error: perfilError } = await service
       .from('usuarios')
       .insert({
         auth_user_id: authData.user.id,
-        nome: String(nome).trim(),
+        nome: nomeTrim,
         email: emailNorm,
         papel,
         profissional_id: profissionalUuid,
@@ -140,7 +149,10 @@ Deno.serve(async (req) => {
       .single();
 
     if (perfilError) {
-      // Rollback da sub-conta do Auth para não deixar órfão.
+      // Rollback: remove a sub-conta do Auth e o profissional recém-criado.
+      if (profissionalUuid) {
+        await service.from('profissionais').delete().eq('id', profissionalUuid);
+      }
       await service.auth.admin.deleteUser(authData.user.id);
       return json({ error: `Falha ao criar perfil: ${perfilError.message}` }, 400);
     }
