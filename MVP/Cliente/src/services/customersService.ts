@@ -1,6 +1,7 @@
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Customer } from '../types';
 import { friendlyError } from './errors';
+import { normalizePhone } from '../lib/phone';
 
 export interface FindOrCreateCustomerInput {
   nome: string;
@@ -10,12 +11,14 @@ export interface FindOrCreateCustomerInput {
 /**
  * Localiza um cliente existente pelo telefone; se não existir, cria.
  * Garante que o mesmo telefone nunca gere cliente duplicado.
+ * O telefone é normalizado para o formato de armazenamento (11 dígitos)
+ * ANTES da consulta e do insert, evitando duplicidade/erros de formatação.
  */
 export async function findOrCreateCustomer({
   nome,
   telefone,
 }: FindOrCreateCustomerInput): Promise<Customer> {
-  const normalized = telefone.replace(/\D/g, '');
+  const normalized = normalizePhone(telefone);
 
   if (!isSupabaseConfigured()) {
     return { id: 'dev-cliente', nome: nome.trim(), telefone: normalized, email: null };

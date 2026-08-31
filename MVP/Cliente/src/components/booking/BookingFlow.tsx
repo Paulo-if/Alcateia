@@ -28,6 +28,7 @@ import { getAvailableSlots } from '../../services/availabilityService';
 import type { BumpOffer, Professional, Service, UpsellOffer } from '../../types';
 import type { PublicSettings } from '../../config';
 import { defaultPublicSettings } from '../../config';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { DEV_UPSELL } from '../../data/devFallback';
 import { getNextDates } from '../../lib/date';
 import { isConflictError } from '../../services/errors';
@@ -127,19 +128,34 @@ export function BookingFlow() {
         setProfessionals(profs);
         setServices(svc);
         setBumps(
-          bumpProducts.map((p) => ({
-            type: 'product',
-            product: p,
-            name: p.nome,
-            description: p.descricao,
-            price: p.preco_bump,
-            originalPrice: p.preco_original,
-            additionalMinutes: 0,
-            imageUrl: p.imagem_url,
-          })),
+          bumpProducts
+            .map((p) => ({
+              type: 'product' as const,
+              product: p,
+              name: p.nome,
+              description: p.descricao,
+              price: p.preco_bump,
+              originalPrice: p.preco_original,
+              additionalMinutes: 0,
+              imageUrl: p.imagem_url,
+            }))
+            // Opção B: no fluxo público, exibimos apenas ofertas que NÃO alteram
+            // a duração (produtos físicos, additionalMinutes = 0).
+            //
+            // Motivo: o Order Bump é escolhido DEPOIS do horário, e a
+            // disponibilidade da grade usa apenas o tempo do serviço base
+            // (extraMinutes = 0 na etapa de horário). Uma oferta do tipo
+            // micro-serviço (additionalMinutes > 0) faria o agendamento discordar
+            // da disponibilidade e esbarraria na constraint GiST (23P01).
+            // Para garantir a invariante "disponibilidade === booking (mesma
+            // duração)" sem refatorar o motor do calendário, mantemos zero ofertas
+            // com duração adicional no fluxo público.
+            .filter((o) => o.additionalMinutes <= 0),
         );
         setSettings(settingsData);
-        setUpsellOffers(DEV_UPSELL);
+        // DEV_UPSELL é fallback isolado de desenvolvimento — nunca aparece
+        // quando Supabase está configurado (regra do Bloco 1).
+        setUpsellOffers(isSupabaseConfigured() ? [] : DEV_UPSELL);
       } catch {
         if (!active) return;
         setLoadError('Não foi possível carregar os agendamentos agora. Tente novamente em alguns instantes.');
@@ -203,14 +219,22 @@ export function BookingFlow() {
     document.querySelector('.sheet-body')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Pule a etapa de Order Bump quando não houver ofertas ativas: o cliente
+  // vai direto do resumo para o pagamento.
+  const hasActiveBumps = bumps.length > 0;
+
   const goNext = () => {
-    const next = NEXT_STEP[step];
+    const base = NEXT_STEP[step];
+    // Ao sair do resumo, se não houver bumps, seguir direto ao pagamento.
+    const next = step === 'summary' && !hasActiveBumps ? 'payment' : base;
     if (next) setStep(next);
     scrollBodyTop();
   };
 
   const goBack = () => {
-    const prev = BACK_TO[step];
+    // Ao voltar do pagamento, se não havia bumps, voltar ao resumo.
+    let prev = BACK_TO[step];
+    if (step === 'payment' && !hasActiveBumps) prev = 'summary';
     if (prev) setStep(prev);
     scrollBodyTop();
   };

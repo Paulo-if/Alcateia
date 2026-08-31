@@ -18,6 +18,7 @@ export interface Produto {
   preco_bump: number;
   imagem_url: string | null;
   ativo: boolean;
+  is_order_bump?: boolean;
   created_at: string;
 }
 

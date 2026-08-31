@@ -57,6 +57,9 @@ export interface Product {
   preco_bump: number;
   imagem_url: string | null;
   ativo: boolean;
+  // Distingue CATÁLOGO de OFERTA DE ORDER BUMP. Um produto ativo NÃO é,
+  // automaticamente, uma oferta de Order Bump.
+  is_order_bump?: boolean;
   created_at?: string;
 }
 

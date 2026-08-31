@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { maskPhone } from '../../lib/phone';
 
 interface Props {
   clientName: string;
@@ -33,11 +34,12 @@ export function CustomerForm({ clientName, clientPhone, onChange, showError }: P
         <span>WhatsApp</span>
         <input
           value={clientPhone}
-          onChange={(e) => onChange({ clientPhone: e.target.value })}
+          onChange={(e) => onChange({ clientPhone: maskPhone(e.target.value) })}
           placeholder="(11) 99999-9999"
           inputMode="tel"
           autoComplete="tel"
           name="phone"
+          maxLength={15}
         />
       </label>
 

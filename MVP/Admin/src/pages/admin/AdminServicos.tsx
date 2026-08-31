@@ -300,7 +300,7 @@ export function AdminServicos() {
             Serviços & Produtos
           </h1>
           <p className="text-cream/50 text-sm">
-            Catálogo visual de atendimentos e ofertas de Order Bump.
+            Catálogo visual de atendimentos e produtos.
           </p>
         </div>
         <Button
@@ -336,7 +336,7 @@ export function AdminServicos() {
           )}
         >
           <Tag size={16} />
-          Produtos Order Bump ({produtos.length})
+          Produtos ({produtos.length})
         </button>
       </div>
 
@@ -456,9 +456,13 @@ export function AdminServicos() {
                     </div>
                   )}
 
-                  {/* Badge de Oferta Bump */}
-                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-[#81FF4D]/20 backdrop-blur-md border border-[#81FF4D]/40 text-[10px] text-[#81FF4D] font-bold uppercase tracking-wider">
-                    Order Bump
+                  {/* Badge: Order Bump (somente se is_order_bump) ou Catálogo */}
+                  <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-md border text-[10px] font-bold uppercase tracking-wider ${
+                    produto.is_order_bump
+                      ? 'bg-[#81FF4D]/20 border-[#81FF4D]/40 text-[#81FF4D]'
+                      : 'bg-white/10 border-white/20 text-cream/60'
+                  }`}>
+                    {produto.is_order_bump ? 'Order Bump' : 'Catálogo'}
                   </div>
                 </div>
 
@@ -484,15 +488,26 @@ export function AdminServicos() {
                     </p>
                   </div>
 
-                  {/* Preços: Bump em Destaque + Original Riscado */}
+                  {/* Preços: catálogo (preco_original) OU bump (preco_bump destacado) */}
                   <div className="pt-3 border-t border-white/5 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-cream/40 block font-medium">Preço de Oferta</span>
-                      <span className="font-display text-2xl text-[#81FF4D]">
-                        {formatCurrency(produto.preco_bump)}
-                      </span>
+                      {produto.is_order_bump && produto.preco_bump > 0 ? (
+                        <>
+                          <span className="text-[10px] text-cream/40 block font-medium">Preço de Oferta</span>
+                          <span className="font-display text-2xl text-[#81FF4D]">
+                            {formatCurrency(produto.preco_bump)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-cream/40 block font-medium">Preço</span>
+                          <span className="font-display text-2xl text-[#81FF4D]">
+                            {formatCurrency(produto.preco_original)}
+                          </span>
+                        </>
+                      )}
                     </div>
-                    {produto.preco_original > produto.preco_bump && (
+                    {produto.is_order_bump && produto.preco_original > produto.preco_bump && (
                       <div className="text-right">
                         <span className="text-[10px] text-cream/30 block">Original</span>
                         <span className="text-xs text-cream/40 line-through">

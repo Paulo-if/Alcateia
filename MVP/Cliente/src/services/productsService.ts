@@ -4,8 +4,8 @@ import { DEV_BUMP_OFFERS } from '../data/devFallback';
 import { friendlyError } from './errors';
 
 /**
- * Retorna o produto da oferta de Order Bump (primeiro produto ativo).
- * Ordena pelo mais recente para dar previsibilidade.
+ * Retorna o produto da oferta de Order Bump (primeiro produto ativo marcado
+ * como order bump). NÃO retorna produtos do catálogo normal.
  */
 export async function fetchBumpProduct(): Promise<Product | null> {
   const products = await fetchBumpProducts();
@@ -13,9 +13,9 @@ export async function fetchBumpProduct(): Promise<Product | null> {
 }
 
 /**
- * Retorna os produtos ativos para o carrossel de Order Bump (até 3).
- * Em modo de demonstração local, retorna ofertas mockadas (estrutura pronta
- * para receber a lista real do Supabase).
+ * Retorna os produtos ativos marcou como Order Bump (até 3) para o carrossel.
+ * Produtos do catálogo normal NÃO são retornados — só os com is_order_bump = true.
+ * Em modo de demonstração local (sem Supabase), retorna dados mock de dev.
  */
 export async function fetchBumpProducts(): Promise<Product[]> {
   if (!isSupabaseConfigured()) {
@@ -27,6 +27,7 @@ export async function fetchBumpProducts(): Promise<Product[]> {
     .from('produtos')
     .select('*')
     .eq('ativo', true)
+    .eq('is_order_bump', true)
     .order('created_at', { ascending: false })
     .limit(3);
 
