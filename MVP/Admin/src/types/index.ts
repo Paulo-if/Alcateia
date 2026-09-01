@@ -88,3 +88,25 @@ export interface Usuario {
   created_at: string;
   profissional?: Pick<Profissional, 'id' | 'name'> | null;
 }
+
+/** Horário de trabalho semanal de um profissional (day_of_week 1=Segunda ... 7=Domingo). */
+export interface ProfessionalSchedule {
+  id: string;
+  professional_id: string;
+  barbearia_id: string;
+  day_of_week: number; // 1 (Segunda) a 7 (Domingo)
+  start_time: string; // "HH:mm"
+  end_time: string; // "HH:mm"
+  active: boolean;
+  created_at: string;
+}
+
+/** Dia de folga/bloqueio específico de um profissional. */
+export interface ProfessionalTimeOff {
+  id: string;
+  professional_id: string;
+  barbearia_id: string;
+  date: string; // "YYYY-MM-DD"
+  reason: string | null;
+  created_at: string;
+}

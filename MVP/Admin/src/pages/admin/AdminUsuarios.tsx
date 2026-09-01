@@ -10,13 +10,16 @@ import {
   KeyRound,
   Mail,
   User,
+  CalendarRange,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Usuario, Papel } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { AdminAgendaProfissional } from '@/components/admin/AdminAgendaProfissional';
 
 const papelLabel: Record<Papel, string> = {
   master: 'Master',
@@ -24,6 +27,9 @@ const papelLabel: Record<Papel, string> = {
 };
 
 export function AdminUsuarios() {
+  const { usuario: currentUser } = useAuth();
+  const currentUserId = currentUser?.id ?? null;
+
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -38,6 +44,9 @@ export function AdminUsuarios() {
 
   const [confirmDelete, setConfirmDelete] = useState<Usuario | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<Usuario | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
+  const [agendaFor, setAgendaFor] = useState<{ id: string; name: string } | null>(null);
 
   const fetchUsuarios = useCallback(async () => {
     const { data } = await supabase
@@ -121,8 +130,16 @@ export function AdminUsuarios() {
   };
 
   const handleToggleAtivo = async (u: Usuario) => {
+    // Reativação é segura e imediata. Desativação exige confirmação no modal.
+    if (u.ativo) {
+      setConfirmDeactivate(u);
+      return;
+    }
+    await performToggleAtivo(u, true);
+  };
+
+  const performToggleAtivo = async (u: Usuario, novoAtivo: boolean) => {
     setActionError(null);
-    const novoAtivo = !u.ativo;
     const { error } = await supabase
       .from('usuarios')
       .update({ ativo: novoAtivo })
@@ -133,6 +150,15 @@ export function AdminUsuarios() {
     }
     await syncProfissionalAtivo({ ...u, ativo: novoAtivo }, novoAtivo);
     await fetchUsuarios();
+  };
+
+  const confirmDeactivateUser = async () => {
+    if (!confirmDeactivate) return;
+    setDeactivating(true);
+    setActionError(null);
+    await performToggleAtivo(confirmDeactivate, false);
+    setDeactivating(false);
+    setConfirmDeactivate(null);
   };
 
   const handlePromote = async (u: Usuario) => {
@@ -180,6 +206,14 @@ export function AdminUsuarios() {
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
+
+    // Proteção contra autoexclusão da própria conta Master.
+    if (confirmDelete.id === currentUserId) {
+      setActionError('Você não pode remover a própria conta. Peça a outro Master para gerenciá-la.');
+      setConfirmDelete(null);
+      return;
+    }
+
     setDeleting(true);
     setActionError(null);
 
@@ -297,6 +331,11 @@ export function AdminUsuarios() {
                           Inativo
                         </span>
                       )}
+                      {u.id === currentUserId && (
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-sky-500/40 text-sky-300 bg-sky-500/10">
+                          Você
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-cream/50 truncate flex items-center gap-1.5">
                       <Mail size={13} className="shrink-0" />
@@ -323,6 +362,18 @@ export function AdminUsuarios() {
                       </Button>
                     </>
                   )}
+                  {!isMaster && u.profissional && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setAgendaFor({ id: u.profissional!.id, name: u.profissional!.name })
+                      }
+                    >
+                      <CalendarRange size={15} />
+                      Agenda
+                    </Button>
+                  )}
                   {isMaster && (
                     <Button size="sm" variant="outline" onClick={() => handleDemote(u)}>
                       <Scissors size={15} />
@@ -332,8 +383,8 @@ export function AdminUsuarios() {
                   <Button
                     size="sm"
                     variant="danger"
-                    onClick={() => !isMaster && setConfirmDelete(u)}
-                    disabled={isMaster}
+                    onClick={() => u.id !== currentUserId && setConfirmDelete(u)}
+                    disabled={u.id === currentUserId}
                   >
                     <Trash2 size={15} />
                     Remover
@@ -450,8 +501,12 @@ export function AdminUsuarios() {
       >
         <div className="space-y-4">
           <p className="text-sm text-cream/70">
-            Deseja remover o acesso de <b className="text-cream">{confirmDelete?.nome}</b> (
-            {confirmDelete?.email})? O usuário deixará de acessar o painel.
+            Você está prestes a remover <b className="text-cream">{confirmDelete?.nome}</b> (
+            {confirmDelete?.email}) da administração da barbearia.
+          </p>
+          <p className="text-xs text-cream/50">
+            O acesso ao painel será revogado. Se houver histórico (agendamentos/financeiro),
+            os dados serão preservados e apenas o acesso será desativado.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmDelete(null)}>
@@ -470,6 +525,47 @@ export function AdminUsuarios() {
           </div>
         </div>
       </Modal>
+
+      {/* ===================== MODAL: CONFIRMAR DESATIVAÇÃO ===================== */}
+      <Modal
+        open={!!confirmDeactivate}
+        onClose={() => setConfirmDeactivate(null)}
+        title="Desativar usuário"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-cream/70">
+            Você está prestes a desativar <b className="text-cream">{confirmDeactivate?.nome}</b> (
+            {confirmDeactivate?.email}). O usuário deixará de acessar o painel.
+          </p>
+          <p className="text-xs text-cream/50">
+            {confirmDeactivate?.papel === 'barbeiro'
+              ? 'O profissional vinculado deixará de aparecer no agendamento do Cliente (active=false). O histórico permanece preservado.'
+              : 'O histórico permanece preservado. Você poderá reativar o usuário a qualquer momento.'}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmDeactivate(null)}>
+              Cancelar
+            </Button>
+            <Button variant="secondary" onClick={confirmDeactivateUser} disabled={deactivating}>
+              {deactivating ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Desativando...
+                </>
+              ) : (
+                'Desativar'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ===================== MODAL: AGENDA DO PROFISSIONAL ===================== */}
+      <AdminAgendaProfissional
+        open={!!agendaFor}
+        onClose={() => setAgendaFor(null)}
+        profissional={agendaFor}
+      />
     </AdminLayout>
   );
 }

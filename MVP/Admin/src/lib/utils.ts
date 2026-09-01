@@ -48,6 +48,12 @@ export function formatWeekday(date: string | Date): string {
   }).format(d);
 }
 
+/** Formata "YYYY-MM-DD" para "DD/MM/AAAA" sem deslocamento de timezone. */
+export function formatDateBR(dateString: string): string {
+  const [y, m, d] = dateString.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 /** Formata data no formato local YYYY-MM-DD para inputs sem erro de timezone UTC */
 export function formatDateInput(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;

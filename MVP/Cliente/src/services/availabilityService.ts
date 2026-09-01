@@ -30,6 +30,98 @@ export interface AvailableSlot {
 const STATUS_QUE_NAO_BLOQUEIAM = ['cancelado', 'nao_compareceu'];
 
 /**
+ * Janela de expediente resolvida para um profissional numa data local.
+ * `null` quando o profissional não atende naquele dia (folga/bloqueio ou dia
+ * sem expediente configurado). `useBusinessDefault` indica que o profissional
+ * ainda não tem agenda configurada e deve usar o horário padrão da barbearia.
+ */
+export interface WorkingWindow {
+  start: string; // "HH:mm"
+  end: string;   // "HH:mm"
+  useBusinessDefault: boolean;
+}
+
+/**
+ * Converte (day+6)%7+1 -> dia da semana na convenção da app (1=Segunda...7=Domingo),
+ * a partir de Date.getDay() (0=Domingo...6=Sábado).
+ */
+function weekdayIndex(date: Date): number {
+  return ((date.getDay() + 6) % 7) + 1;
+}
+
+/**
+ * Resolve a janela de atendimento de um profissional numa data local a partir de:
+ * - professional_time_off: data de folga/bloqueio específica (sobrepõe tudo);
+ * - professional_schedules: expediente semanal (dia da semana);
+ * - como fallback, se o profissional ainda NÃO tem agenda configurada, usa o
+ *   horário padrão da barbearia (businessHours), preservando o fluxo atual.
+ *
+ * Nota local: comparações por data usam o dia local (não toISOString), mantendo
+ * a estratégia de datas da app.
+ */
+export async function resolveWorkingWindow(
+  professionalId: string,
+  dateString: string,
+): Promise<WorkingWindow | null> {
+  if (!isSupabaseConfigured()) {
+    // Modo dev: sem agenda configurada, usa o padrão de funcionamento.
+    return {
+      start: `${businessHours.startHour.toString().padStart(2, '0')}:00`,
+      end: `${businessHours.endHour.toString().padStart(2, '0')}:00`,
+      useBusinessDefault: true,
+    };
+  }
+
+  const supabase = getSupabase();
+  const date = combineDateAndTime(dateString, '00:00');
+
+  const [{ data: timeOff }, { data: schedules }] = await Promise.all([
+    supabase
+      .from('professional_time_off')
+      .select('*')
+      .eq('professional_id', professionalId)
+      .eq('date', dateString)
+      .maybeSingle(),
+    supabase
+      .from('professional_schedules')
+      .select('*')
+      .eq('professional_id', professionalId)
+      .eq('active', true),
+  ]);
+
+  // Folga/bloqueio específico da data: sem expediente.
+  if (timeOff) return null;
+
+  const rows = (schedules ?? []) as Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+  }>;
+
+  // Profissional ainda sem agenda configurada -> usa o padrão da barbearia.
+  if (rows.length === 0) {
+    return {
+      start: `${businessHours.startHour.toString().padStart(2, '0')}:00`,
+      end: `${businessHours.endHour.toString().padStart(2, '0')}:00`,
+      useBusinessDefault: true,
+    };
+  }
+
+  const todayIndex = weekdayIndex(date);
+  const dayRows = rows.filter((r) => r.day_of_week === todayIndex);
+  if (dayRows.length === 0) {
+    return null; // dia da semana sem expediente configurado
+  }
+
+  const starts = dayRows.map((r) => r.start_time.slice(0, 5));
+  const ends = dayRows.map((r) => r.end_time.slice(0, 5));
+  starts.sort();
+  ends.sort((a, b) => timeToMinutes(b) - timeToMinutes(a));
+
+  return { start: starts[0], end: ends[0], useBusinessDefault: false };
+}
+
+/**
  * Busca os intervalos ocupados (agendamentos ativos) de um profissional numa data local.
  * Agendamentos cancelados/ausentes não bloqueiam horário.
  */
@@ -93,12 +185,6 @@ export async function getAvailableSlots(params: {
   const { dateString, service, professionalId, professionals } = params;
   const totalMinutes = service.duracao_minutos + (params.extraMinutes ?? 0);
 
-  const businessSlots = generateBusinessSlots(
-    businessHours.startHour,
-    businessHours.endHour,
-    businessHours.intervalMinutes,
-  );
-
   // Descarta horários que já passaram (hoje)
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -108,13 +194,21 @@ export async function getAvailableSlots(params: {
   const result: AvailableSlot[] = [];
 
   if (professionalId === 'any') {
-    // "Qualquer profissional" — reúne horários de todos os profissionais compatíveis.
+    // "Qualquer profissional" — reúne horários de todos os profissionais compatíveis,
+    // considerando o expediente individual de cada um.
     const seen = new Map<string, string>(); // time -> professionalId mais cedo
     for (const prof of professionals) {
+      const window = await resolveWorkingWindow(prof.id, dateString);
+      if (!window) continue; // profissional sem expediente/folga nesse dia
+      const windowSlots = generateBusinessSlots(
+        timeToMinutes(window.start) / 60,
+        Math.ceil(timeToMinutes(window.end) / 60) || businessHours.endHour,
+        businessHours.intervalMinutes,
+      );
       const busy = await fetchBusyRanges(prof.id, dateString);
-      for (const slot of businessSlots) {
+      for (const slot of windowSlots) {
         if (isToday && timeToMinutes(slot) <= nowMinutes) continue;
-        const willFit = canFitSlot(slot, totalMinutes, busy, dateString);
+        const willFit = canFitSlot(slot, totalMinutes, busy, window);
         if (willFit && !seen.has(slot)) {
           seen.set(slot, prof.id);
         }
@@ -127,10 +221,17 @@ export async function getAvailableSlots(params: {
     return result;
   }
 
+  const window = await resolveWorkingWindow(professionalId, dateString);
+  if (!window) return result; // profissional sem expediente/folga nesse dia
+  const windowSlots = generateBusinessSlots(
+    timeToMinutes(window.start) / 60,
+    Math.ceil(timeToMinutes(window.end) / 60) || businessHours.endHour,
+    businessHours.intervalMinutes,
+  );
   const busy = await fetchBusyRanges(professionalId, dateString);
-  for (const slot of businessSlots) {
+  for (const slot of windowSlots) {
     if (isToday && timeToMinutes(slot) <= nowMinutes) continue;
-    if (canFitSlot(slot, totalMinutes, busy, dateString)) {
+    if (canFitSlot(slot, totalMinutes, busy, window)) {
       result.push({ time: slot, professionalId });
     }
   }
@@ -141,14 +242,16 @@ function canFitSlot(
   slotTime: string,
   totalMinutes: number,
   busy: BusyRange[],
-  dateString: string,
+  window?: WorkingWindow | null,
 ): boolean {
-  const candidateStart = combineDateAndTime(dateString, slotTime);
-  const candidateEnd = new Date(candidateStart.getTime() + totalMinutes * 60000);
   const startMin = timeToMinutes(slotTime);
 
-  // Deve terminar dentro do horário de funcionamento
-  if (startMin + totalMinutes > businessHours.endHour * 60) {
+  // Deve terminar dentro da janela de expediente do profissional (ou do padrão).
+  const windowEndMinutes = window && !window.useBusinessDefault
+    ? timeToMinutes(window.end)
+    : businessHours.endHour * 60;
+
+  if (startMin + totalMinutes > windowEndMinutes) {
     return false;
   }
 
