@@ -333,7 +333,7 @@ export function AdminDashboard() {
       ) : (
         <>
           {/* Indicadores / KPIs Responsivos ao Período */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full mb-8">
             <Card className="animate-fade-in-up border-white/10 bg-[#121212]">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-highlight/10 text-highlight">

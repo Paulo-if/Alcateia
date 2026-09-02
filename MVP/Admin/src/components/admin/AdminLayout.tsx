@@ -139,7 +139,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <div className="w-8" />
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-auto max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>

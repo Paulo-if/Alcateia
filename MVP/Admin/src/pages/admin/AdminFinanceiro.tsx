@@ -213,7 +213,7 @@ export function AdminFinanceiro() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full mb-6">
         {stats.map((stat, i) => (
           <Card key={i} className="animate-fade-in-up border-white/10 bg-[#121212]">
             <div className="flex items-start justify-between mb-3">

@@ -6,6 +6,7 @@ import {
   Trash2,
   UserCog,
   AlertTriangle,
+  CheckCircle2,
   Loader2,
   KeyRound,
   Mail,
@@ -33,6 +34,7 @@ export function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -140,6 +142,7 @@ export function AdminUsuarios() {
 
   const performToggleAtivo = async (u: Usuario, novoAtivo: boolean) => {
     setActionError(null);
+    setActionSuccess(null);
     const { error } = await supabase
       .from('usuarios')
       .update({ ativo: novoAtivo })
@@ -163,6 +166,7 @@ export function AdminUsuarios() {
 
   const handlePromote = async (u: Usuario) => {
     setActionError(null);
+    setActionSuccess(null);
     const { error } = await supabase
       .from('usuarios')
       .update({ papel: 'master' })
@@ -177,6 +181,7 @@ export function AdminUsuarios() {
 
   const handleDemote = async (u: Usuario) => {
     setActionError(null);
+    setActionSuccess(null);
     // Se o usuário não possui profissional (nunca foi barbeiro anteriormente),
     // cria um automaticamente antes de reativar. Se já possui (reutiliza).
     let profissionalId = u.profissional_id;
@@ -207,7 +212,8 @@ export function AdminUsuarios() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
 
-    // Proteção contra autoexclusão da própria conta Master.
+    // Proteção contra autoexclusão da própria conta Master (reforço no cliente;
+    // a Edge Function também bloqueia no servidor).
     if (confirmDelete.id === currentUserId) {
       setActionError('Você não pode remover a própria conta. Peça a outro Master para gerenciá-la.');
       setConfirmDelete(null);
@@ -216,27 +222,41 @@ export function AdminUsuarios() {
 
     setDeleting(true);
     setActionError(null);
+    setActionSuccess(null);
 
-    // Remove a sub-conta do Auth via Edge Function não existe; removemos o
-    // perfil e desativamos o acesso por RLS (auth_user_id fica órfão na role).
-    // Para desativar por completo o login, rebaixamos a sub-conta (ver nota).
-    const { error } = await supabase
-      .from('usuarios')
-      .update({ ativo: false, auth_user_id: null })
-      .eq('id', confirmDelete.id);
+    // Remove de verdade a sub-conta do Auth + perfil + (des)ativa o profissional
+    // via Edge Function segura (service_role fica apenas no servidor).
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setActionError('Sessão inválida. Refaça o login.');
+      setDeleting(false);
+      return;
+    }
+
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/remover-usuario`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ usuario_id: confirmDelete.id }),
+      },
+    );
     setDeleting(false);
 
-    if (error) {
-      setActionError('Não foi possível remover o usuário.');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setActionError(body.error ?? 'Não foi possível remover o usuário.');
       setConfirmDelete(null);
       return;
     }
 
-    // Não apaga o profissional (preserva histórico/atribuições). Apenas o
-    // desativa, para não aparecer em novos agendamentos.
-    await syncProfissionalAtivo(confirmDelete, false);
-
+    const removedNome = confirmDelete.nome;
     setConfirmDelete(null);
+    setActionSuccess(`Usuário ${removedNome} removido com sucesso.`);
     await fetchUsuarios();
   };
 
@@ -267,6 +287,13 @@ export function AdminUsuarios() {
         <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-900/20 px-4 py-3 text-sm text-red-300">
           <AlertTriangle size={18} className="shrink-0" />
           <span>{actionError}</span>
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-green-800/50 bg-green-900/20 px-4 py-3 text-sm text-green-300">
+          <CheckCircle2 size={18} className="shrink-0" />
+          <span>{actionSuccess}</span>
         </div>
       )}
 
@@ -350,7 +377,7 @@ export function AdminUsuarios() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {!isMaster && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => handlePromote(u)}>
@@ -505,8 +532,9 @@ export function AdminUsuarios() {
             {confirmDelete?.email}) da administração da barbearia.
           </p>
           <p className="text-xs text-cream/50">
-            O acesso ao painel será revogado. Se houver histórico (agendamentos/financeiro),
-            os dados serão preservados e apenas o acesso será desativado.
+            Atenção: esta ação é permanente. Ao remover o usuário, sua conta de acesso
+            será excluída e TODOS os dados vinculados (perfil do profissional,
+            agendamentos, pagamentos e transações financeiras) serão apagados definitivamente.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmDelete(null)}>

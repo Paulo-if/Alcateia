@@ -415,7 +415,7 @@ export function AdminAgendamentos() {
 
         <div className="flex items-center gap-3">
           {/* Alternador de Visão: Semana (Padrão) | Dia | Lista */}
-          <div className="flex bg-[#141414] border border-white/10 rounded-xl p-1">
+          <div className="flex flex-wrap items-center gap-3 bg-[#141414] border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setViewMode('semana')}
               className={cn(
