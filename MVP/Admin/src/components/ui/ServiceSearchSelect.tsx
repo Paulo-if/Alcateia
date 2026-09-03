@@ -2,6 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Check, Clock, Scissors } from 'lucide-react';
 import type { Servico } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
 
 interface ServiceSearchSelectProps {
   servicos: Servico[];
@@ -92,17 +97,19 @@ export function ServiceSearchSelect({
         <div className="absolute left-0 right-0 mt-2 bg-[#161616] border border-white/15 rounded-2xl shadow-2xl z-50 overflow-hidden animate-scale-in max-h-72 flex flex-col backdrop-blur-xl">
           {/* Campo de Busca */}
           <div className="p-3 border-b border-white/10 bg-[#121212] sticky top-0 z-10">
-            <div className="relative flex items-center">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none" />
-              <input
+            <InputGroup className="items-center">
+              <InputGroupAddon>
+                <Search size={16} />
+              </InputGroupAddon>
+              <InputGroupInput
                 ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar serviço por nome..."
-                className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#F5F1EA] placeholder:text-cream/35 focus:outline-none focus:border-highlight/50"
+                className="bg-black/40 border-white/10 text-xs text-[#F5F1EA] placeholder:text-cream/35 focus:border-highlight/50"
               />
-            </div>
+            </InputGroup>
           </div>
 
           {/* Lista de Opções */}

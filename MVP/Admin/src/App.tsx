@@ -11,6 +11,7 @@ import { AdminServicos } from '@/pages/admin/AdminServicos';
 import { AdminFinanceiro } from '@/pages/admin/AdminFinanceiro';
 import { AdminClientes } from '@/pages/admin/AdminClientes';
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios';
+import { AdminMinhaAgenda } from '@/pages/admin/AdminMinhaAgenda';
 
 function App() {
   return (
@@ -43,6 +44,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminClientes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/minha-agenda"
+            element={
+              <ProtectedRoute>
+                <AdminMinhaAgenda />
               </ProtectedRoute>
             }
           />

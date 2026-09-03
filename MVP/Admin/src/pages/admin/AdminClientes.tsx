@@ -151,7 +151,7 @@ export function AdminClientes() {
     <AdminLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Clientes
           </h1>
           <p className="text-cream/50 text-sm">

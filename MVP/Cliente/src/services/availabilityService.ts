@@ -5,9 +5,11 @@ import {
 } from '../config';
 import {
   combineDateAndTime,
+  formatDateInput,
   generateBusinessSlots,
   overlaps,
   timeToMinutes,
+  today,
 } from '../lib/date';
 import { DEV_BOOKED_BLOCKS } from '../data/devFallback';
 import { friendlyError } from './errors';
@@ -28,6 +30,75 @@ export interface AvailableSlot {
 }
 
 const STATUS_QUE_NAO_BLOQUEIAM = ['cancelado', 'nao_compareceu'];
+
+/** Intervalo de indisponibilidade (folga/férias) de um profissional. */
+export interface UnavailableRange {
+  start: string; // "YYYY-MM-DD"
+  end: string;   // "YYYY-MM-DD"
+  reason: string | null;
+}
+
+/**
+ * Parâmetros comuns usados para decidir se uma data inteira tem pelo menos um
+ * horário disponível (usado na seleção de datas do fluxo público).
+ */
+export interface DateAvailabilityParams {
+  service: Service;
+  professionalId: string | 'any';
+  professionals: Professional[];
+  extraMinutes?: number;
+}
+
+/**
+ * Retorna os intervalos de indisponibilidade (folga/férias) registrados para
+ * um profissional específico. No modo "any" (qualquer profissional) retorna []
+ * vazio, pois um bloqueio individual NÃO torna um dia indisponível para a
+ * barbearia como um todo: basta haver ao menos um barbeiro disponível.
+ */
+export async function fetchUnavailableRanges(
+  professionalId: string | 'any',
+): Promise<UnavailableRange[]> {
+  if (!isSupabaseConfigured() || professionalId === 'any') return [];
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('professional_time_off')
+    .select('start_date, end_date, reason')
+    .eq('professional_id', professionalId)
+    .gte('end_date', formatDateInput(today()));
+
+  if (error) {
+    throw new Error(friendlyError(error, 'Não foi possível consultar os bloqueios.'));
+  }
+  return (data ?? []).map((r) => ({
+    start: r.start_date,
+    end: r.end_date,
+    reason: r.reason ?? null,
+  }));
+}
+
+/**
+ * Verifica se uma data inteira possui pelo menos um horário disponível para o
+ * serviço/profissional escolhido. Considera folga/férias (professional_time_off),
+ * horário semanal, agendamentos existentes e a duração do serviço — ou seja, usa
+ * a mesma fonte de verdade usada para gerar os horários (getAvailableSlots).
+ *
+ * No modo "any", o dia é considerado disponível se houver ao menos um barbeiro
+ * elegível naquela data (bloqueio individual não bloqueia a barbearia inteira).
+ */
+export async function dateHasAvailability(
+  dateString: string,
+  params: DateAvailabilityParams,
+): Promise<boolean> {
+  const slots = await getAvailableSlots({
+    dateString,
+    service: params.service,
+    professionalId: params.professionalId,
+    professionals: params.professionals,
+    extraMinutes: params.extraMinutes ?? 0,
+  });
+  return slots.length > 0;
+}
 
 /**
  * Janela de expediente resolvida para um profissional numa data local.
@@ -80,7 +151,8 @@ export async function resolveWorkingWindow(
       .from('professional_time_off')
       .select('*')
       .eq('professional_id', professionalId)
-      .eq('date', dateString)
+      .lte('start_date', dateString)
+      .gte('end_date', dateString)
       .maybeSingle(),
     supabase
       .from('professional_schedules')

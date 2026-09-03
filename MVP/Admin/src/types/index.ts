@@ -106,7 +106,8 @@ export interface ProfessionalTimeOff {
   id: string;
   professional_id: string;
   barbearia_id: string;
-  date: string; // "YYYY-MM-DD"
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string; // "YYYY-MM-DD"
   reason: string | null;
   created_at: string;
 }

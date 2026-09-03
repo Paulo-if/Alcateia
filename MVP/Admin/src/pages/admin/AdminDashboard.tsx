@@ -29,7 +29,7 @@ import {
   UserCircle2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Agendamento, Servico, TransacaoFinanceira, Cliente, VendaBump, Profissional } from '@/types';
+import type { Agendamento, Servico, Cliente, VendaBump, Profissional } from '@/types';
 import {
   formatCurrency,
   formatDateTime,
@@ -48,12 +48,12 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
 import { DayView, type AgendamentoDayItem } from '@/components/agenda/DayView';
+import { fetchFinanceiroPeriodo, fetchFinanceiroPorDia } from '@/lib/financeService';
 
 interface DashboardData {
   receitaPeriodo: number;
   despesasPeriodo: number;
   lucroPeriodo: number;
-  agendamentosPeriodo: number;
   concluidosPeriodo: number;
   totalClientes: number;
   ticketMedioPeriodo: number;
@@ -131,18 +131,11 @@ export function AdminDashboard() {
     }
 
     const [
-      { data: transacoesPeriodo },
       { data: agendamentosPeriodo },
       { data: clientes },
       { data: agendaHoje },
       { data: servicosData },
     ] = await Promise.all([
-      // Faturamento e despesas estritamente do período selecionado
-      supabase
-        .from('transacoes_financeiras')
-        .select('*')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO),
       // Agendamentos estritamente do período selecionado
       periodoQ,
       supabase.from('clientes').select('id'),
@@ -151,46 +144,20 @@ export function AdminDashboard() {
       supabase.from('servicos').select('id, nome'),
     ]);
 
-    const transList = (transacoesPeriodo as TransacaoFinanceira[] | null) ?? [];
     const agList = (agendamentosPeriodo as AgendamentoDayItem[] | null) ?? [];
     const agendaList = (agendaHoje as AgendamentoDayItem[] | null) ?? [];
 
-    const receitas = transList.filter((t) => t.tipo === 'receita');
-    const despesas = transList.filter((t) => t.tipo === 'despesa');
+    // Fonte de verdade única de receita/despesa (financeService)
+    const profFilter = isMaster && profissionalFilter ? { professionalId: profissionalFilter } : undefined;
+    const financ = await fetchFinanceiroPeriodo(dateRange, profFilter);
+    const dias = await fetchFinanceiroPorDia(dateRange, profFilter);
+    const receitaGrafico = dias.map((d) => ({ dia: d.dia, valor: d.receita }));
 
-    const receitaPeriodo = receitas.reduce((sum, t) => sum + t.valor, 0);
-    const despesasPeriodo = despesas.reduce((sum, t) => sum + t.valor, 0);
-    const lucroPeriodo = receitaPeriodo - despesasPeriodo;
-
-    const concluidosPeriodo = agList.filter((a) => a.status === 'concluido').length;
-    const ticketMedioPeriodo = concluidosPeriodo > 0 ? receitaPeriodo / concluidosPeriodo : agList.length > 0 ? receitaPeriodo / agList.length : 0;
-
-    // Calcular gráfico diário do período selecionado
-    const diffTime = Math.abs(dateRange.endDate.getTime() - dateRange.startDate.getTime());
-    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    const diasParaGrafico = Math.min(diffDays, 31);
-
-    const receitaGrafico: { dia: string; valor: number }[] = [];
-    const stepDate = new Date(dateRange.startDate);
-
-    for (let i = 0; i < diasParaGrafico; i++) {
-      const cur = new Date(stepDate);
-      cur.setDate(stepDate.getDate() + i);
-      const diaString = formatDayMonth(cur);
-
-      const diaValor = receitas
-        .filter((t) => {
-          const td = new Date(t.created_at);
-          return (
-            td.getDate() === cur.getDate() &&
-            td.getMonth() === cur.getMonth() &&
-            td.getFullYear() === cur.getFullYear()
-          );
-        })
-        .reduce((sum, t) => sum + t.valor, 0);
-
-      receitaGrafico.push({ dia: diaString, valor: diaValor });
-    }
+    const receitaPeriodo = financ.receita;
+    const despesasPeriodo = financ.despesas;
+    const lucroPeriodo = financ.saldo;
+    const concluidosPeriodo = financ.concluidos;
+    const ticketMedioPeriodo = financ.ticketMedio;
 
     // Serviços mais populares no período selecionado
     const servicoCount: Record<string, number> = {};
@@ -210,7 +177,6 @@ export function AdminDashboard() {
       receitaPeriodo,
       despesasPeriodo,
       lucroPeriodo,
-      agendamentosPeriodo: agList.length,
       concluidosPeriodo,
       totalClientes: clientes?.length ?? 0,
       ticketMedioPeriodo,
@@ -235,32 +201,10 @@ export function AdminDashboard() {
     setBumps((bumpsData as VendaBump[]) || []);
   };
 
-  // Regra Financeira Estrita:
-  // Concluir gera receita (se não existir transação vinculada). Cancelar remove transação se houver.
+  // Regra Financeira Estrita (fonte de verdade no financeService):
+  // Concluído gera receita automaticamente (derivada dos agendamentos). Cancelado não gera.
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('agendamentos').update({ status }).eq('id', id);
-
-    if (status === 'concluido' && selectedAg) {
-      // Verificar se já existe transação para este agendamento para evitar duplicidade
-      const { data: existingTrans } = await supabase
-        .from('transacoes_financeiras')
-        .select('id')
-        .eq('agendamento_id', id)
-        .maybeSingle();
-
-      if (!existingTrans) {
-        await supabase.from('transacoes_financeiras').insert({
-          tipo: 'receita',
-          valor: selectedAg.valor_servico,
-          descricao: `Atendimento Concluído: ${selectedAg.servico?.nome ?? 'Serviço'} (${selectedAg.cliente?.nome ?? 'Cliente'})`,
-          categoria: 'servico',
-          agendamento_id: id,
-        });
-      }
-    } else if (status === 'cancelado') {
-      // Se cancelado, remover qualquer transação vinculada
-      await supabase.from('transacoes_financeiras').delete().eq('agendamento_id', id);
-    }
 
     if (selectedAg?.id === id) {
       setSelectedAg((prev) => (prev ? { ...prev, status } : prev));
@@ -270,7 +214,6 @@ export function AdminDashboard() {
 
   const handleDeleteAgendamento = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
-    await supabase.from('transacoes_financeiras').delete().eq('agendamento_id', id);
     await supabase.from('agendamentos').delete().eq('id', id);
     setModalOpen(false);
     fetchDashboard();
@@ -283,7 +226,7 @@ export function AdminDashboard() {
       {/* Header com Filtro de Período Integrado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Painel
           </h1>
           <p className="text-cream/50 text-sm capitalize">
@@ -355,10 +298,10 @@ export function AdminDashboard() {
                 </div>
               </div>
               <div className="font-display text-3xl text-[#F5F1EA] mb-0.5">
-                {data.agendamentosPeriodo}
+                {data.concluidosPeriodo}
               </div>
               <div className="text-xs text-cream/50">
-                Atendimentos ({data.concluidosPeriodo} concluídos)
+                Atendimentos no período
               </div>
             </Card>
 

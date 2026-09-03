@@ -1026,6 +1026,50 @@ h3 {
   cursor: not-allowed;
 }
 
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.unavailable-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: rgba(20, 21, 26, 0.85);
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.unavailable-banner > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--text);
+}
+
+.unavailable-banner-text {
+  display: grid;
+  gap: 2px;
+}
+
+.unavailable-banner-text strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.date-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .today-eyebrow {
   font-size: 0.72rem;
   font-weight: 800;
@@ -1258,6 +1302,87 @@ h3 {
   color: var(--muted);
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.calendar-cell.is-unavailable {
+  color: var(--muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* ===================== POPUP DE DATA INDISPONÍVEL ===================== */
+
+.blocked-popup-root {
+  z-index: 70;
+}
+
+.blocked-popup-panel {
+  position: relative;
+  z-index: 1;
+  width: min(360px, 100%);
+  padding: 26px 22px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(20, 21, 26, 0.98), rgba(12, 14, 18, 0.98));
+  border: 1px solid var(--accent-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(79, 231, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  color: var(--text);
+}
+
+.blocked-popup-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(79, 231, 255, 0.1);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+}
+
+.blocked-popup-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.blocked-popup-message {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.blocked-popup-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(79, 231, 255, 0.06);
+  border: 1px solid rgba(79, 231, 255, 0.14);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.blocked-popup-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.blocked-popup-action {
+  margin-top: 4px;
 }
 
 .calendar-close {

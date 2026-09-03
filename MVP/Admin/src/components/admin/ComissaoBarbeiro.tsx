@@ -19,6 +19,7 @@ import {
 } from '@/lib/utils';
 import { Card } from '@/components/ui/Card';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
+import { fetchFinanceiroPeriodo, type FinanceiroPeriodo } from '@/lib/financeService';
 
 interface ServicoRealizado {
   id: string;
@@ -44,6 +45,7 @@ export function ComissaoBarbeiro() {
 
   const [servicos, setServicos] = useState<ServicoRealizado[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [financ, setFinanc] = useState<FinanceiroPeriodo | null>(null);
 
   // Soma de bumps deriva de servicos[].bumps rastreado por id
   const fetchData = useCallback(async () => {
@@ -52,6 +54,11 @@ export function ComissaoBarbeiro() {
 
     const startISO = dateRange.startDate.toISOString();
     const endISO = dateRange.endDate.toISOString();
+
+    // Fonte de verdade única (financeService) unificada para os totais
+    const financeiro = fetchFinanceiroPeriodo(dateRange, {
+      professionalId: usuario.profissional_id,
+    });
 
     const [{ data: agData }, { data: prodData }] = await Promise.all([
       // Meus agendamentos no período (RLS já limita ao próprio profissional)
@@ -66,6 +73,8 @@ export function ComissaoBarbeiro() {
         .order('data_inicio', { ascending: true }),
       supabase.from('produtos').select('*'),
     ]);
+
+    const financData = await financeiro;
 
     const agList = (agData ?? []) as Array<
       Agendamento & {
@@ -89,6 +98,7 @@ export function ComissaoBarbeiro() {
 
     setServicos(servicosRealizados);
     setProdutos((prodData as Produto[]) ?? []);
+    setFinanc(financData);
 
     setLoading(false);
   }, [usuario?.profissional_id, dateRange]);
@@ -97,17 +107,11 @@ export function ComissaoBarbeiro() {
     if (usuario?.profissional_id) fetchData();
   }, [fetchData, usuario?.profissional_id]);
 
-  // KPIs
-  const totalServicos = servicos
-    .filter((s) => s.valor > 0)
-    .reduce((sum, s) => sum + s.valor, 0);
+  // KPIs — totais derivados da fonte de verdade única (financeService)
+  const totalServicos = financ?.receitaServicos ?? 0;
+  const totalBumps = financ?.receitaBumps ?? 0;
 
-  const totalBumps = servicos.reduce(
-    (sum, s) => sum + s.bumps.reduce((b, x) => b + x.valor_pago, 0),
-    0,
-  );
-
-  const qtdServicosConcluidos = servicos.filter((s) => s.valor > 0).length;
+  const qtdServicosConcluidos = financ?.concluidos ?? 0;
   const qtdBumpsVendidos = servicos.reduce((sum, s) => sum + s.bumps.length, 0);
 
   // Montar lista de produtos vendidos (agrupada por produto)
@@ -142,7 +146,7 @@ export function ComissaoBarbeiro() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Minhas Comissões
           </h1>
           <p className="text-cream/50 text-sm capitalize">
@@ -154,7 +158,7 @@ export function ComissaoBarbeiro() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((stat, i) => (
           <Card key={i} className="animate-fade-in-up border-white/10 bg-[#121212]">
             <div className="flex items-start justify-between mb-3">
@@ -162,7 +166,7 @@ export function ComissaoBarbeiro() {
                 <stat.icon size={20} className={stat.color} />
               </div>
             </div>
-            <div className="font-display text-3xl text-[#F5F1EA] mb-0.5">{stat.value}</div>
+            <div className="font-display text-2xl sm:text-3xl text-[#F5F1EA] mb-0.5 break-words leading-tight">{stat.value}</div>
             <div className="text-xs text-cream/50">{stat.label}</div>
           </Card>
         ))}
@@ -185,21 +189,21 @@ export function ComissaoBarbeiro() {
                   Base para cálculo de comissões do profissional
                 </p>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-center md:text-right">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left sm:text-center md:text-right">
                 <div>
-                  <p className="text-2xl font-display text-[#4FE7FF]">
+                  <p className="text-xl sm:text-2xl font-display text-[#4FE7FF] break-words">
                     {formatCurrency(totalServicos)}
                   </p>
                   <p className="text-[11px] text-cream/40">Serviços</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-display text-[#81FF4D]">
+                  <p className="text-xl sm:text-2xl font-display text-[#81FF4D] break-words">
                     {formatCurrency(totalBumps)}
                   </p>
                   <p className="text-[11px] text-cream/40">Bumps</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-display text-highlight">
+                  <p className="text-xl sm:text-2xl font-display text-highlight break-words">
                     {formatCurrency(totalServicos + totalBumps)}
                   </p>
                   <p className="text-[11px] text-cream/40">Total</p>

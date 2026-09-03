@@ -3,8 +3,8 @@ import type { BookingStep } from './useBookingFlow';
 const PHASES: Array<{ key: string; label: string; steps: BookingStep[] }> = [
   { key: 'escolha', label: 'Escolha', steps: ['service', 'professional'] },
   { key: 'horario', label: 'Horário', steps: ['date', 'time'] },
-  { key: 'dados', label: 'Dados', steps: ['customer', 'summary'] },
-  { key: 'finalizacao', label: 'Finalização', steps: ['bump', 'payment', 'upsell', 'confirmation'] },
+  { key: 'dados', label: 'Dados', steps: ['customer'] },
+  { key: 'finalizacao', label: 'Finalização', steps: ['bump', 'payment', 'confirmation'] },
 ];
 
 export function BookingProgress({ current }: { current: BookingStep }) {

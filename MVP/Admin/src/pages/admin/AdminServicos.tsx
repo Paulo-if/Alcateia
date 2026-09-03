@@ -14,7 +14,7 @@ import {
   Flame,
   Crown,
   Shield,
-  Layers,
+  X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Servico, Produto } from '@/types';
@@ -23,6 +23,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Switch } from '@/components/ui/Switch';
+import { SearchInput } from '@/components/ui/SearchInput';
 
 const iconMap: Record<string, any> = {
   scissors: Scissors,
@@ -46,10 +47,12 @@ const iconOptions = [
   { key: 'tag', label: 'Etiqueta', icon: Tag },
 ];
 
-type Tab = 'servicos' | 'produtos';
+type Tab = 'servicos' | 'produtos' | 'bumps';
 
 export function AdminServicos() {
   const [tab, setTab] = useState<Tab>('servicos');
+  // 'bumps' ainda configura produtos, então trata como modo produto.
+  const servicoMode = tab === 'servicos';
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,18 @@ export function AdminServicos() {
   const [editingItem, setEditingItem] = useState<Servico | Produto | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  // Pesquisa por aba
+  const [search, setSearch] = useState('');
+  // Mensagem de erro amigável (fila de requisições de ativação/desativação)
+  const [notice, setNotice] = useState<string | null>(null);
+  // Lock assíncrono para evitar mutações duplicadas (ex.: duplo clique)
+  const toggleLockRef = useRef<Set<string>>(new Set());
+
+  // Listas já filtradas pela pesquisa da aba ativa (sem refetch; filtragem instantânea)
+  const q = search.trim().toLowerCase();
+  const filteredServicos = q ? servicos.filter((s) => s.nome.toLowerCase().includes(q)) : servicos;
+  const filteredProdutos = q ? produtos.filter((p) => p.nome.toLowerCase().includes(q)) : produtos;
 
   // Form representation type
   const [repType, setRepType] = useState<'icon' | 'image'>('icon');
@@ -104,6 +119,19 @@ export function AdminServicos() {
     return () => cleanupObjectUrl();
   }, [fetchData]);
 
+  // Limpa a mensagem de erro amigável após alguns segundos
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  // Troca de aba limpa a pesquisa para não misturar filtros entre listas
+  const changeTab = (next: Tab) => {
+    setSearch('');
+    setTab(next);
+  };
+
   const openNew = () => {
     cleanupObjectUrl();
     setEditingItem(null);
@@ -112,7 +140,7 @@ export function AdminServicos() {
     setUploadError(null);
     setImageFileName('');
 
-    if (tab === 'servicos') {
+    if (servicoMode) {
       setSNome('');
       setSDescricao('');
       setSPreco('');
@@ -140,7 +168,7 @@ export function AdminServicos() {
     setConfirmDeleteOpen(false);
     setUploadError(null);
 
-    if (tab === 'servicos') {
+    if (servicoMode) {
       const s = item as Servico;
       setSNome(s.nome);
       setSDescricao(s.descricao ?? '');
@@ -232,7 +260,7 @@ export function AdminServicos() {
   };
 
   const handleSave = async () => {
-    if (tab === 'servicos') {
+    if (servicoMode) {
       if (!sNome.trim()) return;
       const representationValue = repType === 'image' && imagePreview ? imagePreview : selectedIcon;
 
@@ -273,18 +301,60 @@ export function AdminServicos() {
   };
 
   const toggleAtivo = async (table: 'servicos' | 'produtos', id: string, ativoAtual: boolean) => {
+    const lockKey = `ativo:${table}:${id}`;
+    if (toggleLockRef.current.has(lockKey)) return;
+    toggleLockRef.current.add(lockKey);
+
+    const proximo = !ativoAtual;
+    const rollback = () => {
+      if (table === 'servicos') {
+        setServicos((prev) => prev.map((s) => (s.id === id ? { ...s, ativo: ativoAtual } : s)));
+      } else {
+        setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: ativoAtual } : p)));
+      }
+    };
+
+    // optimistic: altera visual imediatamente, sem refetch nem spinner
     if (table === 'servicos') {
-      setServicos((prev) => prev.map((s) => (s.id === id ? { ...s, ativo: !ativoAtual } : s)));
+      setServicos((prev) => prev.map((s) => (s.id === id ? { ...s, ativo: proximo } : s)));
     } else {
-      setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: !ativoAtual } : p)));
+      setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: proximo } : p)));
     }
-    await supabase.from(table).update({ ativo: !ativoAtual }).eq('id', id);
-    fetchData();
+
+    try {
+      await supabase.from(table).update({ ativo: proximo }).eq('id', id);
+    } catch {
+      rollback();
+      setNotice('Não foi possível salvar a alteração. Tente novamente.');
+    } finally {
+      toggleLockRef.current.delete(lockKey);
+    }
+  };
+
+  const toggleOrderBump = async (id: string, isBumpAtual: boolean) => {
+    const lockKey = `bump:${id}`;
+    if (toggleLockRef.current.has(lockKey)) return;
+    toggleLockRef.current.add(lockKey);
+
+    const proximo = !isBumpAtual;
+
+    // optimistic: atualiza o card imediatamente, sem refetch, sem mover posição
+    setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, is_order_bump: proximo } : p)));
+
+    try {
+      await supabase.from('produtos').update({ is_order_bump: proximo }).eq('id', id);
+    } catch {
+      // rollback para o estado anterior
+      setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, is_order_bump: isBumpAtual } : p)));
+      setNotice('Não foi possível salvar a alteração. Tente novamente.');
+    } finally {
+      toggleLockRef.current.delete(lockKey);
+    }
   };
 
   const handleDeleteConfirmed = async () => {
     if (!editingItem) return;
-    const table = tab === 'servicos' ? 'servicos' : 'produtos';
+    const table = servicoMode ? 'servicos' : 'produtos';
     await supabase.from(table).delete().eq('id', editingItem.id);
     setConfirmDeleteOpen(false);
     setModalOpen(false);
@@ -296,29 +366,31 @@ export function AdminServicos() {
       {/* Header Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Serviços & Produtos
           </h1>
           <p className="text-cream/50 text-sm">
             Catálogo visual de atendimentos e produtos.
           </p>
         </div>
-        <Button
-          onClick={openNew}
-          className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold shadow-lg shadow-highlight/20"
-        >
-          <Plus size={18} />
-          {tab === 'servicos' ? 'Novo Serviço' : 'Novo Produto'}
-        </Button>
+        {tab !== 'bumps' && (
+          <Button
+            onClick={openNew}
+            className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold shadow-lg shadow-highlight/20"
+          >
+            <Plus size={18} />
+            {servicoMode ? 'Novo Serviço' : 'Novo Produto'}
+          </Button>
+        )}
       </div>
 
-      {/* Abas / Segmentação: Serviços vs Produtos */}
-      <div className="flex gap-2 mb-6">
+      {/* Abas / Segmentação: Serviços vs Produtos vs Order Bumps */}
+      <div className="flex flex-wrap gap-2 mb-6">
         <button
-          onClick={() => setTab('servicos')}
+          onClick={() => changeTab('servicos')}
           className={cn(
             'flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border',
-            tab === 'servicos'
+            servicoMode
               ? 'bg-highlight/15 text-highlight border-highlight/40 shadow-sm'
               : 'bg-[#121212] text-cream/60 border-white/10 hover:text-white hover:bg-white/5'
           )}
@@ -327,7 +399,7 @@ export function AdminServicos() {
           Serviços ({servicos.length})
         </button>
         <button
-          onClick={() => setTab('produtos')}
+          onClick={() => changeTab('produtos')}
           className={cn(
             'flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border',
             tab === 'produtos'
@@ -338,14 +410,56 @@ export function AdminServicos() {
           <Tag size={16} />
           Produtos ({produtos.length})
         </button>
+        <button
+          onClick={() => changeTab('bumps')}
+          className={cn(
+            'flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border',
+            tab === 'bumps'
+              ? 'bg-[#FFD166]/15 text-[#FFD166] border-[#FFD166]/40 shadow-sm'
+              : 'bg-[#121212] text-cream/60 border-white/10 hover:text-white hover:bg-white/5'
+          )}
+        >
+          <Sparkles size={16} />
+          Order Bumps ({produtos.filter((p) => p.is_order_bump).length})
+        </button>
+      </div>
+
+      {/* Aviso amigável de falha na persistência (toggle) */}
+      {notice && (
+        <div className="mb-4 flex items-start justify-between gap-3 bg-red-900/20 border border-red-500/40 rounded-xl px-4 py-3">
+          <p className="text-xs text-red-300 leading-relaxed">{notice}</p>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="text-red-300/70 hover:text-red-200 transition-colors"
+            aria-label="Fechar aviso"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Barra de pesquisa da aba ativa */}
+      <div className="mb-6 w-full md:max-w-sm">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={
+            servicoMode ? 'Pesquisar serviço...' : tab === 'bumps' ? 'Pesquisar Order Bump...' : 'Pesquisar produto...'
+          }
+        />
       </div>
 
       {loading ? (
         <div className="p-16 text-center text-cream/40 text-sm animate-pulse">Carregando catálogo...</div>
-      ) : tab === 'servicos' ? (
+      ) : servicoMode ? (
         /* ===================== GRID DE CARDS DE SERVIÇOS (CATÁLOGO VERTICAL) ===================== */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {servicos.map((servico) => {
+          {filteredServicos.length === 0 ? (
+            <div className="col-span-full p-16 text-center text-cream/40 text-sm">
+              Não encontramos nenhum serviço com esse nome.
+            </div>
+          ) : filteredServicos.map((servico) => {
             const isImage = servico.icone && (servico.icone.startsWith('http') || servico.icone.startsWith('data:image'));
             const IconComp = (!isImage && servico.icone && iconMap[servico.icone]) ? iconMap[servico.icone] : Scissors;
 
@@ -422,10 +536,117 @@ export function AdminServicos() {
             );
           })}
         </div>
+      ) : tab === 'bumps' ? (
+        /* ===================== ORDER BUMPS: produtos disponíveis para virarem oferta ===================== */
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 bg-[#121212] border border-[#FFD166]/20 rounded-2xl px-4 py-3">
+            <p className="text-xs text-cream/60 leading-relaxed">
+              Ative os produtos que deseja oferecer como <span className="text-[#FFD166] font-semibold">Order Bump</span>.
+              O cliente vê a oferta antes do pagamento, com preço promocional.
+            </p>
+          </div>
+          {filteredProdutos.filter((p) => p.ativo).length === 0 ? (
+            <div className="p-16 text-center text-cream/40 text-sm">
+              {q
+                ? 'Não encontramos nenhum produto com esse nome.'
+                : 'Nenhum produto ativo no catálogo para configurar como Order Bump.'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProdutos
+                .filter((p) => p.ativo)
+                .map((produto) => {
+                  const isImage = produto.imagem_url && (produto.imagem_url.startsWith('http') || produto.imagem_url.startsWith('data:image'));
+                  const isIconPrefixed = produto.imagem_url && produto.imagem_url.startsWith('icon:');
+                  const iconKey = isIconPrefixed ? produto.imagem_url!.replace('icon:', '') : 'tag';
+                  const IconComp = iconMap[iconKey] || Tag;
+                  const isBump = !!produto.is_order_bump;
+
+                  return (
+                    <div
+                      key={produto.id}
+                      className={cn(
+                        'bg-[#141414] border rounded-2xl overflow-hidden transition-all duration-200 flex flex-col',
+                        isBump
+                          ? 'border-[#FFD166]/40 shadow-lg shadow-[#FFD166]/5'
+                          : 'border-white/10'
+                      )}
+                    >
+                      <div className="relative w-full h-24 bg-[#0a0a0a] flex items-center justify-center overflow-hidden border-b border-white/5">
+                        {isImage ? (
+                          <img
+                            src={produto.imagem_url!}
+                            alt={produto.nome}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-cream/60">
+                            <IconComp size={24} />
+                          </div>
+                        )}
+                        <div className={cn(
+                          'absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-md border text-[10px] font-bold uppercase tracking-wider',
+                          isBump
+                            ? 'bg-[#FFD166]/20 border-[#FFD166]/40 text-[#FFD166]'
+                            : 'bg-white/10 border-white/20 text-cream/60'
+                        )}>
+                          {isBump ? 'Order Bump' : 'Catálogo'}
+                        </div>
+                      </div>
+
+                      <div className="p-4 flex-1 flex flex-col">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h3 className="font-display text-lg text-[#F5F1EA] tracking-wide leading-tight">
+                            {produto.nome}
+                          </h3>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Switch
+                              checked={isBump}
+                              onChange={() => toggleOrderBump(produto.id, isBump)}
+                              size="md"
+                              label={`Ativar ${produto.nome} como Order Bump`}
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-cream/50 line-clamp-2 mb-4 leading-relaxed flex-1">
+                          {produto.descricao || 'Produto complementar para oferta no agendamento.'}
+                        </p>
+
+                        <div className="pt-3 border-t border-white/5 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-cream/40">Original</span>
+                            <span className="text-cream/70">{formatCurrency(produto.preco_original)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[#FFD166]/70">Preço da Oferta</span>
+                            <span className={isBump && produto.preco_bump > 0 ? 'font-display text-lg text-[#FFD166]' : 'text-cream/40'}>
+                              {produto.preco_bump > 0 ? formatCurrency(produto.preco_bump) : '—'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => openEdit(produto)}
+                          className="mt-3 w-full py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-cream/80 transition-all border border-white/10"
+                        >
+                          Editar oferta
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
       ) : (
         /* ===================== GRID DE CARDS DE PRODUTOS ORDER BUMP ===================== */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {produtos.map((produto) => {
+          {filteredProdutos.length === 0 ? (
+            <div className="col-span-full p-16 text-center text-cream/40 text-sm">
+              Não encontramos nenhum produto com esse nome.
+            </div>
+          ) : filteredProdutos.map((produto) => {
             const isImage = produto.imagem_url && (produto.imagem_url.startsWith('http') || produto.imagem_url.startsWith('data:image'));
             const isIconPrefixed = produto.imagem_url && produto.imagem_url.startsWith('icon:');
             const iconKey = isIconPrefixed ? produto.imagem_url!.replace('icon:', '') : 'tag';
@@ -527,7 +748,7 @@ export function AdminServicos() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={isNew ? (tab === 'servicos' ? 'Novo Serviço' : 'Novo Produto') : (tab === 'servicos' ? 'Editar Serviço' : 'Editar Produto')}
+        title={isNew ? (servicoMode ? 'Novo Serviço' : 'Novo Produto') : (servicoMode ? 'Editar Serviço' : 'Editar Produto')}
         maxWidth="max-w-xl"
       >
         <div className="space-y-4">
@@ -668,7 +889,7 @@ export function AdminServicos() {
           </div>
 
           {/* Campos Específicos de Serviço */}
-          {tab === 'servicos' ? (
+          {servicoMode ? (
             <>
               <div>
                 <label className="block text-xs font-medium text-cream/60 mb-1.5">Nome do Serviço *</label>
@@ -690,7 +911,7 @@ export function AdminServicos() {
                   className="w-full bg-[#121212] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-cream/60 mb-1.5">Preço (R$) *</label>
                   <input
@@ -737,7 +958,7 @@ export function AdminServicos() {
                   className="w-full bg-[#121212] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-cream/60 mb-1.5">Preço Original (R$)</label>
                   <input
@@ -770,7 +991,7 @@ export function AdminServicos() {
           <div className="mt-6 p-4 rounded-xl bg-danger/10 border border-danger/30 animate-fade-in">
             <div className="flex items-center gap-2 text-danger text-xs font-bold mb-1">
               <AlertTriangle size={16} />
-              <span>Excluir {tab === 'servicos' ? 'serviço' : 'produto'}?</span>
+              <span>Excluir {servicoMode ? 'serviço' : 'produto'}?</span>
             </div>
             <p className="text-[11px] text-cream/70 mb-3">
               Essa ação não poderá ser desfeita. O item será removido permanentemente do catálogo.
@@ -793,27 +1014,28 @@ export function AdminServicos() {
             </div>
           </div>
         ) : (
-          <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-3 mt-6 pt-4 border-t border-white/10">
             {!isNew && editingItem ? (
               <Button
                 variant="danger"
                 size="sm"
                 onClick={() => setConfirmDeleteOpen(true)}
+                className="w-full sm:w-auto"
               >
                 <Trash2 size={15} />
-                Excluir {tab === 'servicos' ? 'Serviço' : 'Produto'}
+                Excluir {servicoMode ? 'Serviço' : 'Produto'}
               </Button>
             ) : (
               <div />
             )}
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)} className="w-full sm:w-auto">
                 Cancelar
               </Button>
               <Button
                 size="sm"
                 onClick={handleSave}
-                className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold"
+                className="w-full sm:w-auto bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold"
               >
                 Salvar Alterações
               </Button>

@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Plus,
   Calendar,
   List,
@@ -21,6 +22,7 @@ import {
   formatDayMonth,
   formatWeekday,
   formatDateInput,
+  formatDateBR,
   getStartOfWeek,
   getEndOfWeek,
   getStartOfDay,
@@ -36,6 +38,7 @@ import { Modal } from '@/components/ui/Modal';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { ServiceSearchSelect } from '@/components/ui/ServiceSearchSelect';
 import { TimeSlotPicker } from '@/components/ui/TimeSlotPicker';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import { DayView, type AgendamentoDayItem } from '@/components/agenda/DayView';
 import { WeekView } from '@/components/agenda/WeekView';
 
@@ -66,6 +69,9 @@ export function AdminAgendamentos() {
   const [selectedDate, setSelectedDate] = useState<string>(
     formatDateInput(new Date())
   );
+
+  // Qual calendário customizado está aberto
+  const [calOpen, setCalOpen] = useState<null | 'week' | 'day' | 'create'>(null);
 
   // Agendamentos para o período visível (semana ou dia)
   const [periodAgendamentos, setPeriodAgendamentos] = useState<AgendamentoDayItem[]>([]);
@@ -210,27 +216,6 @@ export function AdminAgendamentos() {
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('agendamentos').update({ status }).eq('id', id);
 
-    // Regra Financeira: Concluir gera receita (se não existir). Cancelar remove transação vinculada.
-    if (status === 'concluido' && selectedAg) {
-      const { data: existingTrans } = await supabase
-        .from('transacoes_financeiras')
-        .select('id')
-        .eq('agendamento_id', id)
-        .maybeSingle();
-
-      if (!existingTrans) {
-        await supabase.from('transacoes_financeiras').insert({
-          tipo: 'receita',
-          valor: selectedAg.valor_servico,
-          descricao: `Atendimento Concluído: ${selectedAg.servico?.nome ?? 'Serviço'} (${selectedAg.cliente?.nome ?? 'Cliente'})`,
-          categoria: 'servico',
-          agendamento_id: id,
-        });
-      }
-    } else if (status === 'cancelado') {
-      await supabase.from('transacoes_financeiras').delete().eq('agendamento_id', id);
-    }
-
     setAgendamentos((prev) =>
       prev.map((a) => (a.id === id ? { ...a, status } : a)),
     );
@@ -244,7 +229,6 @@ export function AdminAgendamentos() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Excluir este agendamento definitivamente?')) return;
-    await supabase.from('transacoes_financeiras').delete().eq('agendamento_id', id);
     await supabase.from('agendamentos').delete().eq('id', id);
     setAgendamentos((prev) => prev.filter((a) => a.id !== id));
     setPeriodAgendamentos((prev) => prev.filter((a) => a.id !== id));
@@ -405,7 +389,7 @@ export function AdminAgendamentos() {
       {/* Header Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Agendamentos
           </h1>
           <p className="text-cream/50 text-sm">
@@ -413,13 +397,13 @@ export function AdminAgendamentos() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {/* Alternador de Visão: Semana (Padrão) | Dia | Lista */}
-          <div className="flex flex-wrap items-center gap-3 bg-[#141414] border border-white/10 rounded-xl p-1">
+          <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5 bg-[#141414] border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setViewMode('semana')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                 viewMode === 'semana'
                   ? 'bg-highlight/15 text-highlight font-semibold'
                   : 'text-cream/60 hover:text-cream'
@@ -431,7 +415,7 @@ export function AdminAgendamentos() {
             <button
               onClick={() => setViewMode('dia')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                 viewMode === 'dia'
                   ? 'bg-highlight/15 text-highlight font-semibold'
                   : 'text-cream/60 hover:text-cream'
@@ -443,7 +427,7 @@ export function AdminAgendamentos() {
             <button
               onClick={() => setViewMode('lista')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                 viewMode === 'lista'
                   ? 'bg-highlight/15 text-highlight font-semibold'
                   : 'text-cream/60 hover:text-cream'
@@ -456,12 +440,12 @@ export function AdminAgendamentos() {
 
           {/* Filtro por profissional (master) */}
           {isMaster && (
-            <div className="flex bg-[#141414] border border-white/10 rounded-xl px-2.5 py-1 items-center gap-1.5">
+            <div className="flex w-full sm:w-auto bg-[#141414] border border-white/10 rounded-xl px-2.5 py-1 items-center gap-1.5">
               <UserCircle2 size={15} className="text-cream/40 shrink-0" />
               <select
                 value={profissionalFilter}
                 onChange={(e) => setProfissionalFilter(e.target.value)}
-                className="bg-transparent text-xs text-cream outline-none py-1.5 cursor-pointer"
+                className="bg-transparent text-xs text-cream outline-none py-1.5 cursor-pointer w-full sm:w-auto min-w-0 flex-1 sm:flex-none"
                 aria-label="Filtrar por profissional"
               >
                 <option value="" className="bg-[#141414]">
@@ -491,7 +475,7 @@ export function AdminAgendamentos() {
               setNewTime('09:00');
               setCreateOpen(true);
             }}
-            className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold shadow-lg shadow-highlight/20"
+            className="w-full sm:w-auto justify-center bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold shadow-lg shadow-highlight/20"
           >
             <Plus size={18} />
             Novo
@@ -512,12 +496,14 @@ export function AdminAgendamentos() {
               >
                 <ChevronLeft size={18} />
               </button>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-[#F5F1EA] font-medium"
-              />
+              <button
+                onClick={() => setCalOpen('week')}
+                className="inline-flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-[#F5F1EA] font-medium hover:border-highlight/40 transition-colors"
+                aria-label="Escolher data da semana"
+              >
+                <Calendar size={14} className="text-highlight" />
+                {formatDayMonth(new Date(`${selectedDate}T00:00:00`))}
+              </button>
               <button
                 onClick={() => shiftDate(1)}
                 className="p-2 rounded-xl bg-white/5 text-cream/70 hover:text-white hover:bg-white/10 transition-colors"
@@ -563,12 +549,14 @@ export function AdminAgendamentos() {
               >
                 <ChevronLeft size={18} />
               </button>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-[#F5F1EA] font-medium"
-              />
+              <button
+                onClick={() => setCalOpen('day')}
+                className="inline-flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-[#F5F1EA] font-medium hover:border-highlight/40 transition-colors"
+                aria-label="Escolher data do dia"
+              >
+                <Calendar size={14} className="text-highlight" />
+                {formatDayMonth(new Date(`${selectedDate}T00:00:00`))}
+              </button>
               <button
                 onClick={() => shiftDate(1)}
                 className="p-2 rounded-xl bg-white/5 text-cream/70 hover:text-white hover:bg-white/10 transition-colors"
@@ -854,12 +842,17 @@ export function AdminAgendamentos() {
             <label className="block text-xs font-medium text-cream/60 mb-1.5">
               Data do Agendamento *
             </label>
-            <input
-              type="date"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
-              className="w-full bg-[#121212] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50"
-            />
+            <button
+              type="button"
+              onClick={() => setCalOpen('create')}
+              className="w-full flex items-center justify-between gap-2 bg-[#121212] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-[#F5F1EA] hover:border-highlight/50 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Calendar size={15} className="text-highlight shrink-0" />
+                {newDate ? formatDateBR(newDate) : 'Selecionar data'}
+              </span>
+              <ChevronDown size={14} className="text-cream/40 shrink-0" />
+            </button>
           </div>
 
           <div>
@@ -930,6 +923,32 @@ export function AdminAgendamentos() {
           </div>
         </div>
       </Modal>
+
+      {/* Calendários customizados (padrão "Mais datas") */}
+      <CalendarModal
+        open={calOpen === 'week'}
+        mode="single"
+        title="Escolher data"
+        value={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setCalOpen(null)}
+      />
+      <CalendarModal
+        open={calOpen === 'day'}
+        mode="single"
+        title="Escolher data"
+        value={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setCalOpen(null)}
+      />
+      <CalendarModal
+        open={calOpen === 'create'}
+        mode="single"
+        title="Escolher data"
+        value={newDate || null}
+        onSelect={setNewDate}
+        onClose={() => setCalOpen(null)}
+      />
     </AdminLayout>
   );
 }

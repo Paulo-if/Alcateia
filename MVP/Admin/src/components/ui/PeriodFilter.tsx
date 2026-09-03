@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronDown, Check } from 'lucide-react';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import {
   cn,
   formatDayMonth,
@@ -34,6 +35,7 @@ export function PeriodFilter({ value, onChange, className }: PeriodFilterProps) 
   const [customEnd, setCustomEnd] = useState<string>(
     formatDateInput(value.endDate)
   );
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,7 +121,7 @@ export function PeriodFilter({ value, onChange, className }: PeriodFilterProps) 
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-[#141414] border border-white/15 shadow-2xl p-4 z-50 animate-scale-in backdrop-blur-xl">
+        <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1rem)] rounded-2xl bg-[#141414] border border-white/15 shadow-2xl p-4 z-50 animate-scale-in backdrop-blur-xl">
           <p className="text-xs font-semibold uppercase tracking-wider text-cream/40 mb-2.5 px-1">
             Selecione o período
           </p>
@@ -157,24 +159,19 @@ export function PeriodFilter({ value, onChange, className }: PeriodFilterProps) 
             </div>
 
             <div className="space-y-2 mb-3">
-              <div>
-                <label className="block text-[11px] text-cream/40 mb-1">De:</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-cream/40 mb-1">Até:</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50"
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setCalendarOpen(true)}
+                className="w-full flex items-center justify-between gap-2 bg-black/40 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-[#F5F1EA] hover:border-highlight/50 transition-colors"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <CalendarIcon size={14} className="text-highlight shrink-0" />
+                  {customStart && customEnd
+                    ? `${formatDayMonth(new Date(`${customStart}T00:00:00`))} — ${formatDayMonth(new Date(`${customEnd}T00:00:00`))}`
+                    : 'Escolher intervalo'}
+                </span>
+                <ChevronDown size={14} className="text-cream/40 shrink-0" />
+              </button>
             </div>
 
             <button
@@ -187,6 +184,20 @@ export function PeriodFilter({ value, onChange, className }: PeriodFilterProps) 
           </div>
         </div>
       )}
+
+      {/* Calendário customizado (padrão "Mais datas") - intervalo */}
+      <CalendarModal
+        open={calendarOpen}
+        mode="range"
+        title="Período personalizado"
+        startValue={customStart || null}
+        endValue={customEnd || null}
+        onApply={(start, end) => {
+          setCustomStart(start);
+          setCustomEnd(end);
+        }}
+        onClose={() => setCalendarOpen(false)}
+      />
     </div>
   );
 }

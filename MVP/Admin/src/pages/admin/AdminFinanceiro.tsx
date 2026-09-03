@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   ComposedChart,
   Line,
@@ -27,7 +27,6 @@ import {
   formatDate,
   getStartOfMonth,
   getEndOfMonth,
-  formatDayMonth,
   cn,
 } from '@/lib/utils';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -37,12 +36,15 @@ import { Modal } from '@/components/ui/Modal';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { ComissaoBarbeiro } from '@/components/admin/ComissaoBarbeiro';
+import { fetchFinanceiroPeriodo, fetchFinanceiroPorDia, type FinanceiroPeriodo } from '@/lib/financeService';
 
 const categorias = ['servico', 'produto', 'aluguel', 'salario', 'equipamento', 'marketing', 'outros'];
 
 export function AdminFinanceiro() {
   const { isBarbeiro } = useAuth();
   const [transacoes, setTransacoes] = useState<TransacaoFinanceira[]>([]);
+  const [financ, setFinanc] = useState<FinanceiroPeriodo | null>(null);
+  const [chartData, setChartData] = useState<{ dia: string; receita: number; despesa: number; saldo: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -86,13 +88,20 @@ export function AdminFinanceiro() {
     const startISO = dateRange.startDate.toISOString();
     const endISO = dateRange.endDate.toISOString();
 
-    const { data } = await supabase
-      .from('transacoes_financeiras')
-      .select('*')
-      .gte('created_at', startISO)
-      .lte('created_at', endISO)
-      .order('created_at', { ascending: false });
+    // Fonte de verdade única (financeService) para KPIs e gráfico
+    const [financData, diaData, { data }] = await Promise.all([
+      fetchFinanceiroPeriodo(dateRange),
+      fetchFinanceiroPorDia(dateRange),
+      supabase
+        .from('transacoes_financeiras')
+        .select('*')
+        .gte('created_at', startISO)
+        .lte('created_at', endISO)
+        .order('created_at', { ascending: false }),
+    ]);
 
+    setFinanc(financData);
+    setChartData(diaData);
     setTransacoes((data as TransacaoFinanceira[]) ?? []);
     setLoading(false);
   }, [dateRange]);
@@ -101,58 +110,9 @@ export function AdminFinanceiro() {
     fetchTransacoes();
   }, [fetchTransacoes]);
 
-  const receitas = useMemo(() => transacoes.filter((t) => t.tipo === 'receita'), [transacoes]);
-  const despesas = useMemo(() => transacoes.filter((t) => t.tipo === 'despesa'), [transacoes]);
-  const totalReceitas = useMemo(() => receitas.reduce((s, t) => s + t.valor, 0), [receitas]);
-  const totalDespesas = useMemo(() => despesas.reduce((s, t) => s + t.valor, 0), [despesas]);
-  const saldo = useMemo(() => totalReceitas - totalDespesas, [totalReceitas, totalDespesas]);
-
-  // Montar dados do gráfico para o período selecionado com useMemo
-  const chartData = useMemo(() => {
-    const diffTime = Math.abs(dateRange.endDate.getTime() - dateRange.startDate.getTime());
-    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    const diasParaGrafico = Math.min(diffDays, 31);
-
-    const list: { dia: string; receita: number; despesa: number; saldo: number }[] = [];
-    const stepDate = new Date(dateRange.startDate);
-
-    for (let i = 0; i < diasParaGrafico; i++) {
-      const cur = new Date(stepDate);
-      cur.setDate(stepDate.getDate() + i);
-      const diaString = formatDayMonth(cur);
-
-      const dayReceita = receitas
-        .filter((t) => {
-          const td = new Date(t.created_at);
-          return (
-            td.getDate() === cur.getDate() &&
-            td.getMonth() === cur.getMonth() &&
-            td.getFullYear() === cur.getFullYear()
-          );
-        })
-        .reduce((s, t) => s + t.valor, 0);
-
-      const dayDespesa = despesas
-        .filter((t) => {
-          const td = new Date(t.created_at);
-          return (
-            td.getDate() === cur.getDate() &&
-            td.getMonth() === cur.getMonth() &&
-            td.getFullYear() === cur.getFullYear()
-          );
-        })
-        .reduce((s, t) => s + t.valor, 0);
-
-      list.push({
-        dia: diaString,
-        receita: dayReceita,
-        despesa: dayDespesa,
-        saldo: dayReceita - dayDespesa,
-      });
-    }
-
-    return list;
-  }, [dateRange, receitas, despesas]);
+  const totalReceitas = financ?.receita ?? 0;
+  const totalDespesas = financ?.despesas ?? 0;
+  const saldo = financ?.saldo ?? 0;
 
   const handleCreate = async () => {
     if (!formValor || parseFloat(formValor) <= 0) return;
@@ -193,7 +153,7 @@ export function AdminFinanceiro() {
         <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="font-display text-4xl text-[#F5F1EA] tracking-wide mb-1">
+          <h1 className="font-display text-3xl sm:text-4xl text-[#F5F1EA] tracking-wide mb-1">
             Financeiro
           </h1>
           <p className="text-cream/50 text-sm">
@@ -213,7 +173,7 @@ export function AdminFinanceiro() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full mb-6">
         {stats.map((stat, i) => (
           <Card key={i} className="animate-fade-in-up border-white/10 bg-[#121212]">
             <div className="flex items-start justify-between mb-3">
@@ -221,7 +181,7 @@ export function AdminFinanceiro() {
                 <stat.icon size={20} className={stat.color} />
               </div>
             </div>
-            <div className="font-display text-3xl text-[#F5F1EA] mb-0.5">{stat.value}</div>
+            <div className="font-display text-2xl sm:text-3xl text-[#F5F1EA] mb-0.5 break-words leading-tight">{stat.value}</div>
             <div className="text-xs text-cream/50">{stat.label}</div>
           </Card>
         ))}
@@ -471,10 +431,10 @@ export function AdminFinanceiro() {
                   </span>
                   <button
                     onClick={() => handleDelete(t.id)}
-                    className="p-1 text-cream/20 hover:text-[#F51D1D] opacity-0 group-hover:opacity-100 transition-all"
+                    className="p-2 text-cream/30 hover:text-[#F51D1D] sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                     aria-label="Excluir transação"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

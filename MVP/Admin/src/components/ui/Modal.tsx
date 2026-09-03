@@ -34,16 +34,16 @@ export function Modal({
         onClick={onClose}
       />
       <div
-        className={`relative w-full ${maxWidth} glass rounded-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto`}
+        className={`relative w-full ${maxWidth} glass rounded-2xl p-4 sm:p-6 animate-scale-in max-h-[90vh] overflow-y-auto`}
       >
         {title && (
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-display text-2xl text-cream tracking-wide">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h3 className="font-display text-xl sm:text-2xl text-cream tracking-wide">
               {title}
             </h3>
             <button
               onClick={onClose}
-              className="text-cream/50 hover:text-cream transition-colors p-1"
+              className="text-cream/50 hover:text-cream transition-colors p-2"
             >
               <X size={20} />
             </button>

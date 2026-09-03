@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Clock, CheckCircle2, XCircle } from 'lucide-react';
 import type { Agendamento, Servico, Cliente } from '@/types';
 import { formatCurrency, formatTime, formatDateInput, getStartOfWeek, cn } from '@/lib/utils';
+import { DayView } from '@/components/agenda/DayView';
 
 export type AgendamentoItem = Agendamento & {
   servico?: Pick<Servico, 'id' | 'nome' | 'duracao_minutos'> | null;
@@ -33,6 +34,14 @@ export function WeekView({
     () => (typeof currentDate === 'string' ? new Date(`${currentDate}T00:00:00`) : currentDate),
     [currentDate]
   );
+
+  // Dia selecionado na visualização mobile (uma dia por vez).
+  // Inicia no dia que contém `currentDate` e segue a navegação externa.
+  const [mobileDay, setMobileDay] = useState<string>(() => formatDateInput(targetDate));
+
+  useEffect(() => {
+    setMobileDay(formatDateInput(targetDate));
+  }, [targetDate]);
 
   // Obter os 7 dias da semana (Segunda a Domingo)
   const weekDays = useMemo(() => {
@@ -108,6 +117,12 @@ export function WeekView({
     return map;
   }, [agendamentos, weekDays, startHour]);
 
+  // Eventos do dia selecionado na visualização mobile
+  const mobileDayEvents = useMemo(
+    () => agendamentos.filter((ag) => formatDateInput(new Date(ag.data_inicio)) === mobileDay),
+    [agendamentos, mobileDay]
+  );
+
   const handleGridSlotClick = (e: React.MouseEvent<HTMLDivElement>, dateStr: string) => {
     if (!onSlotClick) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -122,8 +137,8 @@ export function WeekView({
 
   return (
     <div className={cn('relative w-full rounded-2xl bg-[#0D0D0D] border border-white/10 overflow-hidden flex flex-col', className)}>
-      {/* Cabeçalho dos Dias da Semana */}
-      <div className="flex border-b border-white/10 bg-[#121212] select-none">
+      {/* Cabeçalho dos Dias da Semana (desktop) */}
+      <div className="hidden sm:flex border-b border-white/10 bg-[#121212] select-none">
         {/* Espaço da coluna de horários */}
         <div className="w-14 sm:w-16 shrink-0 border-r border-white/10 p-3 text-right text-[11px] text-cream/40 font-mono">
           GMT-3
@@ -157,8 +172,8 @@ export function WeekView({
         </div>
       </div>
 
-      {/* Grade com Scroll */}
-      <div className="relative overflow-y-auto max-h-[580px] select-none p-1 sm:p-2">
+      {/* Grade com Scroll (desktop) */}
+      <div className="hidden sm:block relative overflow-y-auto max-h-[580px] select-none p-1 sm:p-2">
         <div className="relative flex" style={{ minHeight: `${gridHeight}px` }}>
           {/* Coluna de Horas */}
           <div className="w-14 sm:w-16 shrink-0 border-r border-white/5 pr-2 flex flex-col select-none">
@@ -275,6 +290,50 @@ export function WeekView({
             })}
           </div>
         </div>
+      </div>
+
+      {/* Visualização mobile: um dia por vez (reutiliza DayView) */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {/* Seletor de dia da semana */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 select-none">
+          {weekDays.map((day) => {
+            const isActive = day.dateStr === mobileDay;
+            return (
+              <button
+                key={day.dateStr}
+                type="button"
+                onClick={() => setMobileDay(day.dateStr)}
+                className={cn(
+                  'flex flex-col items-center justify-center min-w-[46px] px-2 py-1.5 rounded-xl border text-center transition-colors',
+                  isActive
+                    ? 'bg-highlight/15 text-highlight border-highlight/40 font-semibold'
+                    : 'bg-white/[0.03] text-cream/70 border-white/10',
+                  day.isToday && !isActive && 'border-highlight/30 text-highlight'
+                )}
+              >
+                <span className="text-[10px] font-semibold tracking-wider">{day.label}</span>
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mt-0.5',
+                    isActive ? 'bg-highlight text-black' : day.isToday ? 'text-highlight' : 'text-cream'
+                  )}
+                >
+                  {day.dayNum}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <DayView
+          date={mobileDay}
+          agendamentos={mobileDayEvents}
+          onSelectEvent={onSelectEvent}
+          onSlotClick={onSlotClick}
+          startHour={startHour}
+          endHour={endHour}
+          className="min-h-[460px]"
+        />
       </div>
     </div>
   );

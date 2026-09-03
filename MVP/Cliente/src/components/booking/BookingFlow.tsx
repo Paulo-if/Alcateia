@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useBookingFlow, type BookingStep } from './useBookingFlow';
 import { BookingProgress } from './BookingProgress';
@@ -10,27 +10,24 @@ import { CustomerForm } from './CustomerForm';
 import { BookingSummary } from './BookingSummary';
 import { OrderBumpCard } from './OrderBumpCard';
 import { PaymentMethodSelector } from './PaymentMethodSelector';
-import { UpsellCard } from './UpsellCard';
 import { ConfirmationCard } from './ConfirmationCard';
 
 import { fetchProfessionals } from '../../services/professionalsService';
 import { fetchServices } from '../../services/servicesService';
 import { fetchBumpProducts } from '../../services/productsService';
 import { findOrCreateCustomer } from '../../services/customersService';
-import { createBooking, addUpsellSale } from '../../services/bookingsService';
+import { createBooking } from '../../services/bookingsService';
 import { createOnlineCheckout } from '../../services/paymentService';
 import { fetchSettings } from '../../services/settingsService';
 
 import { useAvailability } from '../../hooks/useAvailability';
+import { useDateAvailability } from '../../hooks/useDateAvailability';
 import { useAsyncLock } from '../../hooks/useAsyncLock';
-import { getAvailableSlots } from '../../services/availabilityService';
 
-import type { BumpOffer, Professional, Service, UpsellOffer } from '../../types';
+import type { BumpOffer, Professional, Service } from '../../types';
 import type { PublicSettings } from '../../config';
 import { defaultPublicSettings } from '../../config';
-import { isSupabaseConfigured } from '../../lib/supabase';
-import { DEV_UPSELL } from '../../data/devFallback';
-import { getNextDates } from '../../lib/date';
+import { formatDateInput, today } from '../../lib/date';
 import { isConflictError } from '../../services/errors';
 
 const STEP_TITLES: Record<BookingStep, { eyebrow: string; title: string }> = {
@@ -39,10 +36,8 @@ const STEP_TITLES: Record<BookingStep, { eyebrow: string; title: string }> = {
   date: { eyebrow: 'Agendamento', title: 'Escolha a data' },
   time: { eyebrow: 'Agendamento', title: 'Escolha seu horário' },
   customer: { eyebrow: 'Agendamento', title: 'Quase lá. Cadastre seus dados' },
-  summary: { eyebrow: 'Revisão', title: 'Confira o resumo' },
   bump: { eyebrow: 'Revisão', title: 'Quer aproveitar e levar junto?' },
   payment: { eyebrow: 'Pagamento', title: 'Como deseja pagar?' },
-  upsell: { eyebrow: 'Confirmação', title: 'Aproveite enquanto está aqui.' },
   confirmation: { eyebrow: '', title: '' },
 };
 
@@ -51,11 +46,9 @@ const NEXT_STEP: Record<BookingStep, BookingStep | null> = {
   professional: 'date',
   date: 'time',
   time: 'customer',
-  customer: 'summary',
-  summary: 'bump',
+  customer: 'bump',
   bump: 'payment',
-  payment: 'upsell',
-  upsell: 'confirmation',
+  payment: 'confirmation',
   confirmation: null,
 };
 
@@ -65,10 +58,8 @@ const BACK_TO: Record<BookingStep, BookingStep | null> = {
   date: 'professional',
   time: 'date',
   customer: 'time',
-  summary: 'customer',
-  bump: 'summary',
+  bump: 'customer',
   payment: 'bump',
-  upsell: null,
   confirmation: null,
 };
 
@@ -84,18 +75,12 @@ export function BookingFlow() {
   const [selectedBump, setSelectedBump] = useState<BumpOffer | null>(null);
   const [settings, setSettings] = useState<PublicSettings>(defaultPublicSettings);
 
-  const [upsellOffers, setUpsellOffers] = useState<UpsellOffer[]>([]);
   const [bookingResult, setBookingResult] = useState<{ id: string; paymentStatus: string } | null>(null);
   const [assignedProfessional, setAssignedProfessional] = useState<Professional | null>(null);
 
-  const [todayHasSlots, setTodayHasSlots] = useState<boolean | null>(null);
-  const [checkingToday, setCheckingToday] = useState(false);
-  const todayCheckedRef = useRef(false);
-
   const submitLock = useAsyncLock();
 
-  const dates = useMemo(() => getNextDates(7), []);
-  const todayStr = dates[0];
+  const todayStr = formatDateInput(today());
 
   const prices = useMemo(() => {
     const servicePrice = selection.service?.preco ?? 0;
@@ -108,6 +93,17 @@ export function BookingFlow() {
 
   const { slots, loading: availabilityLoading, error: availabilityError } = useAvailability({
     dateString: selection.date,
+    service: selection.service,
+    professionalId: selection.professionalId,
+    professionals,
+    extraMinutes: effectiveExtraMinutes,
+  });
+
+  const {
+    availableDates,
+    todayAvailable,
+    ranges,
+  } = useDateAvailability({
     service: selection.service,
     professionalId: selection.professionalId,
     professionals,
@@ -153,9 +149,6 @@ export function BookingFlow() {
             .filter((o) => o.additionalMinutes <= 0),
         );
         setSettings(settingsData);
-        // DEV_UPSELL é fallback isolado de desenvolvimento — nunca aparece
-        // quando Supabase está configurado (regra do Bloco 1).
-        setUpsellOffers(isSupabaseConfigured() ? [] : DEV_UPSELL);
       } catch {
         if (!active) return;
         setLoadError('Não foi possível carregar os agendamentos agora. Tente novamente em alguns instantes.');
@@ -181,60 +174,36 @@ export function BookingFlow() {
 
   const anyProfessionalMode = selection.professionalId === 'any';
 
-  // Ao entrar na etapa de data: verifica se "hoje" tem disponibilidade real.
-  // Se tiver, seleciona HOJE por padrão; senão mantém "hoje" visível mas sem horários.
+  // Ao entrar na etapa de data: se HOJE tem horários disponíveis (mesma camada
+  // de disponibilidade), já o seleciona por padrão. Se HOJE estiver bloqueado
+  // (folga/férias, dia sem expediente), o destaque fica visível mas indisponível.
   useEffect(() => {
-    todayCheckedRef.current = false;
-    setTodayHasSlots(null);
+    if (todayAvailable !== true || !selection.service || !selection.professionalId) return;
+    if (selection.date) return;
+    set({ date: todayStr, time: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.service, selection.professionalId]);
-
-  useEffect(() => {
-    if (step !== 'date') return;
-    if (todayCheckedRef.current) return;
-    if (!selection.service || !selection.professionalId) return;
-
-    todayCheckedRef.current = true;
-    setCheckingToday(true);
-
-    getAvailableSlots({
-      dateString: todayStr,
-      service: selection.service,
-      professionalId: selection.professionalId,
-      professionals,
-      extraMinutes: effectiveExtraMinutes,
-    })
-      .then((todaySlots) => {
-        setTodayHasSlots(todaySlots.length > 0);
-        if (todaySlots.length > 0 && !selection.date) {
-          set({ date: todayStr, time: '' });
-        }
-      })
-      .catch(() => setTodayHasSlots(false))
-      .finally(() => setCheckingToday(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, selection.service, selection.professionalId]);
+  }, [todayAvailable, selection.service, selection.professionalId, selection.date]);
 
   const scrollBodyTop = () => {
     document.querySelector('.sheet-body')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Pule a etapa de Order Bump quando não houver ofertas ativas: o cliente
-  // vai direto do resumo para o pagamento.
+  // vai direto dos dados para o pagamento.
   const hasActiveBumps = bumps.length > 0;
 
   const goNext = () => {
     const base = NEXT_STEP[step];
-    // Ao sair do resumo, se não houver bumps, seguir direto ao pagamento.
-    const next = step === 'summary' && !hasActiveBumps ? 'payment' : base;
+    // Ao sair dos dados do cliente, se não houver bumps, seguir direto ao pagamento.
+    const next = step === 'customer' && !hasActiveBumps ? 'payment' : base;
     if (next) setStep(next);
     scrollBodyTop();
   };
 
   const goBack = () => {
-    // Ao voltar do pagamento, se não havia bumps, voltar ao resumo.
+    // Ao voltar do pagamento, se não havia bumps, voltar aos dados.
     let prev = BACK_TO[step];
-    if (step === 'payment' && !hasActiveBumps) prev = 'summary';
+    if (step === 'payment' && !hasActiveBumps) prev = 'customer';
     if (prev) setStep(prev);
     scrollBodyTop();
   };
@@ -255,7 +224,6 @@ export function BookingFlow() {
     step === 'date' ||
     step === 'time' ||
     step === 'customer' ||
-    step === 'summary' ||
     step === 'payment';
 
   const primaryLabel = (): string => {
@@ -334,13 +302,6 @@ export function BookingFlow() {
     } catch {
       // Erro já é comunicado à UI via submitLock.error (mensagem amigável de conflito incluída).
     }
-  };
-
-  const handleUpsellAdd = async (offer: UpsellOffer) => {
-    if (bookingResult) {
-      await submitLock.run(() => addUpsellSale({ agendamentoId: bookingResult.id, offer }));
-    }
-    goNext();
   };
 
   // ==================== RENDER ====================
@@ -438,14 +399,21 @@ export function BookingFlow() {
 
               {step === 'date' && (
                 <DateSelector
-                  dates={dates}
+                  today={todayStr}
+                  dates={availableDates}
                   selectedDate={selection.date}
-                  todayHasSlots={todayHasSlots}
-                  checkingToday={checkingToday}
+                  todayAvailable={todayAvailable}
+                  ranges={ranges}
                   onSelect={(date) => {
                     set({ date, time: '' });
                     setAssignedProfessional(null);
                     goNext();
+                  }}
+                  availabilityParams={{
+                    service: selection.service,
+                    professionalId: selection.professionalId,
+                    professionals,
+                    extraMinutes: effectiveExtraMinutes,
                   }}
                 />
               )}
@@ -474,17 +442,6 @@ export function BookingFlow() {
                   clientPhone={selection.clientPhone}
                   onChange={(patch) => set(patch)}
                   showError={submitLock.error}
-                />
-              )}
-
-              {step === 'summary' && (
-                <BookingSummary
-                  professional={effectiveProfessional}
-                  service={selection.service}
-                  date={selection.date}
-                  time={selection.time}
-                  subtotal={prices.servicePrice}
-                  bumpAmount={0}
                 />
               )}
 
@@ -526,15 +483,6 @@ export function BookingFlow() {
                     disabled={submitLock.loading}
                   />
                 </>
-              )}
-
-              {step === 'upsell' && (
-                <UpsellCard
-                  offer={upsellOffers[0] ?? null}
-                  onAdd={handleUpsellAdd}
-                  onSkip={goNext}
-                  adding={submitLock.loading}
-                />
               )}
             </div>
           </>

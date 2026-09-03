@@ -7,10 +7,8 @@ export type BookingStep =
   | 'date'
   | 'time'
   | 'customer'
-  | 'summary'
   | 'bump'
   | 'payment'
-  | 'upsell'
   | 'confirmation';
 
 export interface BookingSelection {

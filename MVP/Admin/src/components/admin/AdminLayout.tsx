@@ -31,6 +31,7 @@ const menuItems: MenuItem[] = [
   { path: '/admin/servicos', label: 'Serviços & Produtos', icon: Scissors, roles: ['master'] },
   { path: '/admin/financeiro', label: 'Financeiro', icon: Wallet },
   { path: '/admin/usuarios', label: 'Usuários', icon: ShieldCheck, roles: ['master'] },
+  { path: '/admin/minha-agenda', label: 'Minha Agenda', icon: CalendarDays, roles: ['barbeiro'] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
