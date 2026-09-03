@@ -12,6 +12,7 @@ import { AdminFinanceiro } from '@/pages/admin/AdminFinanceiro';
 import { AdminClientes } from '@/pages/admin/AdminClientes';
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios';
 import { AdminMinhaAgenda } from '@/pages/admin/AdminMinhaAgenda';
+import { AdminConfiguracoes } from '@/pages/admin/AdminConfiguracoes';
 
 function App() {
   return (
@@ -80,6 +81,16 @@ function App() {
               <ProtectedRoute>
                 <RoleRoute roles={['master']}>
                   <AdminUsuarios />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/configuracoes"
+            element={
+              <ProtectedRoute>
+                <RoleRoute roles={['master']}>
+                  <AdminConfiguracoes />
                 </RoleRoute>
               </ProtectedRoute>
             }

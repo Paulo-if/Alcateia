@@ -26,7 +26,7 @@ export async function fetchSettings(): Promise<PublicSettings> {
       whatsapp: data.whatsapp || defaultPublicSettings.whatsapp,
       instagram: data.instagram || defaultPublicSettings.instagram,
       endereco: data.endereco || defaultPublicSettings.endereco,
-      mapsEmbedUrl: defaultPublicSettings.mapsEmbedUrl,
+      mapsEmbedUrl: data.maps_embed_url || defaultPublicSettings.mapsEmbedUrl,
     };
   } catch (e) {
     return defaultPublicSettings;
