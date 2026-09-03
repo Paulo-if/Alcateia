@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { Pagination } from '@/components/ui/Pagination';
 
 type ClienteWithStats = Cliente & {
   totalAgendamentos: number;
@@ -42,6 +43,8 @@ export function AdminClientes() {
   const [clientes, setClientes] = useState<ClienteWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 24;
   const [selectedCliente, setSelectedCliente] = useState<ClienteWithStats | null>(null);
   const [clienteAgendamentos, setClienteAgendamentos] = useState<AgendamentoFull[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -154,6 +157,10 @@ export function AdminClientes() {
       (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false),
   );
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
     <AdminLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
@@ -178,7 +185,10 @@ export function AdminClientes() {
       <div className="mb-6">
         <SearchInput
           value={search}
-          onChange={setSearch}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
           placeholder="Buscar por nome, telefone ou e-mail..."
         />
       </div>
@@ -194,9 +204,10 @@ export function AdminClientes() {
           </div>
         </Card>
       ) : (
-        /* Grid de 5 colunas no Desktop grande */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
-          {filtered.map((cliente) => (
+        <>
+          {/* Grid de 5 colunas no Desktop grande */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
+          {paginated.map((cliente) => (
             <div
               key={cliente.id}
               onClick={() => openDetail(cliente)}
@@ -241,6 +252,15 @@ export function AdminClientes() {
             </div>
           ))}
         </div>
+
+        <Pagination
+          page={safePage}
+          pageCount={pageCount}
+          total={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
+        </>
       )}
 
       {/* ===================== MODAL DE DETALHES ===================== */}
