@@ -33,6 +33,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { ComissaoBarbeiro } from '@/components/admin/ComissaoBarbeiro';
@@ -47,6 +48,7 @@ export function AdminFinanceiro() {
   const [chartData, setChartData] = useState<{ dia: string; receita: number; despesa: number; saldo: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   // Filtro de período unificado (default: este mês)
   const [dateRange, setDateRange] = useState<DateRange>(() => {
@@ -133,7 +135,13 @@ export function AdminFinanceiro() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir esta transação?')) return;
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     await supabase.from('transacoes_financeiras').delete().eq('id', id);
     fetchTransacoes();
   };
@@ -531,6 +539,14 @@ export function AdminFinanceiro() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Excluir transação"
+        message="Excluir esta transação? Essa ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
         </>
       )}
     </AdminLayout>

@@ -10,11 +10,17 @@ import {
   Menu,
   X,
   LogOut,
+  UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import type { Papel } from '@/types';
+
+const PAPEL_LABEL: Record<Papel, string> = {
+  master: 'Master',
+  barbeiro: 'Barbeiro',
+};
 
 interface MenuItem {
   path: string;
@@ -37,8 +43,13 @@ const menuItems: MenuItem[] = [
 export function AdminLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { papel } = useAuth();
+  const { papel, usuario } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const userName = usuario?.nome;
+  const userSubtitle = usuario?.papel
+    ? PAPEL_LABEL[usuario.papel]
+    : null;
 
   const visibleMenu = menuItems.filter(
     (item) => !item.roles || (papel && item.roles.includes(papel)),
@@ -74,6 +85,25 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </Link>
         </div>
+
+        {/* Usuário logado (nome + função) */}
+        {userName && (
+          <div className="px-4 pt-4">
+            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 p-3">
+              <div className="w-9 h-9 rounded-full bg-highlight/20 flex items-center justify-center shrink-0">
+                <UserCircle2 size={20} className="text-highlight" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-[#F5F5F5] truncate">{userName}</p>
+                {userSubtitle && (
+                  <p className="text-[11px] text-highlight font-medium uppercase tracking-wider">
+                    {userSubtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Links de Navegação */}
         <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
@@ -134,9 +164,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           >
             {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
-          <span className="font-display text-xl text-[#F5F5F5] tracking-wider">
-            Alcateia<span className="text-highlight">Barber</span>
-          </span>
+          <div className="flex flex-col items-center min-w-0">
+            <span className="font-display text-xl text-[#F5F5F5] tracking-wider leading-none">
+              Alcateia<span className="text-highlight">Barber</span>
+            </span>
+            {userName && (
+              <span className="text-[11px] text-cream/50 truncate max-w-[50vw] mt-0.5">
+                {userName}
+                {userSubtitle ? ` · ${userSubtitle}` : ''}
+              </span>
+            )}
+          </div>
           <button
             onClick={handleLogout}
             className="text-red-400/80 hover:text-red-300 p-1 rounded-lg hover:bg-red-900/20 transition-colors"

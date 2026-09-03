@@ -35,6 +35,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { ServiceSearchSelect } from '@/components/ui/ServiceSearchSelect';
 import { TimeSlotPicker } from '@/components/ui/TimeSlotPicker';
@@ -61,6 +62,7 @@ export function AdminAgendamentos() {
   const [count, setCount] = useState(0);
   const [selectedAg, setSelectedAg] = useState<AgendamentoDayItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [bumps, setBumps] = useState<VendaBump[]>([]);
   const pageSize = 12;
@@ -228,7 +230,13 @@ export function AdminAgendamentos() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir este agendamento definitivamente?')) return;
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     await supabase.from('agendamentos').delete().eq('id', id);
     setAgendamentos((prev) => prev.filter((a) => a.id !== id));
     setPeriodAgendamentos((prev) => prev.filter((a) => a.id !== id));
@@ -948,6 +956,14 @@ export function AdminAgendamentos() {
         value={newDate || null}
         onSelect={setNewDate}
         onClose={() => setCalOpen(null)}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Excluir agendamento"
+        message="Excluir este agendamento definitivamente? Essa ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </AdminLayout>
   );

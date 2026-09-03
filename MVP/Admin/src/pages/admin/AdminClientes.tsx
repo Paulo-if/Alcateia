@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchInput } from '@/components/ui/SearchInput';
 
 type ClienteWithStats = Cliente & {
@@ -46,6 +47,7 @@ export function AdminClientes() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Form state
   const [formNome, setFormNome] = useState('');
@@ -133,9 +135,14 @@ export function AdminClientes() {
     fetchClientes();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir este cliente e todo seu histórico?')) return;
-    await supabase.from('clientes').delete().eq('id', id);
+  const handleDelete = () => {
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedCliente) return;
+    setConfirmDeleteOpen(false);
+    await supabase.from('clientes').delete().eq('id', selectedCliente.id);
     setDetailOpen(false);
     fetchClientes();
   };
@@ -278,7 +285,7 @@ export function AdminClientes() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(selectedCliente.id)}
+                  onClick={handleDelete}
                   className="p-2 rounded-xl bg-danger/10 text-danger hover:bg-danger/20 border border-danger/30 transition-colors"
                   aria-label="Excluir cliente"
                 >
@@ -412,6 +419,14 @@ export function AdminClientes() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Excluir cliente"
+        message="Excluir este cliente e todo seu histórico? Essa ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </AdminLayout>
   );
 }

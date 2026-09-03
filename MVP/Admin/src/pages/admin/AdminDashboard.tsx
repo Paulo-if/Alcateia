@@ -46,6 +46,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
 import { DayView, type AgendamentoDayItem } from '@/components/agenda/DayView';
 import { fetchFinanceiroPeriodo, fetchFinanceiroPorDia } from '@/lib/financeService';
@@ -85,6 +86,7 @@ export function AdminDashboard() {
   // Modal de Detalhes do Agendamento selecionado na agenda
   const [selectedAg, setSelectedAg] = useState<AgendamentoDayItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [bumps, setBumps] = useState<VendaBump[]>([]);
 
   // Filtro por profissional (somente master — barbeiro vê apenas a própria agenda via RLS)
@@ -213,7 +215,13 @@ export function AdminDashboard() {
   };
 
   const handleDeleteAgendamento = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
+    setDeleteTarget(id);
+  };
+
+  const confirmDeleteAgendamento = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     await supabase.from('agendamentos').delete().eq('id', id);
     setModalOpen(false);
     fetchDashboard();
@@ -614,6 +622,14 @@ export function AdminDashboard() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Excluir agendamento"
+        message="Tem certeza que deseja excluir este agendamento? Essa ação não pode ser desfeita."
+        onConfirm={confirmDeleteAgendamento}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AdminLayout>
   );
 }
