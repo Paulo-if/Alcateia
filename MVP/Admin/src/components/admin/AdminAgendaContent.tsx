@@ -115,6 +115,9 @@ export function AdminAgendaContent({
       }))
       .filter((r) => r.start_time < r.end_time);
 
+    // Guarda o estado anterior para reverter em caso de falha no insert.
+    const prevSchedules = schedules;
+
     const { error: delError } = await supabase
       .from('professional_schedules')
       .delete()
@@ -137,6 +140,8 @@ export function AdminAgendaContent({
       .insert(activeRows)
       .select();
     if (insError) {
+      // Reverte a lista em memória para o estado anterior (o delete já ocorreu).
+      setSchedules(prevSchedules);
       setSaving(false);
       setError(insError.message);
       return;
@@ -148,6 +153,30 @@ export function AdminAgendaContent({
 
   const addTimeOff = async () => {
     if (!newTimeOff.start_date || !newTimeOff.end_date) return;
+
+    // Valida ordem: início não pode vir depois do fim.
+    if (newTimeOff.start_date > newTimeOff.end_date) {
+      setError('A data de início não pode ser posterior à data de fim.');
+      return;
+    }
+
+    // Valida overlap com folgas/bloqueios existentes do profissional.
+    const overlap = timeOff.find((t) => {
+      const noOverlap =
+        newTimeOff.end_date < t.start_date || newTimeOff.start_date > t.end_date;
+      return !noOverlap;
+    });
+    if (overlap) {
+      setError(
+        `Este período se sobrepõe a um bloqueio existente (${formatDateBR(overlap.start_date)}${
+          overlap.start_date !== overlap.end_date
+            ? ` até ${formatDateBR(overlap.end_date)}`
+            : ''
+        }). Remova ou ajuste antes de adicionar.`,
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
