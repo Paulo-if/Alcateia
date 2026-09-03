@@ -1,11 +1,11 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type { Service } from '../types';
 import { DEV_SERVICES } from '../data/devFallback';
 import { friendlyError } from './errors';
 
 /** Serviços ativos ordenados pela ordem definida no painel. */
 export async function fetchServices(): Promise<Service[]> {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     return DEV_SERVICES;
   }
 

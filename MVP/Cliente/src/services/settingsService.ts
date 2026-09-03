@@ -1,5 +1,5 @@
 import { defaultPublicSettings, type PublicSettings } from '../config';
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import { friendlyError } from './errors';
 
 /**
@@ -7,7 +7,7 @@ import { friendlyError } from './errors';
  * Em modo de demonstração (Sem Supabase), usa configurações padrão/environment.
  */
 export async function fetchSettings(): Promise<PublicSettings> {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     return defaultPublicSettings;
   }
 

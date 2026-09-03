@@ -1,4 +1,4 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type { Professional } from '../types';
 import { DEV_PROFESSIONALS } from '../data/devFallback';
 import { friendlyError } from './errors';
@@ -8,7 +8,7 @@ import { friendlyError } from './errors';
  * Em modo de demonstração (Sem Supabase), retorna dados locais sinalizados.
  */
 export async function fetchProfessionals(): Promise<Professional[]> {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     return DEV_PROFESSIONALS;
   }
 

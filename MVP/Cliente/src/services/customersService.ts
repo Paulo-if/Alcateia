@@ -1,4 +1,4 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type { Customer } from '../types';
 import { friendlyError } from './errors';
 import { normalizePhone } from '../lib/phone';
@@ -20,7 +20,7 @@ export async function findOrCreateCustomer({
 }: FindOrCreateCustomerInput): Promise<Customer> {
   const normalized = normalizePhone(telefone);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     return { id: 'dev-cliente', nome: nome.trim(), telefone: normalized, email: null };
   }
 

@@ -6,7 +6,7 @@
 // confundidos com dados reais de produção. Assim que o Supabase for configurado,
 // estes dados são ignorados e o app passa a consumir o banco real.
 
-import type { BumpOffer, Professional, Service, UpsellOffer } from '../types';
+import type { BumpOffer, Professional, Service } from '../types';
 
 export const DEV_PROFESSIONALS: Professional[] = [
   { id: 'dev-rafael', name: 'Rafael', specialty: 'Especialista em degradê', avatar_url: null, active: true },
@@ -57,25 +57,6 @@ export const DEV_SERVICES: Service[] = [
     ordem: 4,
   },
 ];
-
-export const DEV_BUMP: BumpOffer = {
-  type: 'product',
-  name: 'Pomada Modeladora',
-  description: 'Fixação leve para acabamento impecável.',
-  price: 25,
-  originalPrice: 45,
-  additionalMinutes: 0,
-  imageUrl: null,
-  product: {
-    id: 'dev-pomada',
-    nome: 'Pomada Modeladora',
-    descricao: 'Fixação leve para acabamento impecável.',
-    preco_original: 45,
-    preco_bump: 25,
-    imagem_url: null,
-    ativo: true,
-  },
-};
 
 // Ofertas de Order Bump (dev). Estruturalmente um array para o carrossel de até
 // 3 produtos — pronto para receber a lista real do Supabase (`produtos` ativos).
@@ -133,17 +114,6 @@ export const DEV_BUMP_OFFERS: BumpOffer[] = [
       imagem_url: null,
       ativo: true,
     },
-  },
-];
-
-export const DEV_UPSELL: UpsellOffer[] = [
-  {
-    id: 'dev-upsell-1',
-    name: 'Kit Pomada + Pente',
-    description: 'Leve o combo de finalização e mantenha o visual em casa.',
-    price: 45,
-    originalPrice: 68,
-    imageUrl: null,
   },
 ];
 

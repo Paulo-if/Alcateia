@@ -4,7 +4,7 @@ import type {
   PaymentStatus,
   PaymentWebhookPayload,
 } from '../types';
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import { friendlyError } from './errors';
 
 export interface CheckoutResult {
@@ -72,7 +72,7 @@ export async function createOnlineCheckout(input: {
  * O webhook é armazenado em tabela própria e processado sigilosamente em Edge Function.
  */
 export async function processPaymentWebhook(payload: PaymentWebhookPayload): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (shouldUseFallback()) return;
 
   const supabase = getSupabase();
 

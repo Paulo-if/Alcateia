@@ -1,4 +1,4 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type {
   Booking,
   BookingItem,
@@ -43,7 +43,7 @@ async function assertStillAvailable(
   time: string,
   totalMinutes: number,
 ): Promise<void> {
-  if (!isSupabaseConfigured() || !professionalId) return;
+  if (shouldUseFallback() || !professionalId) return;
 
   const start = combineDateAndTime(dateString, time);
   const end = new Date(start.getTime() + totalMinutes * 60000);
@@ -85,7 +85,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   const startAt = combineDateAndTime(dateString, time);
   const endAt = new Date(startAt.getTime() + totalMinutes * 60000);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     // Modo demonstração: simula criação com idempotência local.
     const booking: Booking = {
       id: `dev-${idempotencyKey}`,
@@ -175,7 +175,7 @@ export async function addUpsellSale(input: {
 }): Promise<void> {
   const { agendamentoId, offer } = input;
 
-  if (!isSupabaseConfigured()) return;
+  if (shouldUseFallback()) return;
 
   const { error } = await getSupabase().from('vendas_bump').insert({
     agendamento_id: agendamentoId,

@@ -20,6 +20,23 @@ export function requireSupabaseConfig(): void {
   }
 }
 
+/**
+ * Indica se o app deve operar no modo de demonstração local (com dados fake).
+ *
+ * Para cumprir a regra "fallbacks de desenvolvimento nunca contaminam produção":
+ * - Se `VITE_REQUIRE_SUPABASE=true` e o Supabase NÃO está configurado, lançamos erro
+ *   (não permitimos dados fake) em vez de silenciosamente mostrar mocks.
+ * - Caso contrário (modo demo explícito, sem Supabase), permitimos os fallbacks.
+ *
+ * Uso nos services: trocar `if (!isSupabaseConfigured())` por `if (shouldUseFallback())`
+ * garante que produção NUNCA mostre dados fake, mesmo que as env vars faltem.
+ */
+export function shouldUseFallback(): boolean {
+  if (isSupabaseConfigured()) return false;
+  // Sem credenciais: só permitimos demo se NÃO for exigido Supabase.
+  return !requireSupabase;
+}
+
 export const supabaseClient: SupabaseClient | null = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;

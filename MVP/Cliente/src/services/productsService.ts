@@ -1,4 +1,4 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type { Product } from '../types';
 import { DEV_BUMP_OFFERS } from '../data/devFallback';
 import { friendlyError } from './errors';
@@ -18,7 +18,7 @@ export async function fetchBumpProduct(): Promise<Product | null> {
  * Em modo de demonstração local (sem Supabase), retorna dados mock de dev.
  */
 export async function fetchBumpProducts(): Promise<Product[]> {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     return DEV_BUMP_OFFERS.map((o) => o.product!).filter(Boolean);
   }
 

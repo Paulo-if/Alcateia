@@ -1,4 +1,4 @@
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, shouldUseFallback } from '../lib/supabase';
 import type { Professional, Service } from '../types';
 import {
   businessHours,
@@ -58,7 +58,7 @@ export interface DateAvailabilityParams {
 export async function fetchUnavailableRanges(
   professionalId: string | 'any',
 ): Promise<UnavailableRange[]> {
-  if (!isSupabaseConfigured() || professionalId === 'any') return [];
+  if (shouldUseFallback() || professionalId === 'any') return [];
 
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -134,7 +134,7 @@ export async function resolveWorkingWindow(
   professionalId: string,
   dateString: string,
 ): Promise<WorkingWindow | null> {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     // Modo dev: sem agenda configurada, usa o padrão de funcionamento.
     return {
       start: `${businessHours.startHour.toString().padStart(2, '0')}:00`,
@@ -204,7 +204,7 @@ export async function fetchBusyRanges(
   const dayStart = combineDateAndTime(dateString, '00:00');
   const dayEnd = combineDateAndTime(dateString, '23:59', 59);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseFallback()) {
     // Modo dev: simula bloqueios locais do dia
     const blockedTimes = DEV_BOOKED_BLOCKS[professionalId] ?? DEV_BOOKED_BLOCKS.any ?? [];
     return blockedTimes
