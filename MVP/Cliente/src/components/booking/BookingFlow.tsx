@@ -380,7 +380,6 @@ export function BookingFlow() {
                   loading={loadingInitial}
                   onSelect={(service) => {
                     set({ service });
-                    goNext();
                   }}
                 />
               )}
