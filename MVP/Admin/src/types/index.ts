@@ -34,6 +34,7 @@ export interface Agendamento {
   id: string;
   cliente_id: string | null;
   servico_id: string;
+  professional_id: string | null;
   data_inicio: string;
   data_fim: string;
   status: string;

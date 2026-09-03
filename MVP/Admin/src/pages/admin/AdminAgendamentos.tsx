@@ -42,6 +42,7 @@ import { TimeSlotPicker } from '@/components/ui/TimeSlotPicker';
 import { CalendarModal } from '@/components/ui/CalendarModal';
 import { DayView, type AgendamentoDayItem } from '@/components/agenda/DayView';
 import { WeekView } from '@/components/agenda/WeekView';
+import { maskPhone, normalizePhone } from '@/lib/phone';
 
 const statusConfig: Record<string, { label: string; variant: 'gold' | 'success' | 'danger' | 'default' }> = {
   agendado: { label: 'Agendado', variant: 'gold' },
@@ -88,6 +89,8 @@ export function AdminAgendamentos() {
   const [newObs, setNewObs] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Profissional do novo agendamento (obrigatório para Master escolher)
+  const [newProfissionalId, setNewProfissionalId] = useState('');
 
   // Filtro por profissional (somente master — o barbeiro já vê só a própria agenda via RLS)
   const { isMaster, isBarbeiro, usuario } = useAuth();
@@ -111,7 +114,7 @@ export function AdminAgendamentos() {
     let query = supabase
       .from('agendamentos')
       .select(
-        '*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email)',
+        '*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email), profissional:profissionais(id, name, specialty)',
         { count: 'exact' },
       )
       .order('data_inicio', { ascending: false });
@@ -163,7 +166,7 @@ export function AdminAgendamentos() {
     let q = supabase
       .from('agendamentos')
       .select(
-        '*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email)',
+        '*, servico:servicos(id, nome, duracao_minutos), cliente:clientes(id, nome, telefone, email), profissional:profissionais(id, name, specialty)',
       )
       .gte('data_inicio', start.toISOString())
       .lte('data_inicio', end.toISOString())
@@ -211,6 +214,7 @@ export function AdminAgendamentos() {
   const handleSlotClick = (dateStr: string, timeStr: string) => {
     setNewDate(dateStr);
     setNewTime(timeStr);
+    setNewProfissionalId(profissionalFilter || '');
     setCreateError(null);
     setCreateOpen(true);
   };
@@ -255,6 +259,10 @@ export function AdminAgendamentos() {
       setCreateError('Selecione data e horário para o agendamento.');
       return;
     }
+    if (isMaster && !newProfissionalId) {
+      setCreateError('Selecione o barbeiro responsável pelo agendamento.');
+      return;
+    }
     if (!newNome.trim()) {
       setCreateError('Informe o nome do cliente.');
       return;
@@ -285,10 +293,10 @@ export function AdminAgendamentos() {
         .lt('data_inicio', dataFim.toISOString())
         .gt('data_fim', dataInicio.toISOString());
 
-      // Escopar a checagem ao profissional que será atribuído (barbeiro ou master com filtro).
+      // Escopar a checagem ao profissional que será atribuído (barbeiro ou master).
       const profParaChecagem = isBarbeiro
         ? usuario?.profissional_id
-        : profissionalFilter || null;
+        : (newProfissionalId || profissionalFilter) || null;
       if (profParaChecagem) {
         conflitoQuery = conflitoQuery.eq('professional_id', profParaChecagem);
       }
@@ -308,11 +316,12 @@ export function AdminAgendamentos() {
       }
 
       // Encontrar ou criar cliente
+      const telefoneNormalizado = normalizePhone(newTelefone);
       let clienteId: string | null = null;
       const { data: existingCli } = await supabase
         .from('clientes')
         .select('id')
-        .eq('telefone', newTelefone.trim())
+        .eq('telefone', telefoneNormalizado)
         .maybeSingle();
 
       if (existingCli) {
@@ -320,17 +329,17 @@ export function AdminAgendamentos() {
       } else {
         const { data: newCli } = await supabase
           .from('clientes')
-          .insert({ nome: newNome.trim(), telefone: newTelefone.trim() })
+          .insert({ nome: newNome.trim(), telefone: telefoneNormalizado })
           .select('id')
           .single();
         if (newCli) clienteId = newCli.id;
       }
 
       // Inserir agendamento (STATUS: 'agendado' — não gera receita antes de concluir!)
-      // Atribui o profissional: barbeiro => ele mesmo; master => filtro selecionado (se houver).
+      // Atribui o profissional: barbeiro => ele mesmo; master => escolha explícita.
       const profissionalParaAtribuir = isBarbeiro
         ? usuario?.profissional_id ?? null
-        : profissionalFilter || null;
+        : (newProfissionalId || profissionalFilter) || null;
 
       const { data: novoAgendamento, error: insertError } = await supabase
         .from('agendamentos')
@@ -359,6 +368,7 @@ export function AdminAgendamentos() {
       setNewTelefone('');
       setNewObs('');
       setNewServicoId('');
+      setNewProfissionalId('');
 
       // Atualizar lista e agenda imediatamente
       if (viewMode === 'lista') {
@@ -481,6 +491,8 @@ export function AdminAgendamentos() {
             onClick={() => {
               setNewDate(formatDateInput(new Date()));
               setNewTime('09:00');
+              setNewProfissionalId(profissionalFilter || '');
+              setCreateError(null);
               setCreateOpen(true);
             }}
             className="w-full sm:w-auto justify-center bg-gradient-to-r from-highlight to-[#2bd4ef] text-black font-semibold shadow-lg shadow-highlight/20"
@@ -653,6 +665,7 @@ export function AdminAgendamentos() {
                     <tr className="border-b border-white/5 bg-white/[0.02]">
                       <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5">Cliente</th>
                       <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5">Serviço</th>
+                      <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5 hidden sm:table-cell">Barbeiro</th>
                       <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5 hidden md:table-cell">Data & Hora</th>
                       <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5 hidden lg:table-cell">Valor</th>
                       <th className="text-left text-xs text-cream/40 font-medium px-5 py-3.5">Status</th>
@@ -675,6 +688,11 @@ export function AdminAgendamentos() {
                           </td>
                           <td className="px-5 py-3.5">
                             <span className="text-xs sm:text-sm text-cream/80">{ag.servico?.nome ?? '—'}</span>
+                          </td>
+                          <td className="px-5 py-3.5 hidden sm:table-cell">
+                            <span className="text-xs text-cream/60">
+                              {ag.profissional?.name ?? '—'}
+                            </span>
                           </td>
                           <td className="px-5 py-3.5 hidden md:table-cell">
                             <span className="text-xs text-cream/60">{formatDateTime(ag.data_inicio)}</span>
@@ -750,6 +768,29 @@ export function AdminAgendamentos() {
                   {selectedAg.servico?.duracao_minutos ?? 30} min
                 </p>
               </div>
+            </div>
+
+            {/* Barbeiro responsável */}
+            <div className="bg-white/[0.02] p-4 rounded-xl border border-white/5">
+              <p className="text-xs text-cream/40 mb-1 flex items-center gap-1.5">
+                <UserCircle2 size={13} className="text-highlight" /> Barbeiro
+              </p>
+              {selectedAg.profissional ? (
+                <>
+                  <p className="text-[#F5F1EA] font-medium text-sm">
+                    {selectedAg.profissional.name}
+                  </p>
+                  {selectedAg.profissional.specialty && (
+                    <p className="text-xs text-cream/60 mt-0.5">
+                      {selectedAg.profissional.specialty}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-cream/50">
+                  Não foi possível identificar o barbeiro deste agendamento.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -846,6 +887,46 @@ export function AdminAgendamentos() {
             />
           </div>
 
+          {isMaster && (
+            <div>
+              <label className="block text-xs font-medium text-cream/60 mb-1.5">
+                Barbeiro *
+              </label>
+              <div className="relative">
+                <UserCircle2
+                  size={15}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none"
+                />
+                <select
+                  value={newProfissionalId}
+                  onChange={(e) => setNewProfissionalId(e.target.value)}
+                  className={cn(
+                    'w-full appearance-none bg-[#121212] border rounded-xl pl-9 pr-8 py-2.5 text-xs text-[#F5F1EA] outline-none transition-colors cursor-pointer',
+                    createError && !newProfissionalId
+                      ? 'border-danger/50'
+                      : 'border-white/10 focus:border-highlight/50',
+                  )}
+                  aria-label="Selecionar barbeiro"
+                >
+                  <option value="" className="bg-[#121212]">
+                    Selecione o barbeiro...
+                  </option>
+                  {profissionais
+                    .filter((p) => p.active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id} className="bg-[#121212]">
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-cream/60 mb-1.5">
               Data do Agendamento *
@@ -890,7 +971,7 @@ export function AdminAgendamentos() {
                 <input
                   type="tel"
                   value={newTelefone}
-                  onChange={(e) => setNewTelefone(e.target.value)}
+                  onChange={(e) => setNewTelefone(maskPhone(e.target.value))}
                   placeholder="(11) 99999-9999"
                   className="w-full bg-[#121212] border border-white/10 rounded-xl px-3 py-2 text-xs text-[#F5F1EA] placeholder:text-cream/30 focus:outline-none focus:border-highlight/50"
                 />

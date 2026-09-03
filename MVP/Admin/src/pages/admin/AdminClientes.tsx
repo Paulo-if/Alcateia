@@ -22,6 +22,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Pagination } from '@/components/ui/Pagination';
+import { maskPhone, normalizePhone } from '@/lib/phone';
 
 type ClienteWithStats = Cliente & {
   totalAgendamentos: number;
@@ -113,7 +114,7 @@ export function AdminClientes() {
 
   const openEdit = (cliente: ClienteWithStats) => {
     setFormNome(cliente.nome);
-    setFormTelefone(cliente.telefone);
+    setFormTelefone(maskPhone(cliente.telefone));
     setFormEmail(cliente.email ?? '');
     setSelectedCliente(cliente);
     setEditOpen(true);
@@ -122,16 +123,17 @@ export function AdminClientes() {
   const handleSave = async () => {
     if (!formNome.trim() || !formTelefone.trim()) return;
     setSaving(true);
+    const telefoneNormalizado = normalizePhone(formTelefone);
     if (editOpen && selectedCliente) {
       await supabase
         .from('clientes')
-        .update({ nome: formNome.trim(), telefone: formTelefone.trim(), email: formEmail.trim() || null })
+        .update({ nome: formNome.trim(), telefone: telefoneNormalizado, email: formEmail.trim() || null })
         .eq('id', selectedCliente.id);
       setEditOpen(false);
     } else {
       await supabase
         .from('clientes')
-        .insert({ nome: formNome.trim(), telefone: formTelefone.trim(), email: formEmail.trim() || null });
+        .insert({ nome: formNome.trim(), telefone: telefoneNormalizado, email: formEmail.trim() || null });
       setCreateOpen(false);
     }
     setSaving(false);
@@ -402,7 +404,7 @@ export function AdminClientes() {
             <input
               type="tel"
               value={formTelefone}
-              onChange={(e) => setFormTelefone(e.target.value)}
+              onChange={(e) => setFormTelefone(maskPhone(e.target.value))}
               placeholder="(11) 99999-9999"
               className="w-full bg-[#121212] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-[#F5F1EA] focus:outline-none focus:border-highlight/50"
             />

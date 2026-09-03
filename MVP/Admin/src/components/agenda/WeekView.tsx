@@ -1,13 +1,20 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Clock, CheckCircle2, XCircle } from 'lucide-react';
-import type { Agendamento, Servico, Cliente } from '@/types';
+import type { Agendamento, Servico, Cliente, Profissional } from '@/types';
 import { formatCurrency, formatTime, formatDateInput, getStartOfWeek, cn } from '@/lib/utils';
 import { BARBERSHOP_TZ_LABEL } from '@/lib/timezone';
+import {
+  getBarbershopDateKey,
+  getBarbershopMinutes,
+  getBarbershopNowMinutes,
+  getBarbershopTodayKey,
+} from '@/lib/timezone';
 import { DayView } from '@/components/agenda/DayView';
 
 export type AgendamentoItem = Agendamento & {
   servico?: Pick<Servico, 'id' | 'nome' | 'duracao_minutos'> | null;
   cliente?: Pick<Cliente, 'id' | 'nome' | 'telefone' | 'email'> | null;
+  profissional?: Pick<Profissional, 'id' | 'name' | 'specialty'> | null;
 };
 
 interface WeekViewProps {
@@ -48,16 +55,13 @@ export function WeekView({
   const weekDays = useMemo(() => {
     const monday = getStartOfWeek(targetDate);
     const days: { date: Date; dateStr: string; label: string; dayNum: number; isToday: boolean }[] = [];
-    const now = new Date();
+    const todayKey = getBarbershopTodayKey();
     const dayLabels = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const isToday =
-        d.getDate() === now.getDate() &&
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear();
+      const isToday = getBarbershopDateKey(d) === todayKey;
 
       days.push({
         date: d,
@@ -83,32 +87,44 @@ export function WeekView({
 
   // Posicionar eventos por dia
   const eventsByDay = useMemo(() => {
-    const map: Record<string, (AgendamentoItem & { top: number; height: number; startTimeFormatted: string; endTimeFormatted: string })[]> = {};
+    const map: Record<string, (AgendamentoItem & { top: number; height: number; startTimeFormatted: string; endTimeFormatted: string; temporal: 'past' | 'now' | 'future' | null })[]> = {};
 
     weekDays.forEach((day) => {
       map[day.dateStr] = [];
     });
 
+    const nowMinutes = getBarbershopNowMinutes();
+    const nowKey = getBarbershopTodayKey();
+
     agendamentos.forEach((ag) => {
       const startDate = new Date(ag.data_inicio);
       const endDate = new Date(ag.data_fim);
-      const dayStr = formatDateInput(startDate);
+      const dayStr = getBarbershopDateKey(startDate);
 
       if (map[dayStr]) {
-        const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
-        const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+        const startMinutes = getBarbershopMinutes(startDate);
+        const endMinutes = getBarbershopMinutes(endDate);
 
         const gridStartMinutes = startHour * 60;
         const topMinutes = Math.max(0, startMinutes - gridStartMinutes);
         const durationMinutes = Math.max(20, endMinutes - startMinutes || (ag.servico?.duracao_minutos ?? 30));
 
         const top = (topMinutes / 60) * HOUR_HEIGHT_PX;
-        const height = Math.max(34, (durationMinutes / 60) * HOUR_HEIGHT_PX - 3);
+        const height = Math.max(30, (durationMinutes / 60) * HOUR_HEIGHT_PX - 3);
+
+        // Estado temporal (hoje, no fuso SP): passado / agora / futuro.
+        let temporal: 'past' | 'now' | 'future' | null = null;
+        if (dayStr === nowKey && ag.status !== 'cancelado') {
+          if (nowMinutes > endMinutes) temporal = 'past';
+          else if (nowMinutes >= startMinutes) temporal = 'now';
+          else temporal = 'future';
+        }
 
         map[dayStr].push({
           ...ag,
           top,
           height,
+          temporal,
           startTimeFormatted: formatTime(startDate),
           endTimeFormatted: formatTime(endDate),
         });
@@ -123,6 +139,13 @@ export function WeekView({
     () => agendamentos.filter((ag) => formatDateInput(new Date(ag.data_inicio)) === mobileDay),
     [agendamentos, mobileDay]
   );
+
+  // Posição da linha "agora" na coluna de hoje (relógio da barbearia).
+  const nowPosition = useMemo(() => {
+    const nowMinutes = getBarbershopNowMinutes();
+    if (nowMinutes < startHour * 60 || nowMinutes > endHour * 60) return null;
+    return ((nowMinutes - startHour * 60) / 60) * HOUR_HEIGHT_PX;
+  }, [startHour, endHour]);
 
   const handleGridSlotClick = (e: React.MouseEvent<HTMLDivElement>, dateStr: string) => {
     if (!onSlotClick) return;
@@ -217,6 +240,16 @@ export function WeekView({
                   style={{ minHeight: `${gridHeight}px` }}
                   title="Clique para agendar neste horário"
                 >
+                  {/* Linha vermelha "agora" na coluna de hoje */}
+                  {day.isToday && nowPosition !== null && (
+                    <div
+                      style={{ top: `${nowPosition}px` }}
+                      className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-[#F51D1D] -ml-1 shadow-md shadow-[#F51D1D]/50" />
+                      <div className="flex-1 h-[1.5px] bg-[#F51D1D]/70" />
+                    </div>
+                  )}
                   {/* Eventos da coluna */}
                   {dayEvents.map((event) => {
                     const isConcluido = event.status === 'concluido';
@@ -242,6 +275,10 @@ export function WeekView({
                             ? 'bg-[#81FF4D]/15 border-[#81FF4D]/40 text-cream hover:border-[#81FF4D]'
                             : isCancelado
                             ? 'bg-[#F51D1D]/15 border-[#F51D1D]/30 text-cream opacity-60'
+                            : event.temporal === 'past'
+                            ? 'bg-[#0D0D0D]/60 border-white/10 text-cream/50 opacity-50 hover:border-highlight/40'
+                            : event.temporal === 'now'
+                            ? 'bg-gradient-to-r from-[#14333d] to-[#0f232b] border-highlight text-white shadow-lg shadow-highlight/15 hover:border-highlight'
                             : 'bg-gradient-to-r from-[#182830] to-[#121c22] border-highlight/40 text-white hover:border-highlight shadow-sm'
                         )}
                       >

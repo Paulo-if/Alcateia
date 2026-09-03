@@ -1,11 +1,18 @@
 import { useMemo } from 'react';
 import { CheckCircle2, XCircle, CalendarX, Clock } from 'lucide-react';
-import type { Agendamento, Servico, Cliente } from '@/types';
+import type { Agendamento, Servico, Cliente, Profissional } from '@/types';
 import { formatCurrency, formatTime, formatDateInput, cn } from '@/lib/utils';
+import {
+  getBarbershopDateKey,
+  getBarbershopMinutes,
+  getBarbershopNowMinutes,
+  getBarbershopTodayKey,
+} from '@/lib/timezone';
 
 export type AgendamentoDayItem = Agendamento & {
   servico?: Pick<Servico, 'id' | 'nome' | 'duracao_minutos'> | null;
   cliente?: Pick<Cliente, 'id' | 'nome' | 'telefone' | 'email'> | null;
+  profissional?: Pick<Profissional, 'id' | 'name' | 'specialty'> | null;
 };
 
 interface DayViewProps {
@@ -33,14 +40,9 @@ export function DayView({
   compact = false,
 }: DayViewProps) {
   const targetDate = useMemo(() => (typeof date === 'string' ? new Date(`${date}T00:00:00`) : date), [date]);
-  const isToday = useMemo(() => {
-    const now = new Date();
-    return (
-      targetDate.getFullYear() === now.getFullYear() &&
-      targetDate.getMonth() === now.getMonth() &&
-      targetDate.getDate() === now.getDate()
-    );
-  }, [targetDate]);
+  // "Hoje" é determinado no fuso da barbearia (America/Sao_Paulo), não no do navegador.
+  const targetKey = useMemo(() => getBarbershopDateKey(targetDate), [targetDate]);
+  const isToday = targetKey === getBarbershopTodayKey();
 
   const hourHeight = compact ? COMPACT_HOUR_HEIGHT_PX : HOUR_HEIGHT_PX;
   const totalHours = endHour - startHour;
@@ -55,14 +57,16 @@ export function DayView({
     return list;
   }, [startHour, endHour]);
 
-  // Posição atual da linha do tempo
+  // Posição atual da linha do tempo (relógio da barbearia)
   const nowPosition = useMemo(() => {
     if (!isToday) return null;
-    const now = new Date();
-    const currentHour = now.getHours() + now.getMinutes() / 60;
-    if (currentHour < startHour || currentHour > endHour) return null;
-    return (currentHour - startHour) * hourHeight;
+    const nowMinutes = getBarbershopNowMinutes();
+    if (nowMinutes < startHour * 60 || nowMinutes > endHour * 60) return null;
+    return ((nowMinutes - startHour * 60) / 60) * hourHeight;
   }, [isToday, startHour, endHour, hourHeight]);
+
+  // Agora no fuso da barbearia (usado para os estados temporais dos cards)
+  const nowSPMinutes = isToday ? getBarbershopNowMinutes() : null;
 
   // Processar eventos e calcular posições respeitando a duração real
   const positionedEvents = useMemo(() => {
@@ -70,25 +74,36 @@ export function DayView({
       const startDate = new Date(ag.data_inicio);
       const endDate = new Date(ag.data_fim);
 
-      const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
-      const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+      // Posiciona pelos minutos do relógio da barbearia (não do navegador).
+      const startMinutes = getBarbershopMinutes(startDate);
+      const endMinutes = getBarbershopMinutes(endDate);
 
       const gridStartMinutes = startHour * 60;
       const topMinutes = Math.max(0, startMinutes - gridStartMinutes);
       const durationMinutes = Math.max(20, endMinutes - startMinutes || (ag.servico?.duracao_minutos ?? 30));
 
       const top = (topMinutes / 60) * hourHeight;
-      const height = Math.max(28, (durationMinutes / 60) * hourHeight - 3);
+      const height = Math.max(26, (durationMinutes / 60) * hourHeight - 3);
+
+      // Estado temporal (apenas quando a grade mostra o dia de hoje no fuso SP):
+      // passado => escuro/transparente; acontecendo agora => destaque; futuro => normal.
+      let temporal: 'past' | 'now' | 'future' | null = null;
+      if (isToday && nowSPMinutes !== null && ag.status !== 'cancelado') {
+        if (nowSPMinutes > endMinutes) temporal = 'past';
+        else if (nowSPMinutes >= startMinutes) temporal = 'now';
+        else temporal = 'future';
+      }
 
       return {
         ...ag,
         top,
         height,
+        temporal,
         startTimeFormatted: formatTime(startDate),
         endTimeFormatted: formatTime(endDate),
       };
     });
-  }, [agendamentos, startHour, hourHeight]);
+  }, [agendamentos, startHour, hourHeight, isToday, nowSPMinutes]);
 
   const handleGridClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!onSlotClick) return;
@@ -190,6 +205,10 @@ export function DayView({
                       ? 'bg-[#81FF4D]/15 border-[#81FF4D]/40 text-cream hover:border-[#81FF4D]'
                       : isCancelado
                       ? 'bg-[#F51D1D]/15 border-[#F51D1D]/30 text-cream opacity-60'
+                      : event.temporal === 'past'
+                      ? 'bg-[#0D0D0D]/60 border-white/10 text-cream/50 opacity-50 hover:border-highlight/40'
+                      : event.temporal === 'now'
+                      ? 'bg-gradient-to-r from-[#14333d] to-[#0f232b] border-highlight text-white shadow-lg shadow-highlight/15 hover:border-highlight'
                       : 'bg-gradient-to-r from-[#182830] to-[#121c22] border-highlight/40 text-white hover:border-highlight shadow-sm'
                   )}
                 >
@@ -221,6 +240,12 @@ export function DayView({
                           {event.servico?.nome && (
                             <p className="text-[11px] text-cream/70 truncate m-0 mt-0.5 font-medium">
                               {event.servico.nome}
+                            </p>
+                          )}
+
+                          {event.profissional?.name && (
+                            <p className="text-[10px] text-highlight/80 truncate m-0 mt-0.5 font-medium">
+                              {event.profissional.name}
                             </p>
                           )}
                         </div>
