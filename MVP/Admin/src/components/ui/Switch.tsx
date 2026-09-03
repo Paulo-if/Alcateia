@@ -40,10 +40,10 @@ export function Switch({
       disabled={disabled}
       onClick={handleClick}
       className={cn(
-        'relative inline-flex items-center rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-highlight/50',
+        'relative inline-flex items-center rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-highlight/40',
         dimensions.track,
         checked
-          ? 'bg-gradient-to-r from-[#4FE7FF] to-[#2bd4ef] shadow-lg shadow-highlight/20'
+          ? 'bg-gradient-to-r from-[#4FE7FF] to-[#2bd4ef] shadow-sm shadow-highlight/5'
           : 'bg-white/10 hover:bg-white/15',
         disabled && 'opacity-40 cursor-not-allowed',
         className
@@ -51,7 +51,7 @@ export function Switch({
     >
       <span
         className={cn(
-          'inline-block rounded-full bg-white shadow-md transform transition-transform duration-300 pointer-events-none',
+          'inline-block rounded-full bg-white shadow-sm transform transition-transform duration-300 pointer-events-none',
           dimensions.knob,
           checked ? dimensions.translate : 'translate-x-0.5',
           !checked && 'bg-cream/70'

@@ -10,6 +10,8 @@ import {
   Clock,
   Pencil,
   User,
+  UserCircle2,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Cliente, Agendamento, Servico } from '@/types';
@@ -28,10 +30,13 @@ type ClienteWithStats = Cliente & {
   totalAgendamentos: number;
   totalGasto: number;
   ultimoAgendamento: string | null;
+  /** Barbeiros que atenderam este cliente (derivado do histórico real). */
+  barbeiros: { id: string; name: string }[];
 };
 
 type AgendamentoFull = Agendamento & {
   servico: Pick<Servico, 'id' | 'nome' | 'duracao_minutos'> | null;
+  profissional?: { id: string; name: string } | null;
 };
 
 const statusConfig: Record<string, { label: string; variant: 'gold' | 'success' | 'danger' | 'default' }> = {
@@ -46,6 +51,8 @@ export function AdminClientes() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 24;
+  const [profissionais, setProfissionais] = useState<{ id: string; name: string }[]>([]);
+  const [barbeiroFilter, setBarbeiroFilter] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<ClienteWithStats | null>(null);
   const [clienteAgendamentos, setClienteAgendamentos] = useState<AgendamentoFull[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -61,6 +68,14 @@ export function AdminClientes() {
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
+
+    // Lista de barbeiros para o filtro (derivada dos profissionais cadastrados).
+    const { data: profData } = await supabase
+      .from('profissionais')
+      .select('id, name')
+      .order('name');
+    setProfissionais((profData as { id: string; name: string }[]) ?? []);
+
     const { data: cliData } = await supabase
       .from('clientes')
       .select('*')
@@ -72,16 +87,28 @@ export function AdminClientes() {
       cliList.map(async (c) => {
         const { data: ags } = await supabase
           .from('agendamentos')
-          .select('*, servico:servicos(id, nome, duracao_minutos)')
+          .select('*, servico:servicos(id, nome, duracao_minutos), profissional:profissionais(id, name)')
           .eq('cliente_id', c.id)
           .order('data_inicio', { ascending: false });
 
         const agList = (ags as AgendamentoFull[]) ?? [];
+
+        // Barbeiros que realmente atenderam este cliente (sem duplicar).
+        const barbeiros = Array.from(
+          new Map(
+            agList
+              .map((a) => a.profissional)
+              .filter((p): p is { id: string; name: string } => !!p)
+              .map((p) => [p.id, p]),
+          ).values(),
+        );
+
         return {
           ...c,
           totalAgendamentos: agList.length,
           totalGasto: agList.filter((a) => a.status !== 'cancelado').reduce((s, a) => s + a.valor_servico, 0),
           ultimoAgendamento: agList.length > 0 ? agList[0].data_inicio : null,
+          barbeiros,
         };
       }),
     );
@@ -154,9 +181,10 @@ export function AdminClientes() {
 
   const filtered = clientes.filter(
     (c) =>
-      c.nome.toLowerCase().includes(search.toLowerCase()) ||
-      c.telefone.includes(search) ||
-      (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false),
+      (c.nome.toLowerCase().includes(search.toLowerCase()) ||
+        c.telefone.includes(search) ||
+        (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false)) &&
+      (barbeiroFilter === '' || c.barbeiros.some((b) => b.id === barbeiroFilter)),
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -183,16 +211,40 @@ export function AdminClientes() {
         </Button>
       </div>
 
-      {/* Componente Reutilizável de Busca */}
-      <div className="mb-6">
-        <SearchInput
-          value={search}
-          onChange={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-          placeholder="Buscar por nome, telefone ou e-mail..."
-        />
+      {/* Busca + Filtro por Barbeiro */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+        <div className="w-full sm:flex-1">
+          <SearchInput
+            value={search}
+            onChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            placeholder="Buscar por nome, telefone ou e-mail..."
+          />
+        </div>
+        <div className="sm:w-56">
+          <div className="relative">
+            <UserCircle2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none" />
+            <select
+              value={barbeiroFilter}
+              onChange={(e) => {
+                setBarbeiroFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full appearance-none bg-[#141414] border border-white/10 rounded-xl pl-9 pr-8 py-2.5 text-xs text-[#F5F1EA] outline-none transition-colors cursor-pointer focus:border-highlight/50"
+              aria-label="Filtrar por barbeiro"
+            >
+              <option value="" className="bg-[#121212]">Todos os barbeiros</option>
+              {profissionais.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#121212]">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       {loading ? (
