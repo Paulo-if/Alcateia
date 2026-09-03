@@ -15,8 +15,8 @@ interface Props {
 }
 
 export function PublicFooter({ settings }: Props) {
-  const whatsappNumber = settings.whatsapp.replace(/\D/g, '');
-  const instagramUrl = settings.instagram === '#' ? null : settings.instagram;
+  const instagramUrl = settings.instagramUrl || null;
+  const whatsappUrl = settings.whatsappUrl || (settings.whatsapp ? `https://wa.me/${settings.whatsapp.replace(/\D/g, '')}` : null);
 
   return (
     <footer className="public-footer">
@@ -32,10 +32,10 @@ export function PublicFooter({ settings }: Props) {
             <Instagram size={22} />
           </a>
         )}
-        {whatsappNumber && (
+        {whatsappUrl && (
           <a
             className="social-link"
-            href={`https://wa.me/${whatsappNumber}`}
+            href={whatsappUrl}
             target="_blank"
             rel="noreferrer"
             aria-label="WhatsApp da Alcateia Barber"
