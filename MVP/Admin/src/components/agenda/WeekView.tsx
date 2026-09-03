@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Clock, CheckCircle2, XCircle } from 'lucide-react';
 import type { Agendamento, Servico, Cliente } from '@/types';
 import { formatCurrency, formatTime, formatDateInput, getStartOfWeek, cn } from '@/lib/utils';
+import { BARBERSHOP_TZ_LABEL } from '@/lib/timezone';
 import { DayView } from '@/components/agenda/DayView';
 
 export type AgendamentoItem = Agendamento & {
@@ -141,7 +142,7 @@ export function WeekView({
       <div className="hidden sm:flex border-b border-white/10 bg-[#121212] select-none">
         {/* Espaço da coluna de horários */}
         <div className="w-14 sm:w-16 shrink-0 border-r border-white/10 p-3 text-right text-[11px] text-cream/40 font-mono">
-          GMT-3
+          {BARBERSHOP_TZ_LABEL}
         </div>
 
         {/* 7 Colunas dos Dias */}

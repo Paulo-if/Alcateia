@@ -260,8 +260,7 @@ export async function getAvailableSlots(params: {
   // Descarta horários que já passaram (hoje)
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const isToday = dateString ===
-    `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+  const isToday = dateString === formatDateInput(now);
 
   const result: AvailableSlot[] = [];
 
