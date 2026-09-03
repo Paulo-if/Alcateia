@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import type { Papel } from '@/types';
+import { DatabaseUsageBanner } from '@/components/admin/DatabaseUsageBanner';
 
 const PAPEL_LABEL: Record<Papel, string> = {
   master: 'Master',
@@ -45,7 +46,7 @@ const menuItems: MenuItem[] = [
 export function AdminLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { papel, usuario } = useAuth();
+  const { papel, usuario, isMaster } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const userName = usuario?.nome;
@@ -187,6 +188,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden max-w-7xl w-full mx-auto">
+          {isMaster && <DatabaseUsageBanner />}
           {children}
         </main>
       </div>
