@@ -71,13 +71,28 @@ Deno.serve(async (req) => {
     }
 
     // ---------- Input ----------
-    const { nome } = await req.json().catch(() => ({}));
+    const { nome, password } = await req.json().catch(() => ({}));
     const nomeStr = nome ? String(nome).trim() : null;
     if (!nomeStr) {
       return json({ error: 'Informe o nome do administrador.' }, 400);
     }
 
+    // Valida a senha contra o Supabase Auth para confirmar identidade
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return json({ error: 'Confirme sua senha para vincular.' }, 400);
+    }
+
     const emailNorm = (user.user.email ?? '').toLowerCase().trim();
+    const authClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: signInError } = await authClient.auth.signInWithPassword({
+      email: emailNorm,
+      password,
+    });
+    if (signInError) {
+      return json({ error: 'Senha incorreta. Tente novamente.' }, 401);
+    }
 
     // Usuário pode já ter um perfil em `usuarios` (ex.: pré-criado no banco).
     // Se a linha existe, apenas promove para master; senão, cria.

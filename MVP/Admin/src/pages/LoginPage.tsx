@@ -1,17 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Scissors, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Scissors, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const sessionExpired = (location.state as { expired?: boolean } | null)?.expired;
+
+  useEffect(() => {
+    if (sessionExpired) {
+      setError('Sua sessão expirou. Por favor, faça login novamente.');
+    }
+  }, [sessionExpired]);
 
   useEffect(() => {
     supabase.auth
@@ -39,7 +48,13 @@ export function LoginPage() {
     setLoading(false);
 
     if (authError) {
-      setError('Credenciais inválidas. Verifique o e-mail e a senha e tente novamente.');
+      if (authError.message.includes('Invalid login credentials')) {
+        setError('E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.');
+      } else if (authError.message.includes('Email not confirmed')) {
+        setError('E-mail ainda não confirmado. Verifique sua caixa de entrada.');
+      } else {
+        setError('Não foi possível fazer login. Tente novamente em alguns instantes.');
+      }
       return;
     }
 
@@ -74,8 +89,19 @@ export function LoginPage() {
           </p>
 
           {error && (
-            <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-900/20 px-4 py-3 text-sm text-red-300">
-              <AlertCircle size={18} className="shrink-0" />
+            <div
+              className={cn(
+                'mb-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm',
+                sessionExpired
+                  ? 'border-amber-700/50 bg-amber-900/20 text-amber-300'
+                  : 'border-red-800/50 bg-red-900/20 text-red-300',
+              )}
+            >
+              {sessionExpired ? (
+                <Clock size={18} className="shrink-0" />
+              ) : (
+                <AlertCircle size={18} className="shrink-0" />
+              )}
               <span>{error}</span>
             </div>
           )}

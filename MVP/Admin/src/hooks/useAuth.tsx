@@ -18,6 +18,8 @@ interface AuthContextValue {
   profileLoading: boolean;
   /** true quando há sessão mas NENHUM perfil (usuário sem perfil/papel) */
   needsProfile: boolean;
+  /** true quando a sessão expirou ou foi encerrada (para exibir mensagem no login) */
+  sessionExpired: boolean;
   /** o papel (usuario?.papel) — null enquanto não carregado */
   papel: Usuario['papel'] | null;
   isMaster: boolean;
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const fetchUsuario = useCallback(async (sess: Session) => {
     setProfileLoading(true);
@@ -65,13 +68,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setProfileLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       if (!active) return;
       setSession(sess);
-      if (sess) fetchUsuario(sess);
-      else {
+      if (sess) {
+        setSessionExpired(false);
+        fetchUsuario(sess);
+      } else {
         setUsuario(null);
         setProfileLoading(false);
+        if (event === 'SIGNED_OUT') setSessionExpired(true);
       }
     });
 
@@ -92,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     profileLoading,
     needsProfile,
+    sessionExpired,
     papel,
     isMaster,
     isBarbeiro,

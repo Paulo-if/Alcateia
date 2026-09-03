@@ -137,7 +137,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <span className="font-display text-xl text-[#F5F5F5] tracking-wider">
             Alcateia<span className="text-highlight">Barber</span>
           </span>
-          <div className="w-8" />
+          <button
+            onClick={handleLogout}
+            className="text-red-400/80 hover:text-red-300 p-1 rounded-lg hover:bg-red-900/20 transition-colors"
+            aria-label="Sair da conta"
+          >
+            <LogOut size={20} />
+          </button>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden max-w-7xl w-full mx-auto">

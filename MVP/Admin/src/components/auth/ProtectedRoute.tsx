@@ -62,7 +62,7 @@ function VincularAdminScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ nome: nome.trim() }),
+        body: JSON.stringify({ nome: nome.trim(), password: password }),
       },
     );
     setLoading(false);
@@ -165,16 +165,19 @@ function VincularAdminScreen() {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loading, session, needsProfile } = useAuth();
+  const { loading, session, needsProfile, sessionExpired } = useAuth();
 
   useEffect(() => {
     if (!loading && !session) {
       navigate('/admin/login', {
         replace: true,
-        state: { from: location.pathname },
+        state: {
+          from: location.pathname,
+          ...(sessionExpired ? { expired: true } : {}),
+        },
       });
     }
-  }, [loading, session, navigate, location.pathname]);
+  }, [loading, session, sessionExpired, navigate, location.pathname]);
 
   if (loading) return <FullScreenLoader />;
   if (!session) return null;
