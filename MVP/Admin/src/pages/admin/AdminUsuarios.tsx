@@ -21,6 +21,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { AdminAgendaProfissional } from '@/components/admin/AdminAgendaProfissional';
+import { AdminEditarProfissional } from '@/components/admin/AdminEditarProfissional';
 
 const papelLabel: Record<Papel, string> = {
   master: 'Master',
@@ -49,11 +50,17 @@ export function AdminUsuarios() {
   const [confirmDeactivate, setConfirmDeactivate] = useState<Usuario | null>(null);
   const [deactivating, setDeactivating] = useState(false);
   const [agendaFor, setAgendaFor] = useState<{ id: string; name: string } | null>(null);
+  const [editarProfissional, setEditarProfissional] = useState<{
+    id: string;
+    name: string;
+    specialty: string | null;
+    avatar_url: string | null;
+  } | null>(null);
 
   const fetchUsuarios = useCallback(async () => {
     const { data } = await supabase
       .from('usuarios')
-      .select('*, profissional:profissionais(id, name)')
+      .select('*, profissional:profissionais(id, name, specialty, avatar_url)')
       .order('created_at', { ascending: false });
     setUsuarios((data as Usuario[]) ?? []);
   }, []);
@@ -401,6 +408,23 @@ export function AdminUsuarios() {
                       Agenda
                     </Button>
                   )}
+                  {u.profissional && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setEditarProfissional({
+                          id: u.profissional!.id,
+                          name: u.profissional!.name,
+                          specialty: u.profissional!.specialty ?? null,
+                          avatar_url: u.profissional!.avatar_url ?? null,
+                        })
+                      }
+                    >
+                      <UserCog size={15} />
+                      Perfil
+                    </Button>
+                  )}
                   {isMaster && (
                     <Button size="sm" variant="outline" onClick={() => handleDemote(u)}>
                       <Scissors size={15} />
@@ -593,6 +617,14 @@ export function AdminUsuarios() {
         open={!!agendaFor}
         onClose={() => setAgendaFor(null)}
         profissional={agendaFor}
+      />
+
+      {/* ===================== MODAL: EDITAR PROFISSIONAL (foto/especialidade) ===================== */}
+      <AdminEditarProfissional
+        open={!!editarProfissional}
+        profissional={editarProfissional}
+        onClose={() => setEditarProfissional(null)}
+        onSaved={fetchUsuarios}
       />
     </AdminLayout>
   );

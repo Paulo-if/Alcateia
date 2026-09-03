@@ -86,7 +86,7 @@ export interface Usuario {
   papel: Papel;
   ativo: boolean;
   created_at: string;
-  profissional?: Pick<Profissional, 'id' | 'name'> | null;
+  profissional?: Pick<Profissional, 'id' | 'name' | 'specialty' | 'avatar_url'> | null;
 }
 
 /** Horário de trabalho semanal de um profissional (day_of_week 1=Segunda ... 7=Domingo). */
