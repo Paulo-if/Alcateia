@@ -97,6 +97,24 @@ export function AdminAgendamentos() {
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [profissionalFilter, setProfissionalFilter] = useState('');
 
+  // TASK 13 — [INTEGRIDADE] Barbeiro sem agenda não pode receber agendamentos:
+  // ids dos profissionais com ao menos um expediente ATIVO. `null` = ainda não
+  // carregou (permite agir normalmente até concluir a consulta).
+  const [schedulableIds, setSchedulableIds] = useState<Set<string> | null>(null);
+  const isSchedulable = (id: string) => schedulableIds === null || schedulableIds.has(id);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('professional_schedules')
+        .select('professional_id')
+        .eq('active', true);
+      setSchedulableIds(
+        new Set((data ?? []).map((r: { professional_id: string }) => r.professional_id)),
+      );
+    })();
+  }, []);
+
   useEffect(() => {
     if (!isMaster) return;
     (async () => {
@@ -218,7 +236,11 @@ export function AdminAgendamentos() {
   const handleSlotClick = (dateStr: string, timeStr: string) => {
     setNewDate(dateStr);
     setNewTime(timeStr);
-    setNewProfissionalId(isBarbeiro ? (usuario?.profissional_id ?? '') : (profissionalFilter || ''));
+    setNewProfissionalId(
+      isBarbeiro
+        ? (usuario?.profissional_id ?? '')
+        : (isSchedulable(profissionalFilter) ? profissionalFilter : ''),
+    );
     setCreateError(null);
     setCreateOpen(true);
   };
@@ -273,6 +295,19 @@ export function AdminAgendamentos() {
     }
     if (!newProfissionalId) {
       setCreateError('Selecione o barbeiro responsável pelo agendamento.');
+      return;
+    }
+
+    // TASK 13 — barbeiro sem agenda configurada não pode receber agendamentos.
+    const profParaValidar = isBarbeiro
+      ? (usuario?.profissional_id ?? '')
+      : newProfissionalId;
+    if (!profParaValidar || !isSchedulable(profParaValidar)) {
+      setCreateError(
+        isBarbeiro
+          ? 'Sua agenda ainda não está configurada. Configure o expediente em "Minha Agenda" para receber agendamentos.'
+          : 'Este barbeiro ainda não configurou a agenda. Escolha um barbeiro com expediente definido.',
+      );
       return;
     }
     if (!newNome.trim()) {
@@ -503,7 +538,11 @@ export function AdminAgendamentos() {
             onClick={() => {
               setNewDate(formatDateInput(new Date()));
               setNewTime('09:00');
-              setNewProfissionalId(profissionalFilter || '');
+              setNewProfissionalId(
+                isBarbeiro
+                  ? (usuario?.profissional_id ?? '')
+                  : (isSchedulable(profissionalFilter) ? profissionalFilter : ''),
+              );
               setCreateError(null);
               setCreateOpen(true);
             }}
@@ -924,12 +963,18 @@ export function AdminAgendamentos() {
                     Selecione o barbeiro...
                   </option>
                   {profissionais
-                    .filter((p) => p.active)
+                    .filter((p) => p.active && isSchedulable(p.id))
                     .map((p) => (
                       <option key={p.id} value={p.id} className="bg-[#121212]">
                         {p.name}
                       </option>
                     ))}
+                  {profissionais.some((p) => p.active) &&
+                    !profissionais.some((p) => p.active && isSchedulable(p.id)) && (
+                      <option value="" disabled className="bg-[#121212]">
+                        Nenhum barbeiro com agenda configurada
+                      </option>
+                    )}
                 </select>
                 <ChevronDown
                   size={14}
