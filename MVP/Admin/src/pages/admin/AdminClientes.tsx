@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import type { Cliente, Agendamento, Servico } from '@/types';
 import { formatCurrency, formatDateTime, formatDate, cn } from '@/lib/utils';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -46,6 +47,7 @@ const statusConfig: Record<string, { label: string; variant: 'gold' | 'success' 
 };
 
 export function AdminClientes() {
+  const { isMaster, isBarbeiro, usuario } = useAuth();
   const [clientes, setClientes] = useState<ClienteWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -70,11 +72,13 @@ export function AdminClientes() {
     setLoading(true);
 
     // Lista de barbeiros para o filtro (derivada dos profissionais cadastrados).
-    const { data: profData } = await supabase
-      .from('profissionais')
-      .select('id, name')
-      .order('name');
-    setProfissionais((profData as { id: string; name: string }[]) ?? []);
+    if (isMaster) {
+      const { data: profData } = await supabase
+        .from('profissionais')
+        .select('id, name')
+        .order('name');
+      setProfissionais((profData as { id: string; name: string }[]) ?? []);
+    }
 
     const { data: cliData } = await supabase
       .from('clientes')
@@ -83,13 +87,17 @@ export function AdminClientes() {
 
     const cliList = (cliData as Cliente[]) ?? [];
 
-    const enriched: ClienteWithStats[] = await Promise.all(
+    const enriched = (await Promise.all(
       cliList.map(async (c) => {
-        const { data: ags } = await supabase
+        let agQuery = supabase
           .from('agendamentos')
           .select('*, servico:servicos(id, nome, duracao_minutos), profissional:profissionais(id, name)')
           .eq('cliente_id', c.id)
           .order('data_inicio', { ascending: false });
+        if (isBarbeiro && usuario?.profissional_id) {
+          agQuery = agQuery.eq('professional_id', usuario.profissional_id);
+        }
+        const { data: ags } = await agQuery;
 
         const agList = (ags as AgendamentoFull[]) ?? [];
 
@@ -111,23 +119,36 @@ export function AdminClientes() {
           barbeiros,
         };
       }),
-    );
+    )) as ClienteWithStats[];
 
-    setClientes(enriched);
+    if (isBarbeiro && usuario?.profissional_id) {
+      setClientes(
+        enriched.filter(
+          (c) =>
+            c.totalAgendamentos > 0 &&
+            c.barbeiros.some((b) => b.id === usuario.profissional_id),
+        ),
+      );
+    } else {
+      setClientes(enriched);
+    }
     setLoading(false);
-  }, []);
-
+  }, [isMaster, isBarbeiro, usuario?.profissional_id]);
   useEffect(() => {
     fetchClientes();
   }, [fetchClientes]);
 
   const openDetail = async (cliente: ClienteWithStats) => {
     setSelectedCliente(cliente);
-    const { data: ags } = await supabase
+    let q = supabase
       .from('agendamentos')
       .select('*, servico:servicos(id, nome, duracao_minutos)')
       .eq('cliente_id', cliente.id)
       .order('data_inicio', { ascending: false });
+    if (isBarbeiro && usuario?.profissional_id) {
+      q = q.eq('professional_id', usuario.profissional_id);
+    }
+    const { data: ags } = await q;
     setClienteAgendamentos((ags as AgendamentoFull[]) ?? []);
     setDetailOpen(true);
   };
@@ -199,7 +220,9 @@ export function AdminClientes() {
             Clientes
           </h1>
           <p className="text-cream/50 text-sm">
-            {clientes.length} clientes cadastrados na sua base.
+            {isMaster
+              ? `${clientes.length} clientes cadastrados na sua base.`
+              : `${clientes.length} clientes com histórico de atendimento com você.`}
           </p>
         </div>
         <Button
@@ -224,6 +247,7 @@ export function AdminClientes() {
           />
         </div>
         <div className="sm:w-56">
+          {isMaster && (
           <div className="relative">
             <UserCircle2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none" />
             <select
@@ -244,6 +268,7 @@ export function AdminClientes() {
             </select>
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-cream/40 pointer-events-none" />
           </div>
+          )}
         </div>
       </div>
 

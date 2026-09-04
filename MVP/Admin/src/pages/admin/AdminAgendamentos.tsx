@@ -123,7 +123,9 @@ export function AdminAgendamentos() {
       query = query.eq('status', statusFilter);
     }
 
-    if (isMaster && profissionalFilter) {
+    if (isBarbeiro && usuario?.profissional_id) {
+      query = query.eq('professional_id', usuario.profissional_id);
+    } else if (isMaster && profissionalFilter) {
       query = query.eq('professional_id', profissionalFilter);
     }
 
@@ -147,7 +149,7 @@ export function AdminAgendamentos() {
     setAgendamentos(filtered);
     setCount(totalCount ?? 0);
     setLoading(false);
-  }, [page, statusFilter, search, isMaster, profissionalFilter]);
+  }, [page, statusFilter, search, isMaster, isBarbeiro, usuario?.profissional_id, profissionalFilter]);
 
   // Buscar agendamentos para a visualização de Semana ou Dia
   const fetchPeriodAgendamentos = useCallback(async () => {
@@ -172,14 +174,16 @@ export function AdminAgendamentos() {
       .lte('data_inicio', end.toISOString())
       .order('data_inicio', { ascending: true });
 
-    if (isMaster && profissionalFilter) {
+    if (isBarbeiro && usuario?.profissional_id) {
+      q = q.eq('professional_id', usuario.profissional_id);
+    } else if (isMaster && profissionalFilter) {
       q = q.eq('professional_id', profissionalFilter);
     }
 
     const { data } = await q;
 
     setPeriodAgendamentos((data as AgendamentoDayItem[]) ?? []);
-  }, [selectedDate, viewMode, isMaster, profissionalFilter]);
+  }, [selectedDate, viewMode, isMaster, isBarbeiro, usuario?.profissional_id, profissionalFilter]);
 
   useEffect(() => {
     if (viewMode === 'lista') {
@@ -214,12 +218,16 @@ export function AdminAgendamentos() {
   const handleSlotClick = (dateStr: string, timeStr: string) => {
     setNewDate(dateStr);
     setNewTime(timeStr);
-    setNewProfissionalId(profissionalFilter || '');
+    setNewProfissionalId(isBarbeiro ? (usuario?.profissional_id ?? '') : (profissionalFilter || ''));
     setCreateError(null);
     setCreateOpen(true);
   };
 
   const updateStatus = async (id: string, status: string) => {
+    if (isBarbeiro) {
+      const ag = agendamentos.find((a) => a.id === id) ?? periodAgendamentos.find((a) => a.id === id);
+      if (!ag || ag.professional_id !== usuario?.profissional_id) return;
+    }
     await supabase.from('agendamentos').update({ status }).eq('id', id);
 
     setAgendamentos((prev) =>
@@ -239,6 +247,10 @@ export function AdminAgendamentos() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
+    if (isBarbeiro) {
+      const ag = agendamentos.find((a) => a.id === deleteTarget) ?? periodAgendamentos.find((a) => a.id === deleteTarget);
+      if (!ag || ag.professional_id !== usuario?.profissional_id) { setDeleteTarget(null); return; }
+    }
     const id = deleteTarget;
     setDeleteTarget(null);
     await supabase.from('agendamentos').delete().eq('id', id);
@@ -259,7 +271,7 @@ export function AdminAgendamentos() {
       setCreateError('Selecione data e horário para o agendamento.');
       return;
     }
-    if (isMaster && !newProfissionalId) {
+    if (!newProfissionalId) {
       setCreateError('Selecione o barbeiro responsável pelo agendamento.');
       return;
     }

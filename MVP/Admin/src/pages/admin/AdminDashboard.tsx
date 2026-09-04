@@ -127,21 +127,30 @@ export function AdminDashboard() {
       .gte('data_inicio', startOfToday.toISOString())
       .lte('data_inicio', endOfToday.toISOString())
       .order('data_inicio', { ascending: true });
-    if (isMaster && profissionalFilter) {
+    if (isBarbeiro && usuario?.profissional_id) {
+      periodoQ = periodoQ.eq('professional_id', usuario.profissional_id);
+      agendaHojeQ = agendaHojeQ.eq('professional_id', usuario.profissional_id);
+    } else if (isMaster && profissionalFilter) {
       periodoQ = periodoQ.eq('professional_id', profissionalFilter);
       agendaHojeQ = agendaHojeQ.eq('professional_id', profissionalFilter);
     }
 
+    const clienteCountQuery = isBarbeiro && usuario?.profissional_id
+      ? supabase
+          .from('agendamentos')
+          .select('cliente_id', { count: 'exact', head: true })
+          .not('cliente_id', 'is', null)
+          .eq('professional_id', usuario.profissional_id)
+      : supabase.from('clientes').select('id', { count: 'exact', head: true });
+
     const [
       { data: agendamentosPeriodo },
-      { data: clientes },
+      { count: clienteCount },
       { data: agendaHoje },
       { data: servicosData },
     ] = await Promise.all([
-      // Agendamentos estritamente do período selecionado
       periodoQ,
-      supabase.from('clientes').select('id'),
-      // Agenda de HOJE exclusiva para o DayView
+      clienteCountQuery,
       agendaHojeQ,
       supabase.from('servicos').select('id, nome'),
     ]);
@@ -150,7 +159,11 @@ export function AdminDashboard() {
     const agendaList = (agendaHoje as AgendamentoDayItem[] | null) ?? [];
 
     // Fonte de verdade única de receita/despesa (financeService)
-    const profFilter = isMaster && profissionalFilter ? { professionalId: profissionalFilter } : undefined;
+    const profFilter = (isMaster && profissionalFilter)
+      ? { professionalId: profissionalFilter }
+      : (isBarbeiro && usuario?.profissional_id)
+        ? { professionalId: usuario.profissional_id }
+        : undefined;
     const financ = await fetchFinanceiroPeriodo(dateRange, profFilter);
     const dias = await fetchFinanceiroPorDia(dateRange, profFilter);
     const receitaGrafico = dias.map((d) => ({ dia: d.dia, valor: d.receita }));
@@ -180,14 +193,14 @@ export function AdminDashboard() {
       despesasPeriodo,
       lucroPeriodo,
       concluidosPeriodo,
-      totalClientes: clientes?.length ?? 0,
+      totalClientes: clienteCount ?? 0,
       ticketMedioPeriodo,
       receitaGrafico,
       servicosPopulares,
       agendaHoje: agendaList,
     });
     setLoading(false);
-  }, [dateRange, isMaster, profissionalFilter]);
+  }, [dateRange, isMaster, isBarbeiro, usuario?.profissional_id, profissionalFilter]);
 
   useEffect(() => {
     fetchDashboard();
@@ -206,6 +219,10 @@ export function AdminDashboard() {
   // Regra Financeira Estrita (fonte de verdade no financeService):
   // Concluído gera receita automaticamente (derivada dos agendamentos). Cancelado não gera.
   const updateStatus = async (id: string, status: string) => {
+    if (isBarbeiro) {
+      const ag = data?.agendaHoje.find((a) => a.id === id);
+      if (!ag || ag.professional_id !== usuario?.profissional_id) return;
+    }
     await supabase.from('agendamentos').update({ status }).eq('id', id);
 
     if (selectedAg?.id === id) {
@@ -220,6 +237,10 @@ export function AdminDashboard() {
 
   const confirmDeleteAgendamento = async () => {
     if (!deleteTarget) return;
+    if (isBarbeiro) {
+      const ag = data?.agendaHoje.find((a) => a.id === deleteTarget);
+      if (!ag || ag.professional_id !== usuario?.profissional_id) { setDeleteTarget(null); return; }
+    }
     const id = deleteTarget;
     setDeleteTarget(null);
     await supabase.from('agendamentos').delete().eq('id', id);
