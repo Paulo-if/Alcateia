@@ -50,6 +50,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { PeriodFilter, type DateRange } from '@/components/ui/PeriodFilter';
 import { DayView, type AgendamentoDayItem } from '@/components/agenda/DayView';
 import { fetchFinanceiroPeriodo, fetchFinanceiroPorDia } from '@/lib/financeService';
+import { NovoAgendamentoModal } from '@/components/agendamento/NovoAgendamentoModal';
 
 interface DashboardData {
   receitaPeriodo: number;
@@ -93,6 +94,24 @@ export function AdminDashboard() {
   const { isMaster, isBarbeiro, usuario } = useAuth();
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [profissionalFilter, setProfissionalFilter] = useState('');
+
+  // Modal de novo agendamento (1 clique a partir do painel — Task 12)
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createInitial, setCreateInitial] = useState<{
+    date: string;
+    time: string;
+    profissional: string;
+  } | null>(null);
+  const openCreateModal = (dateStr: string, timeStr: string) => {
+    setCreateInitial({
+      date: dateStr,
+      time: timeStr,
+      profissional: isBarbeiro
+        ? (usuario?.profissional_id ?? '')
+        : (profissionalFilter || ''),
+    });
+    setCreateOpen(true);
+  };
 
   useEffect(() => {
     if (!isMaster) return;
@@ -289,12 +308,13 @@ export function AdminDashboard() {
             </div>
           )}
           <PeriodFilter value={dateRange} onChange={setDateRange} />
-          <Link to="/admin/agendamentos">
-            <Button className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black hover:opacity-90 shadow-lg shadow-highlight/20 font-semibold">
-              <Plus size={18} />
-              Novo Agendamento
-            </Button>
-          </Link>
+          <Button
+            onClick={() => openCreateModal(formatDateInput(today), '09:00')}
+            className="bg-gradient-to-r from-highlight to-[#2bd4ef] text-black hover:opacity-90 shadow-lg shadow-highlight/20 font-semibold"
+          >
+            <Plus size={18} />
+            Novo Agendamento
+          </Button>
         </div>
       </div>
 
@@ -384,6 +404,7 @@ export function AdminDashboard() {
                 date={today}
                 agendamentos={data.agendaHoje}
                 onSelectEvent={handleSelectEvent}
+                onSlotClick={(dateStr, timeStr) => openCreateModal(dateStr, timeStr)}
                 compact
                 className="flex-1 min-h-[460px]"
               />
@@ -650,6 +671,18 @@ export function AdminDashboard() {
         message="Tem certeza que deseja excluir este agendamento? Essa ação não pode ser desfeita."
         onConfirm={confirmDeleteAgendamento}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <NovoAgendamentoModal
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false);
+          setCreateInitial(null);
+        }}
+        onCreated={fetchDashboard}
+        initialDate={createInitial?.date}
+        initialTime={createInitial?.time}
+        initialProfissionalId={createInitial?.profissional}
       />
     </AdminLayout>
   );
