@@ -154,28 +154,32 @@ export function AdminDashboard() {
       agendaHojeQ = agendaHojeQ.eq('professional_id', profissionalFilter);
     }
 
-    const clienteCountQuery = isBarbeiro && usuario?.profissional_id
+    // "Total de Clientes": com escopo de profissional (barbeiro ou master filtrado) => clientes
+    // DISTINTOS com agendamento para aquele profissional; master "Todos" => total cadastrado.
+    const scopedProfId = isBarbeiro
+      ? (usuario?.profissional_id ?? '')
+      : (isMaster && profissionalFilter ? profissionalFilter : '');
+    const clienteCountQuery = scopedProfId
       ? supabase
           .from('agendamentos')
-          .select('cliente_id', { count: 'exact', head: true })
+          .select('cliente_id')
           .not('cliente_id', 'is', null)
-          .eq('professional_id', usuario.profissional_id)
+          .eq('professional_id', scopedProfId)
       : supabase.from('clientes').select('id', { count: 'exact', head: true });
 
-    const [
-      { data: agendamentosPeriodo },
-      { count: clienteCount },
-      { data: agendaHoje },
-      { data: servicosData },
-    ] = await Promise.all([
+    const [periodoRes, clienteRes, agendaRes, servicosRes] = await Promise.all([
       periodoQ,
       clienteCountQuery,
       agendaHojeQ,
       supabase.from('servicos').select('id, nome'),
     ]);
 
-    const agList = (agendamentosPeriodo as AgendamentoDayItem[] | null) ?? [];
-    const agendaList = (agendaHoje as AgendamentoDayItem[] | null) ?? [];
+    const agList = (periodoRes.data as AgendamentoDayItem[] | null) ?? [];
+    const agendaList = (agendaRes.data as AgendamentoDayItem[] | null) ?? [];
+
+    const totalClientes = scopedProfId
+      ? new Set((clienteRes.data as Array<{ cliente_id: string | null }> ?? []).map((r) => r.cliente_id)).size
+      : (clienteRes.count ?? 0);
 
     // Fonte de verdade única de receita/despesa (financeService)
     const profFilter = (isMaster && profissionalFilter)
@@ -201,7 +205,7 @@ export function AdminDashboard() {
 
     const servicosPopulares = Object.entries(servicoCount)
       .map(([id, quantidade]) => ({
-        nome: servicosData?.find((s) => s.id === id)?.nome ?? '—',
+        nome: servicosRes.data?.find((s) => s.id === id)?.nome ?? '—',
         quantidade,
       }))
       .sort((a, b) => b.quantidade - a.quantidade)
@@ -212,7 +216,7 @@ export function AdminDashboard() {
       despesasPeriodo,
       lucroPeriodo,
       concluidosPeriodo,
-      totalClientes: clienteCount ?? 0,
+      totalClientes,
       ticketMedioPeriodo,
       receitaGrafico,
       servicosPopulares,
@@ -269,6 +273,13 @@ export function AdminDashboard() {
 
   const today = new Date();
 
+  const contextLabel =
+    isBarbeiro && usuario?.profissional?.name
+      ? ` • Sua agenda (${usuario.profissional.name})`
+      : isMaster && profissionalFilter
+        ? ` • Visualizando: ${profissionais.find((p) => p.id === profissionalFilter)?.name ?? 'barbeiro selecionado'}`
+        : '';
+
   return (
     <AdminLayout>
       {/* Header com Filtro de Período Integrado */}
@@ -279,9 +290,7 @@ export function AdminDashboard() {
           </h1>
           <p className="text-cream/50 text-sm capitalize">
             {formatWeekday(today)}, {formatDayMonth(today)}
-            {isBarbeiro && usuario?.profissional?.name
-              ? ` • Sua agenda (${usuario.profissional.name})`
-              : ''}
+            {contextLabel}
           </p>
         </div>
 
@@ -294,10 +303,10 @@ export function AdminDashboard() {
                 value={profissionalFilter}
                 onChange={(e) => setProfissionalFilter(e.target.value)}
                 className="bg-transparent text-xs text-cream outline-none py-1.5 cursor-pointer"
-                aria-label="Filtrar por profissional"
+                aria-label="Filtrar por barbeiro"
               >
                 <option value="" className="bg-[#141414]">
-                  Todos os profissionais
+                  Todos os barbeiros
                 </option>
                 {profissionais.map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#141414]">
