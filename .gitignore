@@ -11,7 +11,7 @@ node_modules/
 dist/
 build/
 out/
-public/
+/MVP/public/
 *.tsbuildinfo
 
 # arquivo exportado do projeto (não versionar)

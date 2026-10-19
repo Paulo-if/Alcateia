@@ -6,8 +6,11 @@
   "description": "MVP unificado: /cliente e /admin em um unico npm run dev",
   "scripts": {
     "dev": "node dev.mjs",
-    "dev:admin": "npm --prefix Admin run dev",
-    "dev:cliente": "npm --prefix Cliente run dev",
+    "dev:admin": "npm --prefix Admin/frontend run dev",
+    "dev:cliente": "npm --prefix Cliente/frontend run dev",
     "build": "node build-deploy.mjs"
+  },
+  "devDependencies": {
+    "supabase": "^2.116.0"
   }
 }
